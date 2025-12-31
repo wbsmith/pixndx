@@ -1,0 +1,31 @@
+version: 1
+
+# Backend deployment (Amplify Gen 2)
+backend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
+
+# Frontend deployment
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        # Generate Amplify client configuration
+        - npx ampx generate outputs --app-id $AWS_APP_ID --branch $AWS_BRANCH
+        - npm run build
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .amplify/**/*
