@@ -4,6 +4,7 @@ import * as d3 from 'd3';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata } from '@/types/gallery';
+import type { GraphSettings } from '@/components/UI/GraphControls';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -14,7 +15,11 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   weight: number;
 }
 
-export function NetworkGraph() {
+interface NetworkGraphProps {
+  settings?: GraphSettings;
+}
+
+export function NetworkGraph({ settings }: NetworkGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { filteredImages, edges, openModal } = useGalleryStore();
@@ -70,31 +75,58 @@ export function NetworkGraph() {
 
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-    const links: GraphLink[] = edges
-      .filter((e) => nodeMap.has(e.source) && nodeMap.has(e.target))
-      .map((e) => ({
-        source: nodeMap.get(e.source)!,
-        target: nodeMap.get(e.target)!,
-        weight: e.weight,
-      }));
+    // Apply edge filtering from settings
+    const edgeThreshold = settings?.edges?.threshold ?? 0.6;
+    const maxEdgesPerNode = settings?.edges?.maxEdgesPerNode ?? 20;
+    
+    // Filter edges by threshold
+    const filteredEdges = edges.filter(e => 
+      nodeMap.has(e.source) && 
+      nodeMap.has(e.target) && 
+      e.weight >= edgeThreshold
+    );
+    
+    // Limit edges per node
+    const edgeCounts = new Map<string, number>();
+    const limitedEdges = filteredEdges.filter(e => {
+      const srcCount = edgeCounts.get(e.source) ?? 0;
+      const tgtCount = edgeCounts.get(e.target) ?? 0;
+      if (srcCount >= maxEdgesPerNode && tgtCount >= maxEdgesPerNode) {
+        return false;
+      }
+      edgeCounts.set(e.source, srcCount + 1);
+      edgeCounts.set(e.target, tgtCount + 1);
+      return true;
+    });
+    
+    const links: GraphLink[] = limitedEdges.map((e) => ({
+      source: nodeMap.get(e.source)!,
+      target: nodeMap.get(e.target)!,
+      weight: e.weight,
+    }));
 
     setNodeCount(nodes.length);
     setEdgeCount(links.length);
 
+    // Get force settings
+    const gravity = settings?.force?.gravity ?? 0.05;
+    const scaling = settings?.force?.scaling ?? 1.0;
+    const edgeWeightInfluence = settings?.force?.edgeWeightInfluence ?? 1.0;
+
     // Scale parameters based on graph size
     const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodes.length)));
-    const chargeStrength = Math.max(-150, -40000 / nodes.length);
+    const chargeStrength = Math.max(-150, -40000 / nodes.length) * scaling;
 
     const simulation = d3.forceSimulation(nodes)
       .force('link', d3.forceLink<GraphNode, GraphLink>(links)
         .id((d) => d.id)
-        .distance((d) => 20 + 80 * (1 - d.weight))
-        .strength((d) => 0.2 + d.weight * 0.6))
+        .distance((d) => (20 + 80 * (1 - d.weight)) * scaling)
+        .strength((d) => (0.2 + d.weight * 0.6) * edgeWeightInfluence))
       .force('charge', d3.forceManyBody()
         .strength(chargeStrength)
         .distanceMin(nodeRadius)
-        .distanceMax(350))
-      .force('center', d3.forceCenter(width / 2, height / 2).strength(0.015))
+        .distanceMax(350 * scaling))
+      .force('center', d3.forceCenter(width / 2, height / 2).strength(gravity))
       .force('collision', d3.forceCollide().radius(nodeRadius + 2).strength(0.6))
       .velocityDecay(0.4)
       .alphaDecay(0.018)
@@ -195,7 +227,7 @@ export function NetworkGraph() {
     svg.call(zoom.transform as any, d3.zoomIdentity.translate(width * 0.05, height * 0.05).scale(scale));
 
     return () => { simulation.stop(); simulationRef.current = null; };
-  }, [filteredImages, edges, dimensions, openModal]);
+  }, [filteredImages, edges, dimensions, openModal, settings]);
 
   return (
     <motion.div ref={containerRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

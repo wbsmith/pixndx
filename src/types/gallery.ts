@@ -1,3 +1,9 @@
+// CLIP neighbor - precomputed similar image
+export interface ClipNeighbor {
+  id: string;
+  weight: number;  // 0-1 cosine similarity
+}
+
 // Core image types - matches your JSON metadata structure
 export interface ImageMetadata {
   // Generated/computed fields
@@ -17,7 +23,11 @@ export interface ImageMetadata {
   main_colors: Record<string, string>;  // e.g., { orange: "#FFA500", dark_blue: "#000080" }
   exif: ExifData;
   
-  // Optional computed fields for similarity
+  // Precomputed CLIP neighbors (from preprocessing/compute_neighbors.py)
+  // Used for CLIP-based edge computation at runtime
+  clipNeighbors?: ClipNeighbor[];
+  
+  // Optional computed fields for similarity (legacy)
   embedding?: {
     clip: number[];
     description: number[];

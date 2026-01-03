@@ -6,8 +6,12 @@ import type {
   SimilarityConfig,
   SimilarityEdge,
 } from '@/types/gallery';
-import { localImages, precomputedEdges } from '@/data/localImages';
-import { getEdgesAboveThreshold } from '@/lib/similarity/vectors';
+import { localImages } from '@/data/localImages';
+import { computeEdges } from '@/lib/similarity/edgeComputation';
+
+// =============================================================================
+// STORE INTERFACE
+// =============================================================================
 
 interface GalleryStore {
   // Data
@@ -22,6 +26,11 @@ interface GalleryStore {
   // Layout
   layout: LayoutConfig;
   similarity: SimilarityConfig;
+  
+  // Edge computation params (interactive controls)
+  edgeParams: {
+    maxEdgesPerNode: number;
+  };
   
   // Search
   searchQuery: string;
@@ -38,6 +47,7 @@ interface GalleryStore {
   setHoveredImage: (image: ImageMetadata | null) => void;
   setLayout: (layout: LayoutConfig) => void;
   setSimilarity: (config: SimilarityConfig) => void;
+  setEdgeParams: (params: { maxEdgesPerNode?: number }) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilters: (filters: SearchQuery['filters']) => void;
   performSearch: () => void;
@@ -47,7 +57,10 @@ interface GalleryStore {
   closeModal: () => void;
 }
 
-// Simple semantic search scoring - updated for new metadata structure
+// =============================================================================
+// SEARCH SCORING
+// =============================================================================
+
 function scoreImage(image: ImageMetadata, query: string): number {
   if (!query.trim()) return 1;
   
@@ -122,27 +135,35 @@ function scoreImage(image: ImageMetadata, query: string): number {
   return score;
 }
 
+// =============================================================================
+// STORE IMPLEMENTATION
+// =============================================================================
+
 export const useGalleryStore = create<GalleryStore>((set, get) => ({
-  // Initial state - use precomputed edges if available
+  // Initial state
   images: localImages,
   filteredImages: localImages,
-  edges: precomputedEdges || [],
+  edges: [],
   selectedImage: null,
   hoveredImage: null,
   
   layout: {
-    type: 'grid',  // Changed from 'network' to 'grid'
+    type: 'grid',
     similarity: {
       mode: 'composite',
-      threshold: 0.3,
+      threshold: 0.6,
       weights: { visual: 0.3, semantic: 0.3, color: 0.2, mood: 0.2 },
     },
   },
   
   similarity: {
     mode: 'composite',
-    threshold: 0.3,
+    threshold: 0.6,
     weights: { visual: 0.3, semantic: 0.3, color: 0.2, mood: 0.2 },
+  },
+  
+  edgeParams: {
+    maxEdgesPerNode: 15,
   },
   
   searchQuery: '',
@@ -151,7 +172,10 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   sidebarOpen: true,
   modalOpen: false,
   
-  // Actions
+  // ==========================================================================
+  // ACTIONS
+  // ==========================================================================
+  
   setImages: (images) => {
     set({ images, filteredImages: images });
     get().recomputeEdges();
@@ -166,10 +190,21 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     if (layout.similarity) {
       get().setSimilarity(layout.similarity);
     }
+    // Recompute edges when switching to network layout
+    if (layout.type === 'network') {
+      get().recomputeEdges();
+    }
   },
   
   setSimilarity: (config) => {
     set({ similarity: config });
+    get().recomputeEdges();
+  },
+  
+  setEdgeParams: (params) => {
+    set((state) => ({
+      edgeParams: { ...state.edgeParams, ...params },
+    }));
     get().recomputeEdges();
   },
   
@@ -226,31 +261,26 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   },
   
   recomputeEdges: () => {
-    const { filteredImages, similarity, layout } = get();
+    const { filteredImages, similarity, edgeParams, layout } = get();
     
-    // Skip edge display for grid layout
+    // Skip edge computation for grid layout
     if (layout.type === 'grid') {
       set({ edges: [] });
       return;
     }
     
-    // Get IDs of currently filtered images
-    const filteredIds = new Set(filteredImages.map(img => img.id));
+    // Compute edges at runtime using the new utility
+    const edges = computeEdges(filteredImages, {
+      mode: similarity.mode,
+      threshold: similarity.threshold,
+      maxEdgesPerNode: edgeParams.maxEdgesPerNode,
+      weights: {
+        clip: 0.6,
+        metadata: 0.4,
+      },
+    });
     
-    // Filter precomputed edges to only include visible images
-    // and respect the current threshold setting
-    const filteredEdges = (precomputedEdges || [])
-      .filter(edge => 
-        filteredIds.has(edge.source) && 
-        filteredIds.has(edge.target) &&
-        edge.weight >= similarity.threshold
-      )
-      .sort((a, b) => b.weight - a.weight);
-    
-    // Limit edges for performance (max ~3 per node on average)
-    const maxEdges = Math.min(filteredImages.length * 3, 1000);
-    
-    set({ edges: filteredEdges.slice(0, maxEdges) });
+    set({ edges });
   },
   
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),

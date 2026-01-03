@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import type { ImageMetadata } from '@/types/gallery';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { getColorPalette } from '@/lib/similarity/vectors';
+import { ImageCurationOverlay } from '@/components/Admin/ImageCurationOverlay';
 
 interface ImageCardProps {
   image: ImageMetadata;
@@ -52,6 +53,9 @@ export const ImageCard = memo(function ImageCard({
           loading="lazy"
           onLoad={() => setImageLoaded(true)}
         />
+        
+        {/* Admin mode curation overlay */}
+        <ImageCurationOverlay image={image} />
         
         {/* Color palette indicator */}
         <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">

@@ -7,6 +7,7 @@ import { LayoutSelector } from './components/UI/LayoutSelector';
 import { SimilaritySlider } from './components/UI/SimilaritySlider';
 import { GalleryView } from './components/Gallery/GalleryView';
 import { ImageModal } from './components/Gallery/ImageModal';
+import { AdminModeToggle, CurationToolbar } from './components/Admin';
 
 // Only import auth components in production
 const isLocalDev = import.meta.env.DEV && !import.meta.env.VITE_USE_AUTH;
@@ -90,6 +91,9 @@ function AppContent() {
             <span>{images.length}</span>
             <span className="ml-1">images</span>
           </div>
+          
+          {/* Admin mode toggle - for local curation */}
+          {isLocalDev && <AdminModeToggle />}
           
           {/* User menu with sign out - only in production */}
           {!isLocalDev && UserMenu && <UserMenu />}
@@ -189,6 +193,9 @@ function AppContent() {
       
       {/* Modal */}
       <ImageModal />
+      
+      {/* Admin mode curation toolbar (fixed at bottom) */}
+      <CurationToolbar />
     </div>
   );
 }
