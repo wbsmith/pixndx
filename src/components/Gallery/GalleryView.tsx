@@ -102,19 +102,16 @@ export function GalleryView() {
   
   // Render the appropriate network graph
   const renderNetworkGraph = () => {
-    const commonProps = {
-      key: `${effectiveMode}-${restartKey}`,
-      settings: graphSettings,
-    };
+    const graphKey = `${effectiveMode}-${restartKey}`;
     
     switch (effectiveMode) {
       case 'webgl':
-        return <NetworkGraphSigma {...commonProps} />;
+        return <NetworkGraphSigma key={graphKey} settings={graphSettings} />;
       case 'graphology':
-        return <NetworkGraphScalable {...commonProps} />;
+        return <NetworkGraphScalable key={graphKey} settings={graphSettings} />;
       case 'd3':
       default:
-        return <NetworkGraph {...commonProps} />;
+        return <NetworkGraph key={graphKey} settings={graphSettings} />;
     }
   };
   

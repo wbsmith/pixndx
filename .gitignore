@@ -1,1 +1,54 @@
+# Dependencies
 node_modules/
+
+# Python virtual environments
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Build outputs
+dist/
+build/
+*.local
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Image files and processed galleries (large files)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.JPG
+*.JPEG
+*.PNG
+*.GIF
+*.WEBP
+*.npy
+gallery_processed/
+processed_gallery/
+
+# Amplify
+amplify/team-provider-info.json
+.amplify/
+
+# Generated data (regenerate with scripts)
+src/data/localImages.ts
