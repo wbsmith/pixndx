@@ -77,9 +77,16 @@ function scoreImage(image: ImageMetadata, query: string): number {
   // Get tag category names too
   const tagCategories = Object.keys(image.tags).map(c => c.toLowerCase());
   
+  // Filename matching (high priority)
+  const filenameLower = image.filename.toLowerCase();
+  
   for (const word of queryWords) {
+    // Filename match (highest priority)
+    if (filenameLower.includes(word)) {
+      score += 4;
+    }
     // Exact tag match
-    if (allTags.includes(word)) {
+    else if (allTags.includes(word)) {
       score += 3;
     }
     // Tag category match

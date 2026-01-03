@@ -456,12 +456,18 @@ export function ImageModal() {
                     </div>
                   </div>
                   
-                  {/* Image dimensions */}
-                  {imageDimensions.width > 0 && (
-                    <div className="mb-4 text-xs text-nebula-500">
-                      {imageDimensions.width} × {imageDimensions.height} px
+                  {/* File info */}
+                  <div className="mb-4 pt-4 border-t border-nebula-800">
+                    <h4 className="text-xs text-nebula-400 uppercase tracking-wider mb-2">File</h4>
+                    <div className="text-xs text-nebula-300 font-mono break-all">
+                      {selectedImage.filename}
                     </div>
-                  )}
+                    {imageDimensions.width > 0 && (
+                      <div className="text-xs text-nebula-500 mt-1">
+                        {imageDimensions.width} × {imageDimensions.height} px
+                      </div>
+                    )}
+                  </div>
                   
                   {/* EXIF */}
                   {selectedImage.exif && (
@@ -487,7 +493,7 @@ export function ImageModal() {
                         )}
                         {selectedImage.exif.FocalLength && (
                           <div className="text-nebula-300">
-                            {selectedImage.exif.FocalLength}
+                            Focal {selectedImage.exif.FocalLength}
                           </div>
                         )}
                         {selectedImage.exif.ExposureTime && (
