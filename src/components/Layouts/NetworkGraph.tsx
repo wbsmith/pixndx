@@ -134,9 +134,17 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
 
     simulationRef.current = simulation;
 
+    // Helper to create safe CSS IDs (no special chars)
+    const safeId = (id: string) => id.replace(/[^a-zA-Z0-9]/g, '_');
+    
     const defs = svg.append('defs');
     nodes.forEach((d) => {
-      defs.append('clipPath').attr('id', `clip-${d.id}`).append('circle').attr('r', nodeRadius - 2);
+      defs.append('clipPath')
+        .attr('id', `clip-${safeId(d.id)}`)
+        .append('circle')
+        .attr('cx', 0)
+        .attr('cy', 0)
+        .attr('r', nodeRadius - 2);
     });
 
     const linkGroup = container.append('g').attr('class', 'links');
@@ -158,7 +166,7 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
       .attr('xlink:href', (d) => d.image.urls.small)
       .attr('x', -nodeRadius + 2).attr('y', -nodeRadius + 2)
       .attr('width', (nodeRadius - 2) * 2).attr('height', (nodeRadius - 2) * 2)
-      .attr('clip-path', (d) => `url(#clip-${d.id})`)
+      .attr('clip-path', (d) => `url(#clip-${safeId(d.id)})`)
       .attr('preserveAspectRatio', 'xMidYMid slice');
 
     node.append('circle').attr('r', nodeRadius - 1).attr('fill', 'none')
