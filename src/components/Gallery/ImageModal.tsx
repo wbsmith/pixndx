@@ -18,7 +18,6 @@ export function ImageModal() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showNavButtons, setShowNavButtons] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
   
   // Image dimensions for 1:1 zoom calculation
@@ -339,7 +338,6 @@ export function ImageModal() {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={() => { handleMouseUp(); setMouseNearEdge(null); }}
                 onDoubleClick={handleDoubleClick}
-                onMouseEnter={() => setShowNavButtons(true)}
               >
                 <div 
                   className="w-full h-full flex items-center justify-center p-4"
@@ -363,10 +361,10 @@ export function ImageModal() {
                 
                 {/* Navigation buttons - positioned inside image area, show on hover near edges */}
                 <AnimatePresence>
-                  {hasPrev && (mouseNearEdge === 'left' || showNavButtons) && (
+                  {hasPrev && mouseNearEdge === 'left' && (
                     <motion.button
                       initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: mouseNearEdge === 'left' ? 1 : 0.3, x: 0 }}
+                      animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -10 }}
                       onClick={(e) => { e.stopPropagation(); goToPrev(); }}
                       className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/80 transition-all text-white hover:scale-110"
@@ -377,10 +375,10 @@ export function ImageModal() {
                 </AnimatePresence>
                 
                 <AnimatePresence>
-                  {hasNext && (mouseNearEdge === 'right' || showNavButtons) && (
+                  {hasNext && mouseNearEdge === 'right' && (
                     <motion.button
                       initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: mouseNearEdge === 'right' ? 1 : 0.3, x: 0 }}
+                      animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 10 }}
                       onClick={(e) => { e.stopPropagation(); goToNext(); }}
                       className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/80 transition-all text-white hover:scale-110"
