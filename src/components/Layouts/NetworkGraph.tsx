@@ -240,7 +240,7 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
   return (
     <motion.div ref={containerRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="w-full h-full relative bg-cosmos-void">
-      <svg ref={svgRef} width={dimensions.width} height={dimensions.height} className="w-full h-full" />
+      <svg ref={svgRef} width={dimensions.width} height={dimensions.height} className="w-full h-full" style={{ touchAction: 'none' }} />
 
       <div className="absolute top-4 right-4 glass rounded-lg p-3 text-xs space-y-1">
         <div className="text-nebula-300">{nodeCount} nodes • {edgeCount} edges</div>

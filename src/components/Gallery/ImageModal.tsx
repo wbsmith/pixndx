@@ -2,7 +2,6 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Camera, Aperture, ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
-import { getColorPalette } from '@/lib/similarity/vectors';
 
 export function ImageModal() {
   const { 
@@ -19,8 +18,56 @@ export function ImageModal() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showNavButtons, setShowNavButtons] = useState(false);
+  const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
+  
+  // Image dimensions for 1:1 zoom calculation
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  
+  // Calculate max zoom for 1:1 pixels
+  const maxZoom = useCallback(() => {
+    if (!imageDimensions.width || !containerDimensions.width) return 4;
+    
+    // Calculate the fitted scale (how much the image is scaled down to fit)
+    const widthRatio = containerDimensions.width / imageDimensions.width;
+    const heightRatio = containerDimensions.height / imageDimensions.height;
+    const fittedScale = Math.min(widthRatio, heightRatio);
+    
+    // Max zoom = 1:1 pixels = 1 / fittedScale
+    // But cap it at a reasonable value to prevent excessive zoom on tiny images
+    return Math.max(1, Math.min(1 / fittedScale, 10));
+  }, [imageDimensions, containerDimensions]);
+  
+  // Update container dimensions
+  useEffect(() => {
+    const updateContainerDimensions = () => {
+      if (imageContainerRef.current) {
+        setContainerDimensions({
+          width: imageContainerRef.current.clientWidth,
+          height: imageContainerRef.current.clientHeight,
+        });
+      }
+    };
+    
+    updateContainerDimensions();
+    window.addEventListener('resize', updateContainerDimensions);
+    return () => window.removeEventListener('resize', updateContainerDimensions);
+  }, [isFullscreen, modalOpen]);
+  
+  // Load image dimensions when image changes
+  useEffect(() => {
+    if (!selectedImage) return;
+    
+    const img = new Image();
+    img.onload = () => {
+      setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.src = selectedImage.urls.full;
+  }, [selectedImage?.id]);
   
   // Reset zoom when image changes
   useEffect(() => {
@@ -36,27 +83,56 @@ export function ImageModal() {
     }
   }, [isFullscreen]);
   
+  // Handle mouse position for edge detection
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+      return;
+    }
+    
+    // Detect if mouse is near left or right edge
+    const container = imageContainerRef.current;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const edgeThreshold = 80;
+      
+      if (x < edgeThreshold) {
+        setMouseNearEdge('left');
+      } else if (x > rect.width - edgeThreshold) {
+        setMouseNearEdge('right');
+      } else {
+        setMouseNearEdge(null);
+      }
+    }
+  }, [isDragging, dragStart]);
+  
   // Handle wheel zoom
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setScale(prev => Math.min(Math.max(prev * delta, 1), 8));
+    const max = maxZoom();
+    setScale(prev => Math.min(Math.max(prev * delta, 1), max));
     
     // Reset position if zooming back to 1
     if (scale * delta <= 1) {
       setPosition({ x: 0, y: 0 });
     }
-  }, [scale]);
+  }, [scale, maxZoom]);
   
   // Handle double-click to toggle zoom
   const handleDoubleClick = useCallback(() => {
     if (scale === 1) {
-      setScale(2);
+      // Zoom to 2x or max, whichever is smaller
+      setScale(Math.min(2, maxZoom()));
     } else {
       setScale(1);
       setPosition({ x: 0, y: 0 });
     }
-  }, [scale]);
+  }, [scale, maxZoom]);
   
   // Handle drag
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -65,14 +141,6 @@ export function ImageModal() {
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
   }, [scale, position]);
-  
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setPosition({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
-  }, [isDragging, dragStart]);
   
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -84,6 +152,7 @@ export function ImageModal() {
       if (!modalOpen || !selectedImage) return;
       
       const currentIndex = filteredImages.findIndex(img => img.id === selectedImage.id);
+      const max = maxZoom();
       
       if (e.key === 'Escape') {
         if (isFullscreen) {
@@ -101,7 +170,7 @@ export function ImageModal() {
       } else if (e.key === 'f' || e.key === 'F') {
         setIsFullscreen(prev => !prev);
       } else if (e.key === '+' || e.key === '=') {
-        setScale(prev => Math.min(prev * 1.5, 8));
+        setScale(prev => Math.min(prev * 1.5, max));
       } else if (e.key === '-') {
         setScale(prev => {
           const newScale = Math.max(prev / 1.5, 1);
@@ -111,31 +180,36 @@ export function ImageModal() {
       } else if (e.key === '0') {
         setScale(1);
         setPosition({ x: 0, y: 0 });
+      } else if (e.key === '1') {
+        // 1:1 zoom
+        setScale(max);
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [modalOpen, selectedImage, filteredImages, closeModal, setSelectedImage, isFullscreen, scale]);
+  }, [modalOpen, selectedImage, filteredImages, closeModal, setSelectedImage, isFullscreen, scale, maxZoom]);
   
   if (!selectedImage) return null;
   
   const currentIndex = filteredImages.findIndex(img => img.id === selectedImage.id);
-  const palette = getColorPalette(selectedImage);
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < filteredImages.length - 1;
   
   const goToPrev = () => {
-    if (currentIndex > 0) {
+    if (hasPrev) {
       setSelectedImage(filteredImages[currentIndex - 1]);
     }
   };
   
   const goToNext = () => {
-    if (currentIndex < filteredImages.length - 1) {
+    if (hasNext) {
       setSelectedImage(filteredImages[currentIndex + 1]);
     }
   };
   
-  const handleZoomIn = () => setScale(prev => Math.min(prev * 1.5, 8));
+  const max = maxZoom();
+  const handleZoomIn = () => setScale(prev => Math.min(prev * 1.5, max));
   const handleZoomOut = () => {
     setScale(prev => {
       const newScale = Math.max(prev / 1.5, 1);
@@ -148,8 +222,18 @@ export function ImageModal() {
     setPosition({ x: 0, y: 0 });
   };
   
+  // Format zoom display
+  const zoomDisplay = () => {
+    if (scale === 1) return 'Fit';
+    if (Math.abs(scale - max) < 0.01) return '1:1';
+    return `${Math.round(scale * 100)}%`;
+  };
+  
   // Get tag categories for display
   const tagCategories = Object.entries(selectedImage.tags);
+  
+  // Determine if image is portrait
+  const isPortrait = imageDimensions.height > imageDimensions.width;
   
   return (
     <AnimatePresence>
@@ -174,7 +258,7 @@ export function ImageModal() {
             onClick={e => e.stopPropagation()}
           >
             {/* Top controls bar */}
-            <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-3 bg-gradient-to-b from-black/70 to-transparent">
+            <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-3 bg-gradient-to-b from-black/70 to-transparent">
               {/* Left: Image counter */}
               <div className="text-sm text-white/90 bg-black/40 px-2 py-1 rounded">
                 {currentIndex + 1} / {filteredImages.length}
@@ -191,17 +275,26 @@ export function ImageModal() {
                   <ZoomOut size={18} />
                 </button>
                 
-                <span className="text-xs text-white/80 w-14 text-center">
-                  {scale === 1 ? 'Fit' : `${Math.round(scale * 100)}%`}
+                <span className="text-xs text-white/80 w-14 text-center font-mono">
+                  {zoomDisplay()}
                 </span>
                 
                 <button
                   onClick={handleZoomIn}
-                  disabled={scale >= 8}
+                  disabled={scale >= max}
                   className="p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors text-white disabled:opacity-40"
                   title="Zoom in (+)"
                 >
                   <ZoomIn size={18} />
+                </button>
+                
+                <button
+                  onClick={() => setScale(max)}
+                  disabled={scale >= max}
+                  className="px-2 py-1 rounded bg-black/50 hover:bg-black/70 transition-colors text-white text-xs disabled:opacity-40"
+                  title="View at 1:1 (1)"
+                >
+                  1:1
                 </button>
                 
                 {scale > 1 && (
@@ -234,24 +327,6 @@ export function ImageModal() {
               </div>
             </div>
             
-            {/* Navigation buttons */}
-            {currentIndex > 0 && (
-              <button
-                onClick={goToPrev}
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors text-white"
-              >
-                <ChevronLeft size={24} />
-              </button>
-            )}
-            {currentIndex < filteredImages.length - 1 && (
-              <button
-                onClick={goToNext}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors text-white"
-              >
-                <ChevronRight size={24} />
-              </button>
-            )}
-            
             <div className={`flex h-full ${isFullscreen ? '' : 'flex-col lg:flex-row'}`}>
               {/* Image container */}
               <div 
@@ -262,40 +337,75 @@ export function ImageModal() {
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
+                onMouseLeave={() => { handleMouseUp(); setMouseNearEdge(null); }}
                 onDoubleClick={handleDoubleClick}
+                onMouseEnter={() => setShowNavButtons(true)}
               >
                 <div 
-                  className="w-full h-full flex items-center justify-center"
+                  className="w-full h-full flex items-center justify-center p-4"
                   style={{
                     transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
                     transition: isDragging ? 'none' : 'transform 0.15s ease-out',
                   }}
                 >
                   <img
+                    ref={imageRef}
                     src={selectedImage.urls.full}
                     alt={selectedImage.main_subject}
                     className="max-w-full max-h-full object-contain select-none"
+                    style={{
+                      // Ensure proper aspect ratio for portrait images
+                      maxHeight: isFullscreen ? 'calc(100vh - 80px)' : 'calc(100% - 20px)',
+                    }}
                     draggable={false}
                   />
                 </div>
                 
+                {/* Navigation buttons - positioned inside image area, show on hover near edges */}
+                <AnimatePresence>
+                  {hasPrev && (mouseNearEdge === 'left' || showNavButtons) && (
+                    <motion.button
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: mouseNearEdge === 'left' ? 1 : 0.3, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      onClick={(e) => { e.stopPropagation(); goToPrev(); }}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/80 transition-all text-white hover:scale-110"
+                    >
+                      <ChevronLeft size={28} />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+                
+                <AnimatePresence>
+                  {hasNext && (mouseNearEdge === 'right' || showNavButtons) && (
+                    <motion.button
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: mouseNearEdge === 'right' ? 1 : 0.3, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      onClick={(e) => { e.stopPropagation(); goToNext(); }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/60 hover:bg-black/80 transition-all text-white hover:scale-110"
+                    >
+                      <ChevronRight size={28} />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+                
                 {/* Zoom hint at bottom */}
-                {scale === 1 && (
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full">
-                    Scroll to zoom • Double-click to zoom in
+                {scale === 1 && !isFullscreen && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full pointer-events-none">
+                    Scroll to zoom • Double-click for 2× • Press 1 for 1:1
                   </div>
                 )}
                 {scale > 1 && (
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full">
-                    Drag to pan • Double-click to reset
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full pointer-events-none">
+                    Drag to pan • Double-click or 0 to reset
                   </div>
                 )}
               </div>
               
               {/* Info panel - hide in fullscreen */}
               {!isFullscreen && (
-                <div className="w-full lg:w-96 p-6 overflow-y-auto max-h-[50vh] lg:max-h-[90vh]">
+                <div className={`w-full lg:w-96 p-6 overflow-y-auto max-h-[50vh] lg:max-h-[90vh] ${isPortrait ? 'lg:w-80' : ''}`}>
                   <h2 className="text-xl font-display font-bold text-white mb-2">
                     {selectedImage.main_subject}
                   </h2>
@@ -320,7 +430,7 @@ export function ImageModal() {
                         <div key={category}>
                           <span className="text-[10px] text-nebula-500 uppercase">{category.replace(/_/g, ' ')}:</span>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {tags.map(tag => (
+                            {(tags as string[]).map((tag: string) => (
                               <span key={tag} className="tag-pill text-[10px]">{tag.toUpperCase()}</span>
                             ))}
                           </div>
@@ -345,6 +455,13 @@ export function ImageModal() {
                       ))}
                     </div>
                   </div>
+                  
+                  {/* Image dimensions */}
+                  {imageDimensions.width > 0 && (
+                    <div className="mb-4 text-xs text-nebula-500">
+                      {imageDimensions.width} × {imageDimensions.height} px
+                    </div>
+                  )}
                   
                   {/* EXIF */}
                   {selectedImage.exif && (
