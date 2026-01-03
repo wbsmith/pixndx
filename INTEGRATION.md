@@ -1,6 +1,6 @@
 # Integration Guide: Real Images & AWS Backend
 
-This guide explains how to integrate your actual photos and metadata into the Nebula Gallery app.
+This guide explains how to integrate your actual photos and metadata into the Gallery app.
 
 ## Your Metadata Format
 
