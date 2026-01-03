@@ -254,7 +254,7 @@ function escapeRegex(string: string): string {
 }
 
 // Local storage for recent searches
-const RECENT_SEARCHES_KEY = 'nebula-gallery-recent-searches';
+const RECENT_SEARCHES_KEY = 'pixndx-recent-searches';
 const MAX_RECENT_SEARCHES = 5;
 
 function getRecentSearches(): Suggestion[] {

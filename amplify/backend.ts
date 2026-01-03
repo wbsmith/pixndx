@@ -7,7 +7,7 @@ import { ingestImage } from './functions/ingestImage/resource';
 import { computeSimilarity } from './functions/computeSimilarity/resource';
 
 /**
- * Nebula Gallery Backend
+ * PixNdx Gallery Backend
  * 
  * This backend provides:
  * - Authentication via Cognito (optional, can be disabled for public galleries)

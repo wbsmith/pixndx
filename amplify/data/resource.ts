@@ -3,7 +3,7 @@ import { searchImages } from '../functions/searchImages/resource';
 import { computeSimilarity } from '../functions/computeSimilarity/resource';
 
 /**
- * GraphQL Schema for Nebula Gallery
+ * GraphQL Schema for PixNdx Gallery
  * 
  * Models:
  * - Image: Core image metadata matching your JSON structure

@@ -1,4 +1,4 @@
-# Nebula Gallery
+# PixNdx Gallery
 
 A semantic photo gallery with natural language search, similarity-based visualizations, and multiple creative layout modes including force-directed network graphs.
 
@@ -97,7 +97,7 @@ For production deployment and advanced features, see **[ARCHITECTURE.md](./ARCHI
 ## Directory Structure
 
 ```
-nebula-gallery/
+pixndx/
 ├── preprocessing/                    # Python preprocessing pipeline
 │   ├── requirements.txt              # Python dependencies
 │   ├── find_duplicates.py            # Perceptual hashing for duplicates

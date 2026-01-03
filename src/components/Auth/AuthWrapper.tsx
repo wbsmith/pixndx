@@ -43,7 +43,7 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
           return (
             <div className="text-center py-8">
               <h1 className="text-3xl font-display font-bold text-white mb-2">
-                Nebula Gallery
+                PixNdx Gallery
               </h1>
               <p className="text-nebula-400">
                 Sign in to explore the collection
@@ -206,7 +206,7 @@ export function UserMenu() {
  * Add this to your index.css or a separate file
  */
 export const authenticatorStyles = `
-  /* Override Amplify UI styles to match Nebula theme */
+  /* Override Amplify UI styles to match PixNdx theme */
   [data-amplify-authenticator] {
     --amplify-components-authenticator-router-background-color: rgba(26, 26, 46, 0.9);
     --amplify-components-authenticator-router-border-color: rgba(99, 102, 241, 0.3);

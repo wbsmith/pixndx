@@ -71,7 +71,7 @@ function AppContent() {
             </div>
             <div>
               <h1 className="text-xl font-display font-bold text-white text-glow">
-                Nebula Gallery
+                PixNdx Gallery
               </h1>
               <p className="text-[10px] text-nebula-400 uppercase tracking-widest">
                 {isLocalDev ? 'Local Dev Mode' : 'Semantic Visual Explorer'}

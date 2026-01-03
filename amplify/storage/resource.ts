@@ -1,7 +1,7 @@
 import { defineStorage } from '@aws-amplify/backend';
 
 /**
- * S3 Storage configuration for Nebula Gallery
+ * S3 Storage configuration for PixNdx Gallery
  * 
  * Structure:
  * - images/small/{filename}   - Thumbnails (~200px)

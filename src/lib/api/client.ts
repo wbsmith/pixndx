@@ -1,5 +1,5 @@
 /**
- * API Client for Nebula Gallery
+ * API Client for PixNdx Gallery
  * 
  * Provides typed access to the GraphQL API and S3 storage.
  * Works with Amplify Gen 2 backend.

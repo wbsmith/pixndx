@@ -584,7 +584,7 @@ Options:
   }
   
   // Initialize
-  console.log('\n🚀 Nebula Gallery Image Ingestion\n');
+  console.log('\n🚀 PixNdx Gallery Image Ingestion\n');
   console.log(`Source:      ${config.sourcePath}`);
   console.log(`Bucket:      ${config.bucketName || '(dry run)'}`);
   console.log(`Table:       ${config.tableName || '(skipped)'}`);
