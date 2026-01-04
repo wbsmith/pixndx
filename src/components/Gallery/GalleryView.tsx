@@ -72,10 +72,22 @@ const AUTO_THRESHOLDS = {
 // =============================================================================
 
 export function GalleryView() {
-  const { layout, filteredImages } = useGalleryStore();
+  const { layout, filteredImages, setSimilarity, similarity } = useGalleryStore();
   const [graphMode, setGraphMode] = useState<GraphMode>('auto');
   const [graphSettings, setGraphSettings] = useState<GraphSettings>(DEFAULT_SETTINGS);
   const [restartKey, setRestartKey] = useState(0);
+  
+  // Sync graph settings with store's similarity config
+  const handleSettingsChange = useCallback((newSettings: GraphSettings) => {
+    setGraphSettings(newSettings);
+    
+    // Update store's similarity config to trigger edge recomputation
+    setSimilarity({
+      ...similarity,
+      threshold: newSettings.edges.threshold,
+      maxEdgesPerNode: newSettings.edges.maxEdgesPerNode,
+    });
+  }, [similarity, setSimilarity]);
   
   // Determine effective graph mode
   const effectiveMode = useMemo(() => {
@@ -151,7 +163,7 @@ export function GalleryView() {
           {/* Graph settings controls */}
           <GraphControls
             settings={graphSettings}
-            onChange={setGraphSettings}
+            onChange={handleSettingsChange}
             onRestart={handleRestartLayout}
           />
         </>
