@@ -109,7 +109,8 @@ export type SimilarityMode = 'clip' | 'composite';
 
 export interface SimilarityConfig {
   mode: SimilarityMode;
-  threshold: number;         // 0-1, minimum edge weight to display
+  thresholdMin: number;      // 0-1, minimum edge weight to include
+  thresholdMax: number;      // 0-1, maximum edge weight to include
   maxEdgesPerNode: number;   // Maximum connections per image
 }
 

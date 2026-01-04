@@ -15,8 +15,79 @@ import type { ImageMetadata, SimilarityEdge, SimilarityMode } from '@/types/gall
 
 export interface EdgeComputationParams {
   mode: SimilarityMode;       // 'clip' or 'composite'
-  threshold: number;          // 0-1, minimum weight to include
+  thresholdMin: number;       // 0-1, minimum weight to include
+  thresholdMax: number;       // 0-1, maximum weight to include
   maxEdgesPerNode: number;    // Cap edges per node
+}
+
+export interface EdgeStats {
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  stdDev: number;
+  totalPotential: number;  // Total edges before filtering
+}
+
+// =============================================================================
+// STATISTICS
+// =============================================================================
+
+/**
+ * Compute statistics for all edge weights in the current image set.
+ * This helps users understand the weight distribution before filtering.
+ */
+export function computeEdgeStats(
+  images: ImageMetadata[],
+  mode: SimilarityMode
+): EdgeStats | null {
+  const validIds = new Set(images.map(img => img.id));
+  const weights: number[] = [];
+  const seen = new Set<string>();
+  
+  for (const image of images) {
+    if (!image.clipNeighbors) continue;
+    
+    for (const neighbor of image.clipNeighbors) {
+      if (!validIds.has(neighbor.id)) continue;
+      
+      // Deduplicate
+      const key = [image.id, neighbor.id].sort().join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      
+      const weight = mode === 'clip' ? neighbor.clipWeight : neighbor.compositeWeight;
+      const actualWeight = weight ?? (neighbor as any).weight ?? 0;
+      if (actualWeight > 0) {
+        weights.push(actualWeight);
+      }
+    }
+  }
+  
+  if (weights.length === 0) return null;
+  
+  weights.sort((a, b) => a - b);
+  
+  const min = weights[0];
+  const max = weights[weights.length - 1];
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const mean = sum / weights.length;
+  const median = weights.length % 2 === 0
+    ? (weights[weights.length / 2 - 1] + weights[weights.length / 2]) / 2
+    : weights[Math.floor(weights.length / 2)];
+  
+  const squaredDiffs = weights.map(w => Math.pow(w - mean, 2));
+  const variance = squaredDiffs.reduce((a, b) => a + b, 0) / weights.length;
+  const stdDev = Math.sqrt(variance);
+  
+  return {
+    min,
+    max,
+    mean,
+    median,
+    stdDev,
+    totalPotential: weights.length,
+  };
 }
 
 // =============================================================================
@@ -24,14 +95,14 @@ export interface EdgeComputationParams {
 // =============================================================================
 
 /**
- * Filter precomputed edges based on mode, threshold, and limits.
+ * Filter precomputed edges based on mode, threshold range, and limits.
  * All heavy lifting was done in Python - this is O(n*k) where k is neighbors per image.
  */
 export function computeEdges(
   images: ImageMetadata[],
   params: EdgeComputationParams
 ): SimilarityEdge[] {
-  const { mode, threshold, maxEdgesPerNode } = params;
+  const { mode, thresholdMin, thresholdMax, maxEdgesPerNode } = params;
   
   console.time('computeEdges');
   
@@ -41,21 +112,14 @@ export function computeEdges(
   // Debug: check how many images have neighbors
   const withNeighbors = images.filter(img => img.clipNeighbors && img.clipNeighbors.length > 0);
   console.log(`[computeEdges] ${images.length} images, ${withNeighbors.length} with neighbors`);
+  console.log(`[computeEdges] Range: ${thresholdMin.toFixed(2)} - ${thresholdMax.toFixed(2)}, max/node: ${maxEdgesPerNode}`);
   
-  if (withNeighbors.length > 0) {
-    const sample = withNeighbors[0].clipNeighbors![0];
-    console.log('[computeEdges] Sample neighbor format:', sample);
-  }
-  
-  const edges: SimilarityEdge[] = [];
-  const edgeCounts = new Map<string, number>();
+  // Collect all valid edges first, sorted by weight descending
+  const candidateEdges: { source: string; target: string; weight: number }[] = [];
   const seen = new Set<string>();
   
   for (const image of images) {
     if (!image.clipNeighbors || image.clipNeighbors.length === 0) continue;
-    
-    const srcCount = edgeCounts.get(image.id) ?? 0;
-    if (srcCount >= maxEdgesPerNode) continue;
     
     for (const neighbor of image.clipNeighbors) {
       // Skip if target not in current filtered set
@@ -63,39 +127,51 @@ export function computeEdges(
       
       // Pick the weight based on mode
       const weight = mode === 'clip' ? neighbor.clipWeight : neighbor.compositeWeight;
-      
-      // Handle legacy format (single 'weight' field)
       const actualWeight = weight ?? (neighbor as any).weight ?? 0;
       
-      // Skip if below threshold
-      if (actualWeight < threshold) continue;
+      // Skip if outside threshold range
+      if (actualWeight < thresholdMin || actualWeight > thresholdMax) continue;
       
       // Deduplicate edges (A->B same as B->A)
       const key = [image.id, neighbor.id].sort().join('|');
       if (seen.has(key)) continue;
       seen.add(key);
       
-      // Check edge limits
-      const tgtCount = edgeCounts.get(neighbor.id) ?? 0;
-      if (srcCount >= maxEdgesPerNode && tgtCount >= maxEdgesPerNode) continue;
-      
-      edges.push({
+      candidateEdges.push({
         source: image.id,
         target: neighbor.id,
         weight: actualWeight,
-        mode,
       });
-      
-      edgeCounts.set(image.id, (edgeCounts.get(image.id) ?? 0) + 1);
-      edgeCounts.set(neighbor.id, tgtCount + 1);
     }
   }
   
-  // Sort by weight descending
-  edges.sort((a, b) => b.weight - a.weight);
+  // Sort by weight descending - prioritize strongest connections
+  candidateEdges.sort((a, b) => b.weight - a.weight);
+  
+  // Apply maxEdgesPerNode limit - greedily select best edges
+  const edges: SimilarityEdge[] = [];
+  const edgeCounts = new Map<string, number>();
+  
+  for (const edge of candidateEdges) {
+    const srcCount = edgeCounts.get(edge.source) ?? 0;
+    const tgtCount = edgeCounts.get(edge.target) ?? 0;
+    
+    // Skip if EITHER node has reached the limit
+    if (srcCount >= maxEdgesPerNode || tgtCount >= maxEdgesPerNode) continue;
+    
+    edges.push({
+      source: edge.source,
+      target: edge.target,
+      weight: edge.weight,
+      mode,
+    });
+    
+    edgeCounts.set(edge.source, srcCount + 1);
+    edgeCounts.set(edge.target, tgtCount + 1);
+  }
   
   console.timeEnd('computeEdges');
-  console.log(`Filtered ${edges.length} edges (mode: ${mode}, threshold: ${threshold}, max: ${maxEdgesPerNode})`);
+  console.log(`Filtered ${edges.length} edges from ${candidateEdges.length} candidates`);
   
   return edges;
 }

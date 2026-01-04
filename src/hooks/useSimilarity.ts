@@ -6,10 +6,6 @@ import type {
   SimilarityConfig,
   SimilarityEdge,
 } from '@/types/gallery';
-import {
-  computeSimilarity,
-  getEdgesAboveThreshold,
-} from '@/lib/similarity/vectors';
 
 interface UseSimilarityOptions {
   autoCompute?: boolean;
@@ -19,15 +15,14 @@ interface UseSimilarityOptions {
 interface UseSimilarityReturn {
   // State
   mode: SimilarityMode;
-  threshold: number;
-  weights: SimilarityConfig['weights'];
+  thresholdMin: number;
+  thresholdMax: number;
   edges: SimilarityEdge[];
   isComputing: boolean;
   
   // Actions
   setMode: (mode: SimilarityMode) => void;
-  setThreshold: (threshold: number) => void;
-  setWeights: (weights: SimilarityConfig['weights']) => void;
+  setThresholdRange: (min: number, max: number) => void;
   computeEdges: () => void;
   
   // Derived
@@ -75,23 +70,9 @@ export function useSimilarity(options: UseSimilarityOptions = {}): UseSimilarity
     }
   }, [similarity, setSimilarity, autoCompute, debounceMs, debounceTimer, recomputeEdges]);
   
-  // Set threshold
-  const setThreshold = useCallback((threshold: number) => {
-    setSimilarity({ ...similarity, threshold });
-    if (autoCompute) {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      const timer = setTimeout(() => {
-        setIsComputing(true);
-        recomputeEdges();
-        setIsComputing(false);
-      }, debounceMs);
-      setDebounceTimer(timer);
-    }
-  }, [similarity, setSimilarity, autoCompute, debounceMs, debounceTimer, recomputeEdges]);
-  
-  // Set weights
-  const setWeights = useCallback((weights: SimilarityConfig['weights']) => {
-    setSimilarity({ ...similarity, weights });
+  // Set threshold range
+  const setThresholdRange = useCallback((min: number, max: number) => {
+    setSimilarity({ ...similarity, thresholdMin: min, thresholdMax: max });
     if (autoCompute) {
       if (debounceTimer) clearTimeout(debounceTimer);
       const timer = setTimeout(() => {
@@ -144,13 +125,12 @@ export function useSimilarity(options: UseSimilarityOptions = {}): UseSimilarity
   
   return {
     mode: similarity.mode,
-    threshold: similarity.threshold,
-    weights: similarity.weights,
+    thresholdMin: similarity.thresholdMin,
+    thresholdMax: similarity.thresholdMax,
     edges,
     isComputing,
     setMode,
-    setThreshold,
-    setWeights,
+    setThresholdRange,
     computeEdges,
     edgeCount: edges.length,
     averageSimilarity,
@@ -161,29 +141,36 @@ export function useSimilarity(options: UseSimilarityOptions = {}): UseSimilarity
 
 /**
  * Hook for finding similar images to a specific image
+ * Uses precomputed CLIP neighbors
  */
 export function useSimilarImages(image: ImageMetadata | null, limit = 5) {
   const { filteredImages, similarity } = useGalleryStore();
   
+  const validIds = useMemo(() => new Set(filteredImages.map(img => img.id)), [filteredImages]);
+  const imageMap = useMemo(() => {
+    const map = new Map<string, ImageMetadata>();
+    filteredImages.forEach((img) => map.set(img.id, img));
+    return map;
+  }, [filteredImages]);
+  
   const similarImages = useMemo(() => {
-    if (!image) return [];
+    if (!image || !image.clipNeighbors) return [];
     
-    const scores: Array<{ image: ImageMetadata; score: number }> = [];
-    
-    filteredImages.forEach((other) => {
-      if (other.id === image.id) return;
-      
-      const score = computeSimilarity(image, other, similarity.mode, similarity.weights);
-      if (score > similarity.threshold) {
-        scores.push({ image: other, score });
-      }
-    });
-    
-    return scores
-      .sort((a, b) => b.score - a.score)
+    return image.clipNeighbors
+      .filter(n => validIds.has(n.id))
+      .filter(n => {
+        const weight = similarity.mode === 'clip' ? n.clipWeight : n.compositeWeight;
+        return weight >= similarity.thresholdMin && weight <= similarity.thresholdMax;
+      })
+      .sort((a, b) => {
+        const wA = similarity.mode === 'clip' ? a.clipWeight : a.compositeWeight;
+        const wB = similarity.mode === 'clip' ? b.clipWeight : b.compositeWeight;
+        return wB - wA;
+      })
       .slice(0, limit)
-      .map((s) => s.image);
-  }, [image, filteredImages, similarity, limit]);
+      .map(n => imageMap.get(n.id))
+      .filter(Boolean) as ImageMetadata[];
+  }, [image, validIds, imageMap, similarity, limit]);
   
   return similarImages;
 }
@@ -267,30 +254,29 @@ export function useSimilarityPresets() {
   const { setSimilarity } = useGalleryStore();
   
   const presets: Record<string, SimilarityConfig> = {
-    visual: {
-      mode: 'full',
-      threshold: 0.5,
-      weights: { visual: 1, semantic: 0, color: 0, mood: 0 },
+    tight: {
+      mode: 'clip',
+      thresholdMin: 0.7,
+      thresholdMax: 1.0,
+      maxEdgesPerNode: 10,
     },
-    semantic: {
-      mode: 'tags',
-      threshold: 0.3,
-      weights: { visual: 0, semantic: 1, color: 0, mood: 0 },
+    loose: {
+      mode: 'clip',
+      thresholdMin: 0.3,
+      thresholdMax: 1.0,
+      maxEdgesPerNode: 30,
     },
-    colorBased: {
-      mode: 'colors',
-      threshold: 0.4,
-      weights: { visual: 0, semantic: 0, color: 1, mood: 0 },
+    clusters: {
+      mode: 'clip',
+      thresholdMin: 0.5,
+      thresholdMax: 0.85,
+      maxEdgesPerNode: 20,
     },
-    moodBased: {
-      mode: 'mood',
-      threshold: 0.3,
-      weights: { visual: 0, semantic: 0, color: 0, mood: 1 },
-    },
-    balanced: {
+    composite: {
       mode: 'composite',
-      threshold: 0.35,
-      weights: { visual: 0.3, semantic: 0.3, color: 0.2, mood: 0.2 },
+      thresholdMin: 0.35,
+      thresholdMax: 1.0,
+      maxEdgesPerNode: 25,
     },
   };
   

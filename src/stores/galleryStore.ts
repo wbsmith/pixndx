@@ -157,7 +157,8 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   // Default similarity settings
   similarity: {
     mode: 'clip',
-    threshold: 0.35,  // Lower default to show more edges initially
+    thresholdMin: 0.35,  // Lower bound - show edges above this weight
+    thresholdMax: 1.0,   // Upper bound - include all up to duplicates
     maxEdgesPerNode: 25,
   },
   
@@ -269,7 +270,8 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     // Filter precomputed edges (fast!)
     const edges = computeEdges(filteredImages, {
       mode: similarity.mode,
-      threshold: similarity.threshold,
+      thresholdMin: similarity.thresholdMin,
+      thresholdMax: similarity.thresholdMax,
       maxEdgesPerNode: similarity.maxEdgesPerNode,
     });
     
