@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Menu, X, ImageIcon, LogOut } from 'lucide-react';
+import { Menu, X, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from './stores/galleryStore';
 import { SearchBar } from './components/Search/SearchBar';
 import { LayoutSelector } from './components/UI/LayoutSelector';
@@ -39,12 +39,14 @@ function AppContent() {
     filteredImages, 
     images,
     searchQuery,
-    recomputeEdges,
+    loading,
+    loadProgress,
+    initializeData,
   } = useGalleryStore();
   
-  // Compute edges on initial load
+  // Load data progressively on mount
   useEffect(() => {
-    recomputeEdges();
+    initializeData();
   }, []);
   
   return (
@@ -86,10 +88,22 @@ function AppContent() {
         
         <div className="flex items-center gap-4">
           <div className="text-xs text-nebula-400 hidden sm:block">
-            <span className="text-stellar-cyan font-mono">{filteredImages.length}</span>
-            <span className="mx-1">/</span>
-            <span>{images.length}</span>
-            <span className="ml-1">images</span>
+            {loading && loadProgress ? (
+              <>
+                <span className="text-stellar-gold font-mono animate-pulse">
+                  Loading {loadProgress.loaded}
+                </span>
+                <span className="mx-1">/</span>
+                <span>{loadProgress.total}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-stellar-cyan font-mono">{filteredImages.length}</span>
+                <span className="mx-1">/</span>
+                <span>{images.length}</span>
+                <span className="ml-1">images</span>
+              </>
+            )}
           </div>
           
           {/* Admin mode toggle - for local curation */}

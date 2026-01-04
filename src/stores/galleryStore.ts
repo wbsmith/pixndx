@@ -6,8 +6,8 @@ import type {
   SimilarityConfig,
   SimilarityEdge,
 } from '@/types/gallery';
-import { localImages } from '@/data/localImages';
 import { computeEdges } from '@/lib/similarity/edgeComputation';
+import { loadImagesProgressively, loadRemainingImages, type LoadProgress } from '@/lib/dataLoader';
 
 // =============================================================================
 // FORCE LAYOUT SETTINGS
@@ -51,11 +51,14 @@ interface GalleryStore {
   
   // UI State
   loading: boolean;
+  loadProgress: LoadProgress | null;  // Progressive loading state
   sidebarOpen: boolean;
   modalOpen: boolean;
   
   // Actions
+  initializeData: () => Promise<void>;  // Load data progressively
   setImages: (images: ImageMetadata[]) => void;
+  addImages: (images: ImageMetadata[]) => void;  // Append more images
   setSelectedImage: (image: ImageMetadata | null) => void;
   setHoveredImage: (image: ImageMetadata | null) => void;
   setLayout: (layout: LayoutConfig) => void;
@@ -160,9 +163,9 @@ function scoreImage(image: ImageMetadata, query: string): number {
 // =============================================================================
 
 export const useGalleryStore = create<GalleryStore>((set, get) => ({
-  // Initial state
-  images: localImages,
-  filteredImages: localImages,
+  // Initial state - START EMPTY, load progressively
+  images: [],
+  filteredImages: [],
   edges: [],
   graphVersion: 0,
   selectedImage: null,
@@ -185,7 +188,8 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   searchQuery: '',
   searchFilters: undefined,
-  loading: false,
+  loading: true,  // Start in loading state
+  loadProgress: null,
   sidebarOpen: true,
   modalOpen: false,
   
@@ -193,8 +197,58 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   // ACTIONS
   // ==========================================================================
   
+  /**
+   * Initialize data with progressive loading.
+   * Shows first 50 images almost immediately, then loads the rest in background.
+   */
+  initializeData: async () => {
+    set({ loading: true });
+    
+    try {
+      // Load initial batch (fast!)
+      const initialImages = await loadImagesProgressively((progress) => {
+        set({ loadProgress: progress });
+      });
+      
+      // Show initial images immediately
+      set({ 
+        images: initialImages, 
+        filteredImages: initialImages,
+        loading: initialImages.length < 100,  // Still loading if more to come
+      });
+      
+      // Load remaining in background
+      await loadRemainingImages((chunk, progress) => {
+        const { images, searchQuery } = get();
+        const newImages = [...images, ...chunk];
+        
+        // If there's no search query, also update filteredImages
+        const newFiltered = searchQuery ? get().filteredImages : newImages;
+        
+        set({ 
+          images: newImages,
+          filteredImages: newFiltered,
+          loadProgress: progress,
+          loading: !progress.complete,
+        });
+      });
+      
+      console.log(`✅ Loaded ${get().images.length} images`);
+    } catch (error) {
+      console.error('Failed to load images:', error);
+      set({ loading: false });
+    }
+  },
+  
   setImages: (images) => {
     set({ images, filteredImages: images, edges: [] });
+  },
+  
+  addImages: (newImages) => {
+    const { images, searchQuery } = get();
+    const allImages = [...images, ...newImages];
+    const filtered = searchQuery ? get().filteredImages : allImages;
+    set({ images: allImages, filteredImages: filtered });
   },
   
   setSelectedImage: (image) => set({ selectedImage: image }),

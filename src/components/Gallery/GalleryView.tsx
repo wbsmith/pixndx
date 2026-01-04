@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Cpu, Zap, Server } from 'lucide-react';
+import { Cpu, Zap, Server, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { GridLayout } from '../Layouts/GridLayout';
 import { NetworkGraph } from '../Layouts/NetworkGraph';
@@ -9,6 +9,55 @@ import { NetworkGraphSigma } from '../Layouts/NetworkGraphSigma';
 import { ColorWheel } from '../Layouts/ColorWheel';
 import { MoodSpectrum } from '../Layouts/MoodSpectrum';
 import { ClusterView } from '../Layouts/ClusterView';
+import type { LoadProgress } from '@/lib/dataLoader';
+
+// =============================================================================
+// LOADING SKELETON
+// =============================================================================
+
+function LoadingSkeleton({ progress }: { progress: LoadProgress | null }) {
+  return (
+    <motion.div 
+      key="loading"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="flex-1 flex flex-col items-center justify-center gap-6"
+    >
+      <div className="relative">
+        <ImageIcon className="text-stellar-cyan" size={64} />
+        <div className="absolute inset-0 text-stellar-cyan blur-xl opacity-30">
+          <ImageIcon size={64} />
+        </div>
+      </div>
+      
+      <div className="text-center">
+        <h2 className="text-xl font-display text-white mb-2">
+          Loading Gallery
+        </h2>
+        {progress && (
+          <p className="text-nebula-400 text-sm">
+            <span className="text-stellar-cyan font-mono">{progress.loaded}</span>
+            {' / '}
+            <span className="font-mono">{progress.total}</span>
+            {' images'}
+          </p>
+        )}
+      </div>
+      
+      {/* Skeleton grid preview */}
+      <div className="grid grid-cols-4 gap-2 opacity-30">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div 
+            key={i}
+            className="w-16 h-16 rounded-lg bg-nebula-800 animate-pulse"
+            style={{ animationDelay: `${i * 100}ms` }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
 
 // =============================================================================
 // GRAPH RENDERING MODE
@@ -71,7 +120,7 @@ const AUTO_THRESHOLDS = {
 // =============================================================================
 
 export function GalleryView() {
-  const { layout, filteredImages, graphVersion } = useGalleryStore();
+  const { layout, filteredImages, graphVersion, loading, loadProgress } = useGalleryStore();
   const [graphMode, setGraphMode] = useState<GraphMode>('auto');
   
   // Determine effective graph mode based on node count
@@ -108,6 +157,11 @@ export function GalleryView() {
   };
   
   const renderLayout = () => {
+    // Show skeleton while initial data loads
+    if (filteredImages.length === 0 && loading) {
+      return <LoadingSkeleton progress={loadProgress} />;
+    }
+    
     switch (layout.type) {
       case 'grid':
         return <GridLayout />;
@@ -126,6 +180,18 @@ export function GalleryView() {
   
   return (
     <div className="flex-1 min-h-0 relative">
+      {/* Loading progress bar */}
+      {loading && loadProgress && !loadProgress.complete && (
+        <div className="absolute top-0 left-0 right-0 z-30 h-1 bg-nebula-800">
+          <motion.div 
+            className="h-full bg-gradient-to-r from-stellar-cyan to-stellar-violet"
+            initial={{ width: 0 }}
+            animate={{ width: `${(loadProgress.loaded / loadProgress.total) * 100}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+      )}
+      
       <AnimatePresence mode="wait">
         {renderLayout()}
       </AnimatePresence>
