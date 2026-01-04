@@ -71,9 +71,8 @@ const AUTO_THRESHOLDS = {
 // =============================================================================
 
 export function GalleryView() {
-  const { layout, filteredImages } = useGalleryStore();
+  const { layout, filteredImages, graphVersion } = useGalleryStore();
   const [graphMode, setGraphMode] = useState<GraphMode>('auto');
-  const [restartKey, setRestartKey] = useState(0);
   
   // Determine effective graph mode based on node count
   const effectiveMode = useMemo(() => {
@@ -94,7 +93,8 @@ export function GalleryView() {
   
   // Render the appropriate network graph
   const renderNetworkGraph = () => {
-    const graphKey = `${effectiveMode}-${restartKey}`;
+    // Use graphVersion as key to force re-mount when edges change
+    const graphKey = `${effectiveMode}-${graphVersion}`;
     
     switch (effectiveMode) {
       case 'webgl':

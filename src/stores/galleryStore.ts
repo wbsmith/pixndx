@@ -18,6 +18,7 @@ interface GalleryStore {
   images: ImageMetadata[];
   filteredImages: ImageMetadata[];
   edges: SimilarityEdge[];
+  graphVersion: number;  // Increments to force graph re-render
   
   // Selection
   selectedImage: ImageMetadata | null;
@@ -145,6 +146,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   images: localImages,
   filteredImages: localImages,
   edges: [],
+  graphVersion: 0,
   selectedImage: null,
   hoveredImage: null,
   
@@ -271,7 +273,8 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
       maxEdgesPerNode: similarity.maxEdgesPerNode,
     });
     
-    set({ edges });
+    // Increment graphVersion to force graph re-render
+    set({ edges, graphVersion: get().graphVersion + 1 });
   },
   
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
