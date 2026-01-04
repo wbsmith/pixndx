@@ -173,17 +173,12 @@ export function SimilaritySlider() {
     return computeEdgeStats(filteredImages, similarity.mode);
   }, [filteredImages, similarity.mode]);
   
-  // Only show for network layouts
-  if (layout.type === 'grid') return null;
-  
   // Check if CLIP neighbors are available
-  const hasClipNeighbors = filteredImages.some(img => img.clipNeighbors && img.clipNeighbors.length > 0);
+  const hasClipNeighbors = useMemo(() => {
+    return filteredImages.some(img => img.clipNeighbors && img.clipNeighbors.length > 0);
+  }, [filteredImages]);
   
-  const handleModeChange = (mode: SimilarityMode) => {
-    setSimilarity({ ...similarity, mode });
-    setHasChanges(true);
-  };
-  
+  // Callbacks must be defined before any early returns (React hooks rule)
   const handleThresholdMinChange = useCallback((value: number) => {
     setSimilarity({ ...similarity, thresholdMin: value });
     setHasChanges(true);
@@ -193,6 +188,14 @@ export function SimilaritySlider() {
     setSimilarity({ ...similarity, thresholdMax: value });
     setHasChanges(true);
   }, [similarity, setSimilarity]);
+  
+  // Only show for network layouts - AFTER all hooks
+  if (layout.type === 'grid') return null;
+  
+  const handleModeChange = (mode: SimilarityMode) => {
+    setSimilarity({ ...similarity, mode });
+    setHasChanges(true);
+  };
   
   const handleMaxEdgesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSimilarity({ ...similarity, maxEdgesPerNode: parseInt(e.target.value, 10) });
@@ -216,12 +219,12 @@ export function SimilaritySlider() {
   const applyPreset = (name: string) => {
     const preset = PRESETS[name];
     if (preset) {
-    setSimilarity({
-      ...similarity,
+      setSimilarity({
+        ...similarity,
         thresholdMin: preset.thresholdMin,
         thresholdMax: preset.thresholdMax,
         maxEdgesPerNode: preset.maxEdges,
-    });
+      });
       if (preset.force) {
         setForce(prev => ({ ...prev, ...preset.force }));
       }
