@@ -285,13 +285,12 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   setLayout: (layout) => {
     set({ layout });
-    // Clear edges when switching away from network
-    if (layout.type !== 'network') {
-      set({ edges: [] });
-    } else {
-      // Auto-compute edges when switching TO network
+    // Auto-compute edges when switching TO network (if not already computed)
+    if (layout.type === 'network' && get().edges.length === 0) {
       get().recomputeEdges();
     }
+    // Don't clear edges when switching away - they're just data in memory
+    // and clearing them causes a flash as the network re-renders with 0 edges
   },
   
   setSimilarity: (config) => {
