@@ -227,11 +227,14 @@ export function NetworkGraphScalable({ settings }: NetworkGraphScalableProps) {
     
     const container = svg.append('g');
     
+    // Helper to create safe CSS IDs (no special chars)
+    const safeId = (id: string) => id.replace(/[^a-zA-Z0-9]/g, '_');
+    
     // Create clip paths for circular images
     const defs = svg.append('defs');
     graph.forEachNode((nodeId) => {
       defs.append('clipPath')
-        .attr('id', `clip-${nodeId}`)
+        .attr('id', `clip-${safeId(nodeId)}`)
         .append('circle')
         .attr('r', nodeRadius - 2);
     });
@@ -289,7 +292,7 @@ export function NetworkGraphScalable({ settings }: NetworkGraphScalableProps) {
       .attr('y', -nodeRadius + 2)
       .attr('width', (nodeRadius - 2) * 2)
       .attr('height', (nodeRadius - 2) * 2)
-      .attr('clip-path', d => `url(#clip-${d.id})`)
+      .attr('clip-path', d => `url(#clip-${safeId(d.id)})`)
       .attr('preserveAspectRatio', 'xMidYMid slice');
     
     // Colored ring border
@@ -426,6 +429,7 @@ export function NetworkGraphScalable({ settings }: NetworkGraphScalableProps) {
         width={dimensions.width}
         height={dimensions.height}
         className="w-full h-full"
+        style={{ touchAction: 'none' }}
       />
       
       {/* Stats overlay */}

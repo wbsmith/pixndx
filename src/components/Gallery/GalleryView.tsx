@@ -79,8 +79,7 @@ export function GalleryView() {
   
   // Debounce timer for expensive edge recomputation
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const effectiveModeRef = useRef(effectiveMode);
-  effectiveModeRef.current = effectiveMode;
+  const effectiveModeRef = useRef<GraphMode>('d3');
   
   // Sync graph settings with store's similarity config (debounced)
   const handleSettingsChange = useCallback((newSettings: GraphSettings) => {
@@ -133,6 +132,9 @@ export function GalleryView() {
       return 'd3';
     }
   }, [graphMode, filteredImages.length]);
+  
+  // Keep ref in sync with effectiveMode for use in debounced callback
+  effectiveModeRef.current = effectiveMode;
   
   // Callback to restart the layout simulation
   const handleRestartLayout = useCallback(() => {
