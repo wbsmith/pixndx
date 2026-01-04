@@ -159,22 +159,23 @@ export function GalleryView() {
   const renderLayout = () => {
     // Show skeleton while initial data loads
     if (filteredImages.length === 0 && loading) {
-      return <LoadingSkeleton progress={loadProgress} />;
+      return <LoadingSkeleton key="loading" progress={loadProgress} />;
     }
     
+    // Each layout needs a unique key for AnimatePresence to work correctly
     switch (layout.type) {
       case 'grid':
-        return <GridLayout />;
+        return <GridLayout key="grid" />;
       case 'network':
         return renderNetworkGraph();
       case 'colorWheel':
-        return <ColorWheel />;
+        return <ColorWheel key="colorWheel" />;
       case 'moodSpectrum':
-        return <MoodSpectrum />;
+        return <MoodSpectrum key="moodSpectrum" />;
       case 'cluster':
-        return <ClusterView />;
+        return <ClusterView key="cluster" />;
       default:
-        return <GridLayout />;
+        return <GridLayout key="grid-default" />;
     }
   };
   
