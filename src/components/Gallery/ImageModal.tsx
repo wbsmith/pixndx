@@ -68,11 +68,21 @@ export function ImageModal() {
     img.src = selectedImage.urls.full;
   }, [selectedImage?.id]);
   
-  // Reset zoom when image changes
+  // Reset all state when image changes or modal closes
   useEffect(() => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
+    setIsFullscreen(false);
   }, [selectedImage?.id]);
+  
+  // Reset fullscreen when modal closes
+  useEffect(() => {
+    if (!modalOpen) {
+      setIsFullscreen(false);
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [modalOpen]);
   
   // Reset zoom when exiting fullscreen
   useEffect(() => {
