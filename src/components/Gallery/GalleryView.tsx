@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Cpu, Zap, Server } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
@@ -77,17 +77,44 @@ export function GalleryView() {
   const [graphSettings, setGraphSettings] = useState<GraphSettings>(DEFAULT_SETTINGS);
   const [restartKey, setRestartKey] = useState(0);
   
-  // Sync graph settings with store's similarity config
+  // Debounce timer for expensive edge recomputation
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const effectiveModeRef = useRef(effectiveMode);
+  effectiveModeRef.current = effectiveMode;
+  
+  // Sync graph settings with store's similarity config (debounced)
   const handleSettingsChange = useCallback((newSettings: GraphSettings) => {
+    // Update local state immediately for responsive UI
     setGraphSettings(newSettings);
     
-    // Update store's similarity config to trigger edge recomputation
-    setSimilarity({
-      ...similarity,
-      threshold: newSettings.edges.threshold,
-      maxEdgesPerNode: newSettings.edges.maxEdgesPerNode,
-    });
+    // Debounce the expensive store update
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    debounceRef.current = setTimeout(() => {
+      // Update store's similarity config to trigger edge recomputation
+      setSimilarity({
+        ...similarity,
+        threshold: newSettings.edges.threshold,
+        maxEdgesPerNode: newSettings.edges.maxEdgesPerNode,
+      });
+      
+      // For ForceAtlas2/WebGL, trigger a layout restart after settings change
+      if (effectiveModeRef.current !== 'd3') {
+        setRestartKey(k => k + 1);
+      }
+    }, 300); // 300ms debounce
   }, [similarity, setSimilarity]);
+  
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
   
   // Determine effective graph mode
   const effectiveMode = useMemo(() => {
