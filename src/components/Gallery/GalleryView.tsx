@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Cpu, Zap, Server } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
@@ -72,50 +72,12 @@ const AUTO_THRESHOLDS = {
 // =============================================================================
 
 export function GalleryView() {
-  const { layout, filteredImages, setSimilarity, similarity } = useGalleryStore();
+  const { layout, filteredImages, setSimilarity, recomputeEdges } = useGalleryStore();
   const [graphMode, setGraphMode] = useState<GraphMode>('auto');
   const [graphSettings, setGraphSettings] = useState<GraphSettings>(DEFAULT_SETTINGS);
   const [restartKey, setRestartKey] = useState(0);
   
-  // Debounce timer for expensive edge recomputation
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const effectiveModeRef = useRef<GraphMode>('d3');
-  
-  // Sync graph settings with store's similarity config (debounced)
-  const handleSettingsChange = useCallback((newSettings: GraphSettings) => {
-    // Update local state immediately for responsive UI
-    setGraphSettings(newSettings);
-    
-    // Debounce the expensive store update
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    
-    debounceRef.current = setTimeout(() => {
-      // Update store's similarity config to trigger edge recomputation
-      setSimilarity({
-        ...similarity,
-        threshold: newSettings.edges.threshold,
-        maxEdgesPerNode: newSettings.edges.maxEdgesPerNode,
-      });
-      
-      // For ForceAtlas2/WebGL, trigger a layout restart after settings change
-      if (effectiveModeRef.current !== 'd3') {
-        setRestartKey(k => k + 1);
-      }
-    }, 300); // 300ms debounce
-  }, [similarity, setSimilarity]);
-  
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
-  
-  // Determine effective graph mode
+  // Determine effective graph mode based on node count
   const effectiveMode = useMemo(() => {
     const nodeCount = filteredImages.length;
     
@@ -133,12 +95,30 @@ export function GalleryView() {
     }
   }, [graphMode, filteredImages.length]);
   
-  // Keep ref in sync with effectiveMode for use in debounced callback
-  effectiveModeRef.current = effectiveMode;
+  // Handle Apply button - update store and recompute edges
+  const handleApply = useCallback(() => {
+    // Update store's similarity config
+    setSimilarity({
+      mode: graphSettings.edges.mode,
+      threshold: graphSettings.edges.threshold,
+      maxEdgesPerNode: graphSettings.edges.maxEdgesPerNode,
+    });
+    
+    // Recompute edges with new settings
+    recomputeEdges();
+    
+    // Restart the layout
+    setRestartKey(k => k + 1);
+  }, [graphSettings.edges, setSimilarity, recomputeEdges]);
   
-  // Callback to restart the layout simulation
+  // Handle restart layout only (no edge recomputation)
   const handleRestartLayout = useCallback(() => {
     setRestartKey(k => k + 1);
+  }, []);
+  
+  // Handle settings change (local state only, no recomputation)
+  const handleSettingsChange = useCallback((newSettings: GraphSettings) => {
+    setGraphSettings(newSettings);
   }, []);
   
   // Render the appropriate network graph
@@ -193,6 +173,7 @@ export function GalleryView() {
           <GraphControls
             settings={graphSettings}
             onChange={handleSettingsChange}
+            onApply={handleApply}
             onRestart={handleRestartLayout}
           />
         </>

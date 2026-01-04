@@ -26,7 +26,10 @@ import { parseArgs } from 'util';
 
 interface ClipNeighbor {
   id: string;
-  weight: number;
+  clipWeight: number;
+  compositeWeight: number;
+  // Legacy field for backwards compatibility
+  weight?: number;
 }
 
 interface RawMetadata {
@@ -43,6 +46,7 @@ interface RawMetadata {
     threshold: number;
     maxNeighbors: number;
     count: number;
+    hasComposite?: boolean;
   };
 }
 
@@ -236,9 +240,18 @@ Workflow:
         exif: meta.exif || {},
       };
 
-      // Include clipNeighbors if present
+      // Include clipNeighbors if present (normalize format)
       if (meta.clipNeighbors && meta.clipNeighbors.length > 0) {
-        outputImage.clipNeighbors = meta.clipNeighbors;
+        // Normalize to new format with both weights
+        outputImage.clipNeighbors = meta.clipNeighbors.map(n => {
+          // Handle both new format (clipWeight/compositeWeight) and legacy (weight)
+          if ('clipWeight' in n && 'compositeWeight' in n) {
+            return { id: n.id, clipWeight: n.clipWeight, compositeWeight: n.compositeWeight };
+          }
+          // Legacy format: use weight for both
+          const w = (n as any).weight ?? 0;
+          return { id: n.id, clipWeight: w, compositeWeight: w };
+        });
         withNeighbors++;
         totalNeighbors += meta.clipNeighbors.length;
       } else {

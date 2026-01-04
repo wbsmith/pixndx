@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
 """
-Compute CLIP Neighbors Per Image
+Compute CLIP and Composite Neighbors Per Image
 
-Computes the top-K nearest neighbors for each image based on CLIP embeddings,
-storing results directly in each image's metadata JSON file.
+Computes the top-K nearest neighbors for each image based on:
+1. CLIP embeddings (clipWeight) - cosine similarity in embedding space
+2. Composite score (compositeWeight) - blend of CLIP + metadata similarity
 
-This enables:
-- Precomputation with loose threshold (store more neighbors)
-- Runtime filtering with tighter threshold (show fewer edges)
-- Per-image updates when new images are added
+This enables fast frontend edge filtering without runtime computation.
 
 Usage:
     python compute_neighbors.py --gallery ./gallery_processed
-    python compute_neighbors.py --gallery ./gallery_processed --threshold 0.5 --max-neighbors 100
-    python compute_neighbors.py --gallery ./gallery_processed --update-only  # Only process new images
+    python compute_neighbors.py --gallery ./gallery_processed --threshold 0.3 --max-neighbors 200
 """
 
 import json
 import os
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
 import argparse
 
@@ -37,7 +34,8 @@ except ImportError:
 @dataclass
 class Neighbor:
     id: str
-    weight: float
+    clipWeight: float
+    compositeWeight: float
 
 
 def load_embedding(npy_path: Path) -> Optional[np.ndarray]:
@@ -49,6 +47,16 @@ def load_embedding(npy_path: Path) -> Optional[np.ndarray]:
         return emb.astype(np.float32)
     except Exception as e:
         print(f"Error loading {npy_path}: {e}")
+        return None
+
+
+def load_metadata(json_path: Path) -> Optional[Dict[str, Any]]:
+    """Load image metadata JSON."""
+    try:
+        with open(json_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading {json_path}: {e}")
         return None
 
 
@@ -65,6 +73,10 @@ def discover_images(gallery_dir: Path) -> List[Tuple[str, Path, Path]]:
     
     results = []
     for json_path in meta_dir.glob("*.json"):
+        # Skip edges files
+        if json_path.stem.startswith('edges'):
+            continue
+            
         image_id = json_path.stem
         npy_path = meta_dir / f"{image_id}.npy"
         
@@ -74,47 +86,178 @@ def discover_images(gallery_dir: Path) -> List[Tuple[str, Path, Path]]:
     return sorted(results, key=lambda x: x[0])
 
 
-def compute_neighbors_exact(
+# =============================================================================
+# METADATA SIMILARITY FUNCTIONS
+# =============================================================================
+
+def jaccard_similarity(a: List[str], b: List[str]) -> float:
+    """Compute Jaccard similarity between two lists of strings."""
+    set_a = set(s.lower() for s in a if s)
+    set_b = set(s.lower() for s in b if s)
+    
+    if not set_a and not set_b:
+        return 0.0
+    
+    intersection = len(set_a & set_b)
+    union = len(set_a | set_b)
+    
+    return intersection / union if union > 0 else 0.0
+
+
+def hex_to_rgb(hex_str: str) -> Optional[Tuple[int, int, int]]:
+    """Convert hex color to RGB tuple."""
+    hex_str = hex_str.lstrip('#')
+    if len(hex_str) != 6:
+        return None
+    try:
+        return tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return None
+
+
+def color_similarity(colors1: List[str], colors2: List[str]) -> float:
+    """Compute color palette similarity."""
+    if not colors1 or not colors2:
+        return 0.0
+    
+    total_min_dist = 0.0
+    count = 0
+    
+    for hex1 in colors1:
+        rgb1 = hex_to_rgb(hex1)
+        if not rgb1:
+            continue
+        
+        min_dist = 1.0
+        for hex2 in colors2:
+            rgb2 = hex_to_rgb(hex2)
+            if not rgb2:
+                continue
+            
+            # Euclidean distance in RGB space, normalized
+            dist = (
+                ((rgb1[0] - rgb2[0]) / 255) ** 2 +
+                ((rgb1[1] - rgb2[1]) / 255) ** 2 +
+                ((rgb1[2] - rgb2[2]) / 255) ** 2
+            ) ** 0.5 / (3 ** 0.5)
+            
+            min_dist = min(min_dist, dist)
+        
+        total_min_dist += min_dist
+        count += 1
+    
+    return 1.0 - (total_min_dist / count) if count > 0 else 0.0
+
+
+def compute_metadata_similarity(meta1: Dict, meta2: Dict) -> float:
+    """
+    Compute metadata similarity between two images.
+    Returns weighted average of tag, mood, and color similarity.
+    """
+    # Tag similarity
+    tags1 = []
+    tags2 = []
+    
+    if 'tags' in meta1:
+        for v in meta1['tags'].values():
+            if isinstance(v, list):
+                tags1.extend(v)
+            else:
+                tags1.append(str(v))
+    
+    if 'tags' in meta2:
+        for v in meta2['tags'].values():
+            if isinstance(v, list):
+                tags2.extend(v)
+            else:
+                tags2.append(str(v))
+    
+    tag_sim = jaccard_similarity(tags1, tags2)
+    
+    # Mood similarity
+    mood1 = meta1.get('mood', '').lower().split()
+    mood2 = meta2.get('mood', '').lower().split()
+    mood_sim = jaccard_similarity(mood1, mood2)
+    
+    # Color similarity
+    colors1 = list(meta1.get('main_colors', {}).values())
+    colors2 = list(meta2.get('main_colors', {}).values())
+    color_sim = color_similarity(colors1, colors2)
+    
+    # Weighted average (matching frontend weights)
+    return tag_sim * 0.4 + mood_sim * 0.3 + color_sim * 0.3
+
+
+# =============================================================================
+# NEIGHBOR COMPUTATION
+# =============================================================================
+
+def compute_neighbors_with_composite(
     image_ids: List[str],
     embeddings: np.ndarray,
+    metadata_list: List[Dict],
     threshold: float,
     max_neighbors: int,
+    clip_weight: float = 0.6,
+    meta_weight: float = 0.4,
 ) -> Dict[str, List[Neighbor]]:
     """
-    Compute neighbors using exact cosine similarity.
-    Good for datasets up to ~5000 images.
+    Compute neighbors with both CLIP and composite weights.
     """
     n = len(image_ids)
     
-    # Normalize for cosine similarity
+    # Create id -> index mapping
+    id_to_idx = {id_: i for i, id_ in enumerate(image_ids)}
+    
+    # Normalize embeddings for cosine similarity
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     normalized = embeddings / (norms + 1e-8)
     
     # Compute full similarity matrix
-    print(f"Computing {n}x{n} similarity matrix...")
-    similarity_matrix = normalized @ normalized.T
+    print(f"Computing {n}x{n} CLIP similarity matrix...")
+    clip_sim_matrix = normalized @ normalized.T
     
-    # Extract neighbors per image
+    # Extract neighbors per image with both weights
     neighbors = {}
     
-    for i in tqdm(range(n), desc="Extracting neighbors"):
-        sims = similarity_matrix[i]
+    for i in tqdm(range(n), desc="Computing neighbors"):
+        clip_sims = clip_sim_matrix[i]
         
-        # Get indices sorted by similarity (descending), excluding self
-        sorted_indices = np.argsort(-sims)
+        # Get indices sorted by CLIP similarity (descending), excluding self
+        sorted_indices = np.argsort(-clip_sims)
         
         image_neighbors = []
         for j in sorted_indices:
             if j == i:
                 continue
-            if sims[j] < threshold:
-                break  # Since sorted, no more will pass threshold
+            
+            clip_sim = float(clip_sims[j])
+            
+            # Skip if CLIP similarity is too low (even perfect metadata can't save it)
+            if clip_sim < threshold - meta_weight:
+                break
+            
             if len(image_neighbors) >= max_neighbors:
                 break
-                
+            
+            # Compute metadata similarity
+            meta_sim = compute_metadata_similarity(
+                metadata_list[i], 
+                metadata_list[j]
+            )
+            
+            # Compute composite score
+            composite_sim = clip_sim * clip_weight + meta_sim * meta_weight
+            
+            # Only include if passes threshold (either weight)
+            min_weight = min(clip_sim, composite_sim)
+            if min_weight < threshold:
+                continue
+            
             image_neighbors.append(Neighbor(
                 id=image_ids[j],
-                weight=round(float(sims[j]), 4)
+                clipWeight=round(clip_sim, 4),
+                compositeWeight=round(composite_sim, 4)
             ))
         
         neighbors[image_ids[i]] = image_neighbors
@@ -122,18 +265,24 @@ def compute_neighbors_exact(
     return neighbors
 
 
-def compute_neighbors_faiss(
+def compute_neighbors_faiss_with_composite(
     image_ids: List[str],
     embeddings: np.ndarray,
+    metadata_list: List[Dict],
     threshold: float,
     max_neighbors: int,
-    k_search: int = 200,
+    k_search: int = 300,
+    clip_weight: float = 0.6,
+    meta_weight: float = 0.4,
 ) -> Dict[str, List[Neighbor]]:
     """
-    Compute neighbors using FAISS approximate nearest neighbor.
-    Much faster for large datasets (10K+ images).
+    Compute neighbors using FAISS with composite weights.
+    Much faster for large datasets.
     """
     n, d = embeddings.shape
+    
+    # Create id -> index mapping
+    id_to_idx = {id_: i for i, id_ in enumerate(image_ids)}
     
     # Normalize for cosine similarity
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -143,7 +292,6 @@ def compute_neighbors_faiss(
     print(f"Building FAISS index for {n} images...")
     
     if n > 50000:
-        # Use IVF for very large datasets
         nlist = int(np.sqrt(n))
         quantizer = faiss.IndexFlatIP(d)
         index = faiss.IndexIVFFlat(quantizer, d, nlist, faiss.METRIC_INNER_PRODUCT)
@@ -157,27 +305,39 @@ def compute_neighbors_faiss(
     print(f"Searching {k_search} neighbors per image...")
     distances, indices = index.search(normalized, k_search)
     
-    # Extract neighbors per image
+    # Extract neighbors with composite weights
     neighbors = {}
     
-    for i in tqdm(range(n), desc="Extracting neighbors"):
+    for i in tqdm(range(n), desc="Computing composite weights"):
         image_neighbors = []
         
         for k in range(k_search):
-            j = indices[i, k]
-            sim = distances[i, k]
+            j = int(indices[i, k])
+            clip_sim = float(distances[i, k])
             
             if j == i:
                 continue
-            if sim < threshold:
+            if clip_sim < threshold - meta_weight:
                 continue
             if len(image_neighbors) >= max_neighbors:
                 break
             
-            image_neighbors.append(Neighbor(
-                id=image_ids[j],
-                weight=round(float(sim), 4)
-            ))
+            # Compute metadata similarity
+            meta_sim = compute_metadata_similarity(
+                metadata_list[i],
+                metadata_list[j]
+            )
+            
+            # Compute composite score
+            composite_sim = clip_sim * clip_weight + meta_sim * meta_weight
+            
+            # Include if passes threshold
+            if clip_sim >= threshold or composite_sim >= threshold:
+                image_neighbors.append(Neighbor(
+                    id=image_ids[j],
+                    clipWeight=round(clip_sim, 4),
+                    compositeWeight=round(composite_sim, 4)
+                ))
         
         neighbors[image_ids[i]] = image_neighbors
     
@@ -204,9 +364,13 @@ def update_metadata_files(
             with open(json_path, 'r') as f:
                 metadata = json.load(f)
             
-            # Add neighbors
+            # Add neighbors with both weights
             metadata['clipNeighbors'] = [
-                {'id': n.id, 'weight': n.weight}
+                {
+                    'id': n.id,
+                    'clipWeight': n.clipWeight,
+                    'compositeWeight': n.compositeWeight
+                }
                 for n in image_neighbors
             ]
             
@@ -215,6 +379,7 @@ def update_metadata_files(
                 'threshold': threshold,
                 'maxNeighbors': max_neighbors,
                 'count': len(image_neighbors),
+                'hasComposite': True,
             }
             
             with open(json_path, 'w') as f:
@@ -230,7 +395,7 @@ def update_metadata_files(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Compute CLIP neighbors per image',
+        description='Compute CLIP + Composite neighbors per image',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -238,23 +403,20 @@ Examples:
     python compute_neighbors.py --gallery ./gallery_processed
     
     # With custom threshold and limit
-    python compute_neighbors.py --gallery ./gallery_processed -t 0.5 -m 100
-    
-    # Only update images without neighbors
-    python compute_neighbors.py --gallery ./gallery_processed --update-only
+    python compute_neighbors.py --gallery ./gallery_processed -t 0.3 -m 200
         """
     )
     
     parser.add_argument('--gallery', '-g', required=True,
                         help='Path to gallery_processed directory')
-    parser.add_argument('--threshold', '-t', type=float, default=0.5,
-                        help='Minimum similarity to store (default: 0.5)')
-    parser.add_argument('--max-neighbors', '-m', type=int, default=100,
-                        help='Maximum neighbors per image (default: 100)')
-    parser.add_argument('--update-only', action='store_true',
-                        help='Only process images without existing neighbors')
-    parser.add_argument('--use-faiss', action='store_true', default=True,
-                        help='Use FAISS for large datasets (default: auto)')
+    parser.add_argument('--threshold', '-t', type=float, default=0.3,
+                        help='Minimum similarity to store (default: 0.3)')
+    parser.add_argument('--max-neighbors', '-m', type=int, default=200,
+                        help='Maximum neighbors per image (default: 200)')
+    parser.add_argument('--clip-weight', type=float, default=0.6,
+                        help='Weight for CLIP in composite (default: 0.6)')
+    parser.add_argument('--meta-weight', type=float, default=0.4,
+                        help='Weight for metadata in composite (default: 0.4)')
     
     args = parser.parse_args()
     
@@ -264,10 +426,12 @@ Examples:
         print(f"Error: {gallery_path} not found")
         return
     
-    print(f"\n📊 Computing CLIP Neighbors")
+    print(f"\n📊 Computing CLIP + Composite Neighbors")
     print(f"   Gallery:        {gallery_path}")
     print(f"   Threshold:      {args.threshold}")
     print(f"   Max neighbors:  {args.max_neighbors}")
+    print(f"   CLIP weight:    {args.clip_weight}")
+    print(f"   Meta weight:    {args.meta_weight}")
     
     # Discover images
     images = discover_images(gallery_path)
@@ -276,62 +440,65 @@ Examples:
     if not images:
         return
     
-    # Filter to only images needing update
-    if args.update_only:
-        filtered = []
-        for image_id, json_path, npy_path in images:
-            with open(json_path) as f:
-                meta = json.load(f)
-            if 'clipNeighbors' not in meta:
-                filtered.append((image_id, json_path, npy_path))
-        
-        print(f"   {len(filtered)} images need neighbor computation")
-        if not filtered:
-            print("   All images already have neighbors!")
-            return
-        images = filtered
-    
-    # Load embeddings
-    print("\nLoading embeddings...")
+    # Load embeddings and metadata
+    print("\nLoading embeddings and metadata...")
     image_ids = []
     embeddings = []
+    metadata_list = []
     
     for image_id, json_path, npy_path in tqdm(images, desc="Loading"):
         emb = load_embedding(npy_path)
-        if emb is not None:
+        meta = load_metadata(json_path)
+        
+        if emb is not None and meta is not None:
             image_ids.append(image_id)
             embeddings.append(emb)
+            metadata_list.append(meta)
     
     embeddings = np.vstack(embeddings)
     n, d = embeddings.shape
-    print(f"✅ Loaded {n} embeddings ({d}-dimensional)")
+    print(f"✅ Loaded {n} embeddings ({d}-dimensional) with metadata")
     
     # Compute neighbors
-    use_faiss = args.use_faiss and HAS_FAISS and n > 1000
+    use_faiss = HAS_FAISS and n > 1000
     
     if use_faiss:
         print("\n🚀 Using FAISS approximate search")
-        neighbors = compute_neighbors_faiss(
-            image_ids, embeddings, 
-            args.threshold, args.max_neighbors
+        neighbors = compute_neighbors_faiss_with_composite(
+            image_ids, embeddings, metadata_list,
+            args.threshold, args.max_neighbors,
+            clip_weight=args.clip_weight,
+            meta_weight=args.meta_weight
         )
     else:
-        if n > 5000 and not HAS_FAISS:
+        if n > 3000 and not HAS_FAISS:
             print("\n⚠️  Large dataset without FAISS - this may be slow")
             print("   Install with: pip install faiss-cpu")
         print("\n📐 Using exact search")
-        neighbors = compute_neighbors_exact(
-            image_ids, embeddings,
-            args.threshold, args.max_neighbors
+        neighbors = compute_neighbors_with_composite(
+            image_ids, embeddings, metadata_list,
+            args.threshold, args.max_neighbors,
+            clip_weight=args.clip_weight,
+            meta_weight=args.meta_weight
         )
     
     # Statistics
     neighbor_counts = [len(v) for v in neighbors.values()]
+    clip_weights = []
+    composite_weights = []
+    for ns in neighbors.values():
+        for n in ns:
+            clip_weights.append(n.clipWeight)
+            composite_weights.append(n.compositeWeight)
+    
     print(f"\n📊 Neighbor Statistics:")
-    print(f"   Total images:    {len(neighbors)}")
-    print(f"   Avg neighbors:   {sum(neighbor_counts) / len(neighbor_counts):.1f}")
-    print(f"   Min neighbors:   {min(neighbor_counts)}")
-    print(f"   Max neighbors:   {max(neighbor_counts)}")
+    print(f"   Total images:       {len(neighbors)}")
+    print(f"   Avg neighbors:      {sum(neighbor_counts) / len(neighbor_counts):.1f}")
+    print(f"   Min neighbors:      {min(neighbor_counts)}")
+    print(f"   Max neighbors:      {max(neighbor_counts)}")
+    if clip_weights:
+        print(f"   CLIP weight range:  {min(clip_weights):.3f} - {max(clip_weights):.3f}")
+        print(f"   Comp weight range:  {min(composite_weights):.3f} - {max(composite_weights):.3f}")
     
     # Update metadata files
     print("\n📝 Updating metadata files...")
@@ -340,10 +507,9 @@ Examples:
         args.threshold, args.max_neighbors
     )
     
-    print(f"\n✅ Updated {updated} metadata files")
+    print(f"\n✅ Updated {updated} metadata files with clipWeight + compositeWeight")
     print(f"\n💡 Next: Run generate-local-data.ts to update frontend data")
 
 
 if __name__ == '__main__':
     main()
-

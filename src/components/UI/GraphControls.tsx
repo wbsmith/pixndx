@@ -1,17 +1,19 @@
 /**
  * Graph Controls
  * 
- * Extended controls for network graph visualization including:
- * - Force layout parameters (gravity, scaling, iterations)
- * - Edge filtering (threshold, max per node)
- * - Coloring mode (by cluster, community, mood, etc.)
- * - Layout presets
+ * Controls for network graph visualization:
+ * - Similarity mode (CLIP or Composite)
+ * - Edge threshold slider
+ * - Max edges per node slider
+ * - Force layout parameters
+ * - Apply button (explicit recomputation)
  */
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { Settings, ChevronDown, ChevronUp, RotateCcw, Play } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
+import type { SimilarityMode } from '@/types/gallery';
 
 // =============================================================================
 // TYPES
@@ -26,9 +28,9 @@ export interface ForceLayoutParams {
 }
 
 export interface EdgeFilterParams {
+  mode: SimilarityMode;   // 'clip' or 'composite'
   threshold: number;      // Minimum edge weight (0-1)
   maxEdgesPerNode: number; // Cap edges per node
-  showWeakLinks: boolean; // Show low-weight edges as dashed
 }
 
 export type ColorMode = 
@@ -36,8 +38,7 @@ export type ColorMode =
   | 'cluster'       // By HDBSCAN cluster
   | 'community'     // By Louvain community
   | 'mood'          // By mood
-  | 'color'         // By dominant color
-  | 'rating';       // By user rating (admin mode)
+  | 'color';        // By dominant color
 
 export interface GraphSettings {
   force: ForceLayoutParams;
@@ -58,9 +59,9 @@ export const DEFAULT_SETTINGS: GraphSettings = {
     iterations: 300,
   },
   edges: {
-    threshold: 0.6,
+    mode: 'clip',
+    threshold: 0.5,
     maxEdgesPerNode: 20,
-    showWeakLinks: false,
   },
   colorMode: 'uniform',
 };
@@ -68,21 +69,16 @@ export const DEFAULT_SETTINGS: GraphSettings = {
 const PRESETS: Record<string, Partial<GraphSettings>> = {
   tight: {
     force: { ...DEFAULT_SETTINGS.force, gravity: 0.15, scaling: 0.5 },
-    edges: { ...DEFAULT_SETTINGS.edges, threshold: 0.8, maxEdgesPerNode: 10 },
+    edges: { ...DEFAULT_SETTINGS.edges, threshold: 0.7, maxEdgesPerNode: 10 },
   },
   loose: {
     force: { ...DEFAULT_SETTINGS.force, gravity: 0.02, scaling: 2.0 },
-    edges: { ...DEFAULT_SETTINGS.edges, threshold: 0.5, maxEdgesPerNode: 30 },
+    edges: { ...DEFAULT_SETTINGS.edges, threshold: 0.4, maxEdgesPerNode: 30 },
   },
   clusters: {
     force: { ...DEFAULT_SETTINGS.force, gravity: 0.08, edgeWeightInfluence: 1.5 },
-    edges: { ...DEFAULT_SETTINGS.edges, threshold: 0.7 },
+    edges: { ...DEFAULT_SETTINGS.edges, threshold: 0.6 },
     colorMode: 'cluster',
-  },
-  communities: {
-    force: { ...DEFAULT_SETTINGS.force, gravity: 0.1 },
-    edges: { ...DEFAULT_SETTINGS.edges, threshold: 0.65 },
-    colorMode: 'community',
   },
 };
 
@@ -93,11 +89,13 @@ const PRESETS: Record<string, Partial<GraphSettings>> = {
 interface GraphControlsProps {
   settings: GraphSettings;
   onChange: (settings: GraphSettings) => void;
-  onRestart?: () => void;  // Restart layout simulation
+  onApply: () => void;      // Apply settings and recompute edges
+  onRestart?: () => void;   // Restart layout simulation only
 }
 
-export function GraphControls({ settings, onChange, onRestart }: GraphControlsProps) {
+export function GraphControls({ settings, onChange, onApply, onRestart }: GraphControlsProps) {
   const [expanded, setExpanded] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
   const { layout } = useGalleryStore();
   
   // Only show for network layouts
@@ -108,13 +106,15 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
       ...settings,
       force: { ...settings.force, [key]: value },
     });
+    setHasChanges(true);
   };
   
-  const updateEdges = (key: keyof EdgeFilterParams, value: number | boolean) => {
+  const updateEdges = (key: keyof EdgeFilterParams, value: number | boolean | SimilarityMode) => {
     onChange({
       ...settings,
       edges: { ...settings.edges, [key]: value },
     });
+    setHasChanges(true);
   };
   
   const applyPreset = (presetName: string) => {
@@ -126,8 +126,13 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
         force: { ...settings.force, ...preset.force },
         edges: { ...settings.edges, ...preset.edges },
       });
-      onRestart?.();
+      setHasChanges(true);
     }
+  };
+  
+  const handleApply = () => {
+    onApply();
+    setHasChanges(false);
   };
   
   return (
@@ -145,6 +150,9 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
           <div className="flex items-center gap-2">
             <Settings size={14} className="text-stellar-violet" />
             <span className="text-nebula-300">Graph Settings</span>
+            {hasChanges && (
+              <span className="w-2 h-2 rounded-full bg-stellar-cyan animate-pulse" />
+            )}
           </div>
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
@@ -160,55 +168,34 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
             >
               <div className="p-3 space-y-4 max-h-[60vh] overflow-y-auto">
                 
-                {/* Presets */}
+                {/* Similarity Mode - CLIP vs Composite */}
                 <div>
                   <label className="text-[10px] text-nebula-500 uppercase tracking-wider mb-2 block">
-                    Presets
+                    Similarity Mode
                   </label>
-                  <div className="flex flex-wrap gap-1">
-                    {Object.keys(PRESETS).map((name) => (
-                      <button
-                        key={name}
-                        onClick={() => applyPreset(name)}
-                        className="px-2 py-1 text-[10px] rounded bg-nebula-800/50 text-nebula-300 
-                                   hover:bg-stellar-violet/20 hover:text-stellar-violet transition-colors capitalize"
-                      >
-                        {name}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-2 gap-1">
                     <button
-                      onClick={() => {
-                        onChange(DEFAULT_SETTINGS);
-                        onRestart?.();
-                      }}
-                      className="px-2 py-1 text-[10px] rounded bg-nebula-800/50 text-nebula-400 
-                                 hover:bg-nebula-700 transition-colors flex items-center gap-1"
+                      onClick={() => updateEdges('mode', 'clip')}
+                      className={`px-3 py-2 text-xs rounded transition-colors
+                        ${settings.edges.mode === 'clip'
+                          ? 'bg-stellar-cyan/20 text-stellar-cyan border border-stellar-cyan/30'
+                          : 'bg-nebula-800/50 text-nebula-400 hover:bg-nebula-700'
+                        }`}
                     >
-                      <RotateCcw size={10} />
-                      Reset
+                      <div className="font-medium">CLIP</div>
+                      <div className="text-[9px] opacity-70">Embedding similarity</div>
                     </button>
-                  </div>
-                </div>
-                
-                {/* Color Mode */}
-                <div>
-                  <label className="text-[10px] text-nebula-500 uppercase tracking-wider mb-2 block">
-                    Node Coloring
-                  </label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {(['uniform', 'cluster', 'community', 'mood', 'color', 'rating'] as ColorMode[]).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => onChange({ ...settings, colorMode: mode })}
-                        className={`px-2 py-1.5 text-[10px] rounded transition-colors capitalize
-                          ${settings.colorMode === mode
-                            ? 'bg-stellar-violet/20 text-stellar-violet border border-stellar-violet/30'
-                            : 'bg-nebula-800/50 text-nebula-400 hover:bg-nebula-700'
-                          }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
+                    <button
+                      onClick={() => updateEdges('mode', 'composite')}
+                      className={`px-3 py-2 text-xs rounded transition-colors
+                        ${settings.edges.mode === 'composite'
+                          ? 'bg-stellar-violet/20 text-stellar-violet border border-stellar-violet/30'
+                          : 'bg-nebula-800/50 text-nebula-400 hover:bg-nebula-700'
+                        }`}
+                    >
+                      <div className="font-medium">Composite</div>
+                      <div className="text-[9px] opacity-70">CLIP + metadata</div>
+                    </button>
                   </div>
                 </div>
                 
@@ -224,8 +211,8 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
                   </div>
                   <input
                     type="range"
-                    min="0.3"
-                    max="0.95"
+                    min="0.2"
+                    max="0.9"
                     step="0.05"
                     value={settings.edges.threshold}
                     onChange={(e) => updateEdges('threshold', parseFloat(e.target.value))}
@@ -256,6 +243,71 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
                     onChange={(e) => updateEdges('maxEdgesPerNode', parseInt(e.target.value))}
                     className="similarity-slider w-full"
                   />
+                </div>
+                
+                {/* Apply Button - THE KEY CONTROL */}
+                <button
+                  onClick={handleApply}
+                  className={`w-full py-2.5 text-sm rounded font-medium flex items-center justify-center gap-2 transition-all
+                    ${hasChanges 
+                      ? 'bg-stellar-cyan text-cosmos-void hover:bg-stellar-cyan/90 shadow-lg shadow-stellar-cyan/20' 
+                      : 'bg-stellar-cyan/20 text-stellar-cyan hover:bg-stellar-cyan/30'
+                    }`}
+                >
+                  <Play size={14} />
+                  Apply & Compute Edges
+                </button>
+                
+                {/* Presets */}
+                <div className="pt-2 border-t border-nebula-800">
+                  <label className="text-[10px] text-nebula-500 uppercase tracking-wider mb-2 block">
+                    Presets
+                  </label>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.keys(PRESETS).map((name) => (
+                      <button
+                        key={name}
+                        onClick={() => applyPreset(name)}
+                        className="px-2 py-1 text-[10px] rounded bg-nebula-800/50 text-nebula-300 
+                                   hover:bg-stellar-violet/20 hover:text-stellar-violet transition-colors capitalize"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        onChange(DEFAULT_SETTINGS);
+                        setHasChanges(true);
+                      }}
+                      className="px-2 py-1 text-[10px] rounded bg-nebula-800/50 text-nebula-400 
+                                 hover:bg-nebula-700 transition-colors flex items-center gap-1"
+                    >
+                      <RotateCcw size={10} />
+                      Reset
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Color Mode */}
+                <div>
+                  <label className="text-[10px] text-nebula-500 uppercase tracking-wider mb-2 block">
+                    Node Coloring
+                  </label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(['uniform', 'cluster', 'community', 'mood', 'color'] as ColorMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => onChange({ ...settings, colorMode: mode })}
+                        className={`px-2 py-1.5 text-[10px] rounded transition-colors capitalize
+                          ${settings.colorMode === mode
+                            ? 'bg-stellar-violet/20 text-stellar-violet border border-stellar-violet/30'
+                            : 'bg-nebula-800/50 text-nebula-400 hover:bg-nebula-700'
+                          }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 
                 {/* Force Layout Controls */}
@@ -326,15 +378,15 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
                   </div>
                 </div>
                 
-                {/* Restart button */}
+                {/* Restart Layout button */}
                 {onRestart && (
                   <button
                     onClick={onRestart}
-                    className="w-full py-2 text-xs rounded bg-stellar-violet/20 text-stellar-violet
-                               hover:bg-stellar-violet/30 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2 text-xs rounded bg-nebula-800/50 text-nebula-300
+                               hover:bg-nebula-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <RotateCcw size={12} />
-                    Restart Layout
+                    Restart Layout Only
                   </button>
                 )}
               </div>
@@ -345,31 +397,3 @@ export function GraphControls({ settings, onChange, onRestart }: GraphControlsPr
     </div>
   );
 }
-
-// =============================================================================
-// HOOK
-// =============================================================================
-
-import { useCallback } from 'react';
-
-/**
- * Hook to manage graph settings state
- */
-export function useGraphSettings() {
-  const [settings, setSettings] = useState<GraphSettings>(DEFAULT_SETTINGS);
-  
-  const updateSettings = useCallback((newSettings: GraphSettings) => {
-    setSettings(newSettings);
-  }, []);
-  
-  const resetSettings = useCallback(() => {
-    setSettings(DEFAULT_SETTINGS);
-  }, []);
-  
-  return {
-    settings,
-    updateSettings,
-    resetSettings,
-  };
-}
-

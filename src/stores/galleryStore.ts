@@ -27,11 +27,6 @@ interface GalleryStore {
   layout: LayoutConfig;
   similarity: SimilarityConfig;
   
-  // Edge computation params (interactive controls)
-  edgeParams: {
-    maxEdgesPerNode: number;
-  };
-  
   // Search
   searchQuery: string;
   searchFilters: SearchQuery['filters'];
@@ -47,11 +42,10 @@ interface GalleryStore {
   setHoveredImage: (image: ImageMetadata | null) => void;
   setLayout: (layout: LayoutConfig) => void;
   setSimilarity: (config: SimilarityConfig) => void;
-  setEdgeParams: (params: { maxEdgesPerNode?: number }) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilters: (filters: SearchQuery['filters']) => void;
   performSearch: () => void;
-  recomputeEdges: () => void;
+  recomputeEdges: () => void;  // Explicit edge recomputation
   toggleSidebar: () => void;
   openModal: (image: ImageMetadata) => void;
   closeModal: () => void;
@@ -156,21 +150,13 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   layout: {
     type: 'grid',
-    similarity: {
-      mode: 'composite',
-      threshold: 0.6,
-      weights: { visual: 0.3, semantic: 0.3, color: 0.2, mood: 0.2 },
-    },
   },
   
+  // Default similarity settings
   similarity: {
-    mode: 'composite',
-    threshold: 0.6,
-    weights: { visual: 0.3, semantic: 0.3, color: 0.2, mood: 0.2 },
-  },
-  
-  edgeParams: {
-    maxEdgesPerNode: 15,
+    mode: 'clip',
+    threshold: 0.5,
+    maxEdgesPerNode: 20,
   },
   
   searchQuery: '',
@@ -184,8 +170,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   // ==========================================================================
   
   setImages: (images) => {
-    set({ images, filteredImages: images });
-    get().recomputeEdges();
+    set({ images, filteredImages: images, edges: [] });
   },
   
   setSelectedImage: (image) => set({ selectedImage: image }),
@@ -194,25 +179,16 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   setLayout: (layout) => {
     set({ layout });
-    if (layout.similarity) {
-      get().setSimilarity(layout.similarity);
-    }
-    // Recompute edges when switching to network layout
-    if (layout.type === 'network') {
-      get().recomputeEdges();
+    // Clear edges when switching away from network
+    if (layout.type !== 'network') {
+      set({ edges: [] });
     }
   },
   
   setSimilarity: (config) => {
     set({ similarity: config });
-    get().recomputeEdges();
-  },
-  
-  setEdgeParams: (params) => {
-    set((state) => ({
-      edgeParams: { ...state.edgeParams, ...params },
-    }));
-    get().recomputeEdges();
+    // NOTE: Does NOT auto-recompute edges
+    // User must click "Apply" button to trigger recomputeEdges()
   },
   
   setSearchQuery: (query) => {
@@ -263,28 +239,33 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
       }
     }
     
-    set({ filteredImages: filtered });
-    get().recomputeEdges();
+    set({ filteredImages: filtered, edges: [] });
   },
   
+  /**
+   * Recompute edges from precomputed neighbors.
+   * Call this explicitly when user clicks "Apply" button.
+   */
   recomputeEdges: () => {
-    const { filteredImages, similarity, edgeParams, layout } = get();
+    const { filteredImages, similarity, layout } = get();
     
-    // Skip edge computation for grid layout
-    if (layout.type === 'grid') {
+    // Skip for non-network layouts
+    if (layout.type !== 'network') {
       set({ edges: [] });
       return;
     }
     
-    // Compute edges at runtime using the new utility
+    // Skip if no images
+    if (filteredImages.length === 0) {
+      set({ edges: [] });
+      return;
+    }
+    
+    // Filter precomputed edges (fast!)
     const edges = computeEdges(filteredImages, {
       mode: similarity.mode,
       threshold: similarity.threshold,
-      maxEdgesPerNode: edgeParams.maxEdgesPerNode,
-      weights: {
-        clip: 0.6,
-        metadata: 0.4,
-      },
+      maxEdgesPerNode: similarity.maxEdgesPerNode,
     });
     
     set({ edges });

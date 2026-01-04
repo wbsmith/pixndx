@@ -1,7 +1,8 @@
-// CLIP neighbor - precomputed similar image
+// CLIP neighbor - precomputed similar image with both similarity metrics
 export interface ClipNeighbor {
   id: string;
-  weight: number;  // 0-1 cosine similarity
+  clipWeight: number;      // 0-1 CLIP embedding cosine similarity
+  compositeWeight: number; // 0-1 blended CLIP + metadata similarity
 }
 
 // Core image types - matches your JSON metadata structure
@@ -102,23 +103,14 @@ export interface ExifData {
 }
 
 // Similarity and layout types
-export type SimilarityMode =
-  | 'full'
-  | 'colors'
-  | 'mood'
-  | 'tags'
-  | 'description'
-  | 'composite';
+// 'clip' uses precomputed CLIP embedding similarity
+// 'composite' uses precomputed blended CLIP + metadata similarity
+export type SimilarityMode = 'clip' | 'composite';
 
 export interface SimilarityConfig {
   mode: SimilarityMode;
-  threshold: number;
-  weights?: {
-    visual: number;
-    semantic: number;
-    color: number;
-    mood: number;
-  };
+  threshold: number;         // 0-1, minimum edge weight to display
+  maxEdgesPerNode: number;   // Maximum connections per image
 }
 
 export interface SimilarityEdge {
