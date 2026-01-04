@@ -155,8 +155,8 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   // Default similarity settings
   similarity: {
     mode: 'clip',
-    threshold: 0.5,
-    maxEdgesPerNode: 20,
+    threshold: 0.35,  // Lower default to show more edges initially
+    maxEdgesPerNode: 25,
   },
   
   searchQuery: '',
@@ -182,6 +182,9 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     // Clear edges when switching away from network
     if (layout.type !== 'network') {
       set({ edges: [] });
+    } else {
+      // Auto-compute edges when switching TO network
+      get().recomputeEdges();
     }
   },
   

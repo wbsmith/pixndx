@@ -38,6 +38,15 @@ export function computeEdges(
   // Build set of valid IDs (for filtered image sets)
   const validIds = new Set(images.map(img => img.id));
   
+  // Debug: check how many images have neighbors
+  const withNeighbors = images.filter(img => img.clipNeighbors && img.clipNeighbors.length > 0);
+  console.log(`[computeEdges] ${images.length} images, ${withNeighbors.length} with neighbors`);
+  
+  if (withNeighbors.length > 0) {
+    const sample = withNeighbors[0].clipNeighbors![0];
+    console.log('[computeEdges] Sample neighbor format:', sample);
+  }
+  
   const edges: SimilarityEdge[] = [];
   const edgeCounts = new Map<string, number>();
   const seen = new Set<string>();
