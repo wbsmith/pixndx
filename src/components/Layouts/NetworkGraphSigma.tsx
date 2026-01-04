@@ -19,7 +19,6 @@ import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
-import type { GraphSettings } from '@/components/UI/GraphControls';
 
 // Sigma imports - these will error until packages are installed
 // import Sigma from 'sigma';
@@ -118,11 +117,7 @@ function runLayout(graph: Graph<NodeAttributes, EdgeAttributes>): void {
 // COMPONENT
 // =============================================================================
 
-interface NetworkGraphSigmaProps {
-  settings?: GraphSettings;
-}
-
-export function NetworkGraphSigma({ settings }: NetworkGraphSigmaProps) {
+export function NetworkGraphSigma() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<any>(null);  // Sigma instance
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
@@ -133,9 +128,6 @@ export function NetworkGraphSigma({ settings }: NetworkGraphSigmaProps) {
   const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0 });
   const [sigmaAvailable, setSigmaAvailable] = useState(false);
   
-  // Apply settings
-  const edgeThreshold = settings?.edges?.threshold ?? 0.6;
-  const maxEdgesPerNode = settings?.edges?.maxEdgesPerNode ?? 20;
   
   // Check if Sigma is available
   useEffect(() => {
@@ -325,11 +317,6 @@ export function NetworkGraphSigma({ settings }: NetworkGraphSigmaProps) {
         </div>
       </div>
       
-      {/* Instructions */}
-      <div className="absolute bottom-4 left-4 glass rounded-lg p-3 text-xs text-nebula-400">
-        <div className="mb-1">Scroll: zoom • Drag: pan</div>
-        <div>Click node: details • Hover: connections</div>
-      </div>
       
       {/* Computing overlay */}
       {isComputing && (

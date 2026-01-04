@@ -9,7 +9,6 @@ import { NetworkGraphSigma } from '../Layouts/NetworkGraphSigma';
 import { ColorWheel } from '../Layouts/ColorWheel';
 import { MoodSpectrum } from '../Layouts/MoodSpectrum';
 import { ClusterView } from '../Layouts/ClusterView';
-import { GraphControls, DEFAULT_SETTINGS, type GraphSettings } from '../UI/GraphControls';
 
 // =============================================================================
 // GRAPH RENDERING MODE
@@ -63,8 +62,8 @@ const GRAPH_MODES: GraphModeConfig[] = [
 
 // Thresholds for automatic mode selection
 const AUTO_THRESHOLDS = {
-  useGraphology: 300,   // Switch to graphology above this
-  useWebGL: 5000,       // Switch to WebGL above this
+  useGraphology: 300,
+  useWebGL: 5000,
 };
 
 // =============================================================================
@@ -72,9 +71,8 @@ const AUTO_THRESHOLDS = {
 // =============================================================================
 
 export function GalleryView() {
-  const { layout, filteredImages, setSimilarity, recomputeEdges } = useGalleryStore();
+  const { layout, filteredImages } = useGalleryStore();
   const [graphMode, setGraphMode] = useState<GraphMode>('auto');
-  const [graphSettings, setGraphSettings] = useState<GraphSettings>(DEFAULT_SETTINGS);
   const [restartKey, setRestartKey] = useState(0);
   
   // Determine effective graph mode based on node count
@@ -85,7 +83,6 @@ export function GalleryView() {
       return graphMode;
     }
     
-    // Auto-select based on node count
     if (nodeCount >= AUTO_THRESHOLDS.useWebGL) {
       return 'webgl';
     } else if (nodeCount >= AUTO_THRESHOLDS.useGraphology) {
@@ -95,44 +92,18 @@ export function GalleryView() {
     }
   }, [graphMode, filteredImages.length]);
   
-  // Handle Apply button - update store and recompute edges
-  const handleApply = useCallback(() => {
-    // Update store's similarity config
-    setSimilarity({
-      mode: graphSettings.edges.mode,
-      threshold: graphSettings.edges.threshold,
-      maxEdgesPerNode: graphSettings.edges.maxEdgesPerNode,
-    });
-    
-    // Recompute edges with new settings
-    recomputeEdges();
-    
-    // Restart the layout
-    setRestartKey(k => k + 1);
-  }, [graphSettings.edges, setSimilarity, recomputeEdges]);
-  
-  // Handle restart layout only (no edge recomputation)
-  const handleRestartLayout = useCallback(() => {
-    setRestartKey(k => k + 1);
-  }, []);
-  
-  // Handle settings change (local state only, no recomputation)
-  const handleSettingsChange = useCallback((newSettings: GraphSettings) => {
-    setGraphSettings(newSettings);
-  }, []);
-  
   // Render the appropriate network graph
   const renderNetworkGraph = () => {
     const graphKey = `${effectiveMode}-${restartKey}`;
     
     switch (effectiveMode) {
       case 'webgl':
-        return <NetworkGraphSigma key={graphKey} settings={graphSettings} />;
+        return <NetworkGraphSigma key={graphKey} />;
       case 'graphology':
-        return <NetworkGraphScalable key={graphKey} settings={graphSettings} />;
+        return <NetworkGraphScalable key={graphKey} />;
       case 'd3':
       default:
-        return <NetworkGraph key={graphKey} settings={graphSettings} />;
+        return <NetworkGraph key={graphKey} />;
     }
   };
   
@@ -161,22 +132,12 @@ export function GalleryView() {
       
       {/* Graph mode selector - only show for network layout */}
       {layout.type === 'network' && (
-        <>
-          <GraphModeSelector
-            mode={graphMode}
-            effectiveMode={effectiveMode}
-            nodeCount={filteredImages.length}
-            onChange={setGraphMode}
-          />
-          
-          {/* Graph settings controls */}
-          <GraphControls
-            settings={graphSettings}
-            onChange={handleSettingsChange}
-            onApply={handleApply}
-            onRestart={handleRestartLayout}
-          />
-        </>
+        <GraphModeSelector
+          mode={graphMode}
+          effectiveMode={effectiveMode}
+          nodeCount={filteredImages.length}
+          onChange={setGraphMode}
+        />
       )}
     </div>
   );
@@ -205,7 +166,7 @@ function GraphModeSelector({ mode, effectiveMode, nodeCount, onChange }: GraphMo
         animate={{ width: expanded ? 280 : 'auto' }}
         className="glass rounded-lg overflow-hidden"
       >
-        {/* Collapsed view - just show current mode */}
+        {/* Collapsed view */}
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full px-3 py-2 flex items-center gap-2 text-xs hover:bg-nebula-800/50 transition-colors"
@@ -223,7 +184,7 @@ function GraphModeSelector({ mode, effectiveMode, nodeCount, onChange }: GraphMo
           )}
         </button>
         
-        {/* Expanded view - mode selection */}
+        {/* Expanded view */}
         <AnimatePresence>
           {expanded && (
             <motion.div

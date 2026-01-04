@@ -4,7 +4,6 @@ import * as d3 from 'd3';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata } from '@/types/gallery';
-import type { GraphSettings } from '@/components/UI/GraphControls';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -15,11 +14,7 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   weight: number;
 }
 
-interface NetworkGraphProps {
-  settings?: GraphSettings;
-}
-
-export function NetworkGraph({ settings }: NetworkGraphProps) {
+export function NetworkGraph() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { filteredImages, edges, openModal } = useGalleryStore();
@@ -91,31 +86,14 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
 
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-    // Apply edge filtering from settings
-    const edgeThreshold = settings?.edges?.threshold ?? 0.6;
-    const maxEdgesPerNode = settings?.edges?.maxEdgesPerNode ?? 20;
-    
-    // Filter edges by threshold
-    const filteredEdges = edges.filter(e => 
+    // Edges are already filtered by recomputeEdges() in the store
+    // Just filter to only include edges between visible nodes
+    const validEdges = edges.filter(e => 
       nodeMap.has(e.source) && 
-      nodeMap.has(e.target) && 
-      e.weight >= edgeThreshold
+      nodeMap.has(e.target)
     );
     
-    // Limit edges per node
-    const edgeCounts = new Map<string, number>();
-    const limitedEdges = filteredEdges.filter(e => {
-      const srcCount = edgeCounts.get(e.source) ?? 0;
-      const tgtCount = edgeCounts.get(e.target) ?? 0;
-      if (srcCount >= maxEdgesPerNode && tgtCount >= maxEdgesPerNode) {
-        return false;
-      }
-      edgeCounts.set(e.source, srcCount + 1);
-      edgeCounts.set(e.target, tgtCount + 1);
-      return true;
-    });
-    
-    const links: GraphLink[] = limitedEdges.map((e) => ({
+    const links: GraphLink[] = validEdges.map((e) => ({
       source: nodeMap.get(e.source)!,
       target: nodeMap.get(e.target)!,
       weight: e.weight,
@@ -124,10 +102,11 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
     setNodeCount(nodes.length);
     setEdgeCount(links.length);
 
-    // Get force settings
-    const gravity = settings?.force?.gravity ?? 0.05;
-    const scaling = settings?.force?.scaling ?? 1.0;
-    const edgeWeightInfluence = settings?.force?.edgeWeightInfluence ?? 1.0;
+    // Force settings - using defaults for now
+    // TODO: Could be made reactive via store or custom events
+    const gravity = 0.05;
+    const scaling = 1.0;
+    const edgeWeightInfluence = 1.0;
 
     // Scale parameters based on graph size
     const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodes.length)));
@@ -270,10 +249,6 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
         </div>
       </div>
 
-      <div className="absolute bottom-4 left-4 glass rounded-lg p-3 text-xs text-nebula-400">
-        <div className="mb-1">Scroll: zoom • Drag background: pan</div>
-        <div>Drag node: move • Click: details</div>
-      </div>
 
       {filteredImages.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center text-nebula-400">No images found</div>

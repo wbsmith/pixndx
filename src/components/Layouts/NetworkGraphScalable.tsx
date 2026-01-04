@@ -23,7 +23,6 @@ import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
-import type { GraphSettings } from '@/components/UI/GraphControls';
 
 // =============================================================================
 // TYPES
@@ -132,11 +131,7 @@ function computeLayout(
 // MAIN COMPONENT
 // =============================================================================
 
-interface NetworkGraphScalableProps {
-  settings?: GraphSettings;
-}
-
-export function NetworkGraphScalable({ settings }: NetworkGraphScalableProps) {
+export function NetworkGraphScalable() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
@@ -148,11 +143,6 @@ export function NetworkGraphScalable({ settings }: NetworkGraphScalableProps) {
   const [layoutComplete, setLayoutComplete] = useState(false);
   const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0 });
   
-  // Apply settings
-  const edgeThreshold = settings?.edges?.threshold ?? 0.6;
-  const maxEdgesPerNode = settings?.edges?.maxEdgesPerNode ?? 20;
-  const gravity = settings?.force?.gravity ?? 0.05;
-  const scaling = settings?.force?.scaling ?? 1.0;
   
   // Responsive dimensions
   useEffect(() => {
@@ -442,11 +432,6 @@ export function NetworkGraphScalable({ settings }: NetworkGraphScalableProps) {
         </div>
       </div>
       
-      {/* Instructions */}
-      <div className="absolute bottom-4 left-4 glass rounded-lg p-3 text-xs text-nebula-400">
-        <div className="mb-1">Scroll: zoom • Drag background: pan</div>
-        <div>Drag node: move • Click: details</div>
-      </div>
       
       {/* Computing overlay */}
       {isComputing && (
