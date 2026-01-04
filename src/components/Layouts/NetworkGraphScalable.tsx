@@ -136,7 +136,7 @@ export function NetworkGraphScalable() {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
-  const { filteredImages, edges, openModal } = useGalleryStore();
+  const { filteredImages, edges, openModal, forceSettings } = useGalleryStore();
   
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isComputing, setIsComputing] = useState(false);
@@ -172,8 +172,11 @@ export function NetworkGraphScalable() {
     const graph = buildGraph(filteredImages, edges, dimensions.width, dimensions.height);
     graphRef.current = graph;
     
-    // Compute layout
-    computeLayout(graph);
+    // Compute layout with store's force settings
+    computeLayout(graph, {
+      gravity: forceSettings.gravity * 20,  // Scale for ForceAtlas2 (expects ~1-10)
+      scalingRatio: forceSettings.scaling * 10,  // Scale for ForceAtlas2
+    });
     
     // Normalize positions to fit viewport
     normalizePositions(graph, dimensions.width, dimensions.height);
@@ -189,7 +192,7 @@ export function NetworkGraphScalable() {
     setIsComputing(false);
     setLayoutComplete(true);
     
-  }, [filteredImages, edges, dimensions.width, dimensions.height]);
+  }, [filteredImages, edges, dimensions.width, dimensions.height, forceSettings]);
   
   // Render with D3 when layout is complete
   useEffect(() => {

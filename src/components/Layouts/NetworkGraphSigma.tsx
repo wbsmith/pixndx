@@ -92,19 +92,27 @@ function buildGraph(
 // LAYOUT
 // =============================================================================
 
-function runLayout(graph: Graph<NodeAttributes, EdgeAttributes>): void {
+interface ForceParams {
+  gravity: number;
+  scaling: number;
+}
+
+function runLayout(graph: Graph<NodeAttributes, EdgeAttributes>, forceParams?: ForceParams): void {
   const nodeCount = graph.order;
   
   console.log(`Running ForceAtlas2 for ${nodeCount} nodes...`);
   const startTime = performance.now();
+  
+  const gravity = forceParams?.gravity ?? 0.05;
+  const scaling = forceParams?.scaling ?? 1.0;
   
   forceAtlas2.assign(graph, {
     iterations: Math.min(300, Math.max(50, 500 - nodeCount * 0.05)),
     settings: {
       barnesHutOptimize: true,
       barnesHutTheta: 0.8,
-      gravity: 0.5,
-      scalingRatio: 10,
+      gravity: gravity * 10,  // Scale for ForceAtlas2
+      scalingRatio: scaling * 10,
       strongGravityMode: true,
       slowDown: 2,
     },
@@ -122,7 +130,7 @@ export function NetworkGraphSigma() {
   const sigmaRef = useRef<any>(null);  // Sigma instance
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
-  const { filteredImages, edges, openModal } = useGalleryStore();
+  const { filteredImages, edges, openModal, forceSettings } = useGalleryStore();
   
   const [isComputing, setIsComputing] = useState(false);
   const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0 });
@@ -148,7 +156,7 @@ export function NetworkGraphSigma() {
     
     // Build and layout graph
     const graph = buildGraph(filteredImages, edges);
-    runLayout(graph);
+    runLayout(graph, { gravity: forceSettings.gravity, scaling: forceSettings.scaling });
     graphRef.current = graph;
     
     setStats({
@@ -158,7 +166,7 @@ export function NetworkGraphSigma() {
     });
     
     setIsComputing(false);
-  }, [filteredImages, edges]);
+  }, [filteredImages, edges, forceSettings]);
   
   // Initialize Sigma renderer
   useEffect(() => {

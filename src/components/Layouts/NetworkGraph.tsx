@@ -17,7 +17,7 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 export function NetworkGraph() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { filteredImages, edges, openModal } = useGalleryStore();
+  const { filteredImages, edges, openModal, forceSettings } = useGalleryStore();
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isStable, setIsStable] = useState(false);
   const [nodeCount, setNodeCount] = useState(0);
@@ -102,11 +102,8 @@ export function NetworkGraph() {
     setNodeCount(nodes.length);
     setEdgeCount(links.length);
 
-    // Force settings - using defaults for now
-    // TODO: Could be made reactive via store or custom events
-    const gravity = 0.05;
-    const scaling = 1.0;
-    const edgeWeightInfluence = 1.0;
+    // Force settings from store
+    const { gravity, scaling, edgeWeightInfluence } = forceSettings;
 
     // Scale parameters based on graph size
     const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodes.length)));
@@ -235,7 +232,7 @@ export function NetworkGraph() {
     svg.call(zoom.transform as any, d3.zoomIdentity.translate(width * 0.05, height * 0.05).scale(scale));
 
     return () => { simulation.stop(); simulationRef.current = null; };
-  }, [filteredImages, edges, dimensions, openModal]);
+  }, [filteredImages, edges, dimensions, openModal, forceSettings]);
 
   return (
     <motion.div ref={containerRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

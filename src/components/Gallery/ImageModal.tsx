@@ -119,18 +119,28 @@ export function ImageModal() {
     }
   }, [isDragging, dragStart]);
   
-  // Handle wheel zoom
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const max = maxZoom();
-    setScale(prev => Math.min(Math.max(prev * delta, 1), max));
+  // Handle wheel zoom - using native event for passive: false support
+  useEffect(() => {
+    const container = imageContainerRef.current;
+    if (!container || !modalOpen) return;
     
-    // Reset position if zooming back to 1
-    if (scale * delta <= 1) {
-      setPosition({ x: 0, y: 0 });
-    }
-  }, [scale, maxZoom]);
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const max = maxZoom();
+      setScale(prev => {
+        const newScale = Math.min(Math.max(prev * delta, 1), max);
+        // Reset position if zooming back to 1
+        if (newScale <= 1) {
+          setPosition({ x: 0, y: 0 });
+        }
+        return newScale;
+      });
+    };
+    
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [modalOpen, maxZoom]);
   
   // Handle double-click to toggle zoom
   const handleDoubleClick = useCallback(() => {
@@ -342,7 +352,6 @@ export function ImageModal() {
                 ref={imageContainerRef}
                 className={`relative bg-black overflow-hidden ${isFullscreen ? 'flex-1' : 'flex-1 min-h-[40vh] lg:min-h-0'}`}
                 style={{ cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
-                onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}

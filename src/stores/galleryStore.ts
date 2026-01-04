@@ -10,6 +10,22 @@ import { localImages } from '@/data/localImages';
 import { computeEdges } from '@/lib/similarity/edgeComputation';
 
 // =============================================================================
+// FORCE LAYOUT SETTINGS
+// =============================================================================
+
+export interface ForceSettings {
+  gravity: number;        // 0.01 - 0.3, pull toward center
+  scaling: number;        // 0.3 - 3.0, node spacing multiplier
+  edgeWeightInfluence: number;  // 0 - 2.0, how much edge weight affects clustering
+}
+
+export const DEFAULT_FORCE_SETTINGS: ForceSettings = {
+  gravity: 0.05,
+  scaling: 1.0,
+  edgeWeightInfluence: 1.0,
+};
+
+// =============================================================================
 // STORE INTERFACE
 // =============================================================================
 
@@ -27,6 +43,7 @@ interface GalleryStore {
   // Layout
   layout: LayoutConfig;
   similarity: SimilarityConfig;
+  forceSettings: ForceSettings;  // Force layout parameters
   
   // Search
   searchQuery: string;
@@ -43,6 +60,7 @@ interface GalleryStore {
   setHoveredImage: (image: ImageMetadata | null) => void;
   setLayout: (layout: LayoutConfig) => void;
   setSimilarity: (config: SimilarityConfig) => void;
+  setForceSettings: (settings: ForceSettings) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilters: (filters: SearchQuery['filters']) => void;
   performSearch: () => void;
@@ -162,6 +180,9 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     maxEdgesPerNode: 25,
   },
   
+  // Force layout settings
+  forceSettings: DEFAULT_FORCE_SETTINGS,
+  
   searchQuery: '',
   searchFilters: undefined,
   loading: false,
@@ -194,6 +215,11 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   setSimilarity: (config) => {
     set({ similarity: config });
     // NOTE: Does NOT auto-recompute edges
+  },
+  
+  setForceSettings: (settings) => {
+    set({ forceSettings: settings, graphVersion: get().graphVersion + 1 });
+    // Incrementing graphVersion forces graph to re-render with new settings
     // User must click "Apply" button to trigger recomputeEdges()
   },
   

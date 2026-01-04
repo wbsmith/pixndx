@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { RotateCcw, Play } from 'lucide-react';
-import { useGalleryStore } from '@/stores/galleryStore';
+import { useGalleryStore, DEFAULT_FORCE_SETTINGS, type ForceSettings } from '@/stores/galleryStore';
 import { computeEdgeStats, type EdgeStats } from '@/lib/similarity/edgeComputation';
 import type { SimilarityMode } from '@/types/gallery';
 
@@ -8,30 +8,13 @@ import type { SimilarityMode } from '@/types/gallery';
 // TYPES
 // =============================================================================
 
-export interface ForceLayoutParams {
-  gravity: number;
-  scaling: number;
-  edgeWeightInfluence: number;
-}
-
 export type ColorMode = 'uniform' | 'cluster' | 'community' | 'mood' | 'color';
 
-export interface GraphSettings {
-  force: ForceLayoutParams;
-  colorMode: ColorMode;
-}
-
 // =============================================================================
-// DEFAULTS
+// PRESETS
 // =============================================================================
 
-const DEFAULT_FORCE: ForceLayoutParams = {
-  gravity: 0.05,
-  scaling: 1.0,
-  edgeWeightInfluence: 1.0,
-};
-
-const PRESETS: Record<string, { thresholdMin: number; thresholdMax: number; maxEdges: number; force?: Partial<ForceLayoutParams> }> = {
+const PRESETS: Record<string, { thresholdMin: number; thresholdMax: number; maxEdges: number; force?: Partial<ForceSettings> }> = {
   tight: { thresholdMin: 0.7, thresholdMax: 1.0, maxEdges: 10, force: { gravity: 0.15, scaling: 0.5 } },
   loose: { thresholdMin: 0.3, thresholdMax: 1.0, maxEdges: 30, force: { gravity: 0.02, scaling: 2.0 } },
   clusters: { thresholdMin: 0.5, thresholdMax: 0.85, maxEdges: 20, force: { gravity: 0.08, edgeWeightInfluence: 1.5 } },
@@ -160,10 +143,11 @@ export function SimilaritySlider() {
     layout,
     filteredImages,
     recomputeEdges,
+    forceSettings,
+    setForceSettings,
   } = useGalleryStore();
   
-  // Local state for force layout and coloring (not persisted to store)
-  const [force, setForce] = useState<ForceLayoutParams>(DEFAULT_FORCE);
+  // Local state for coloring (not persisted to store)
   const [colorMode, setColorMode] = useState<ColorMode>('uniform');
   const [hasChanges, setHasChanges] = useState(false);
   
@@ -202,18 +186,14 @@ export function SimilaritySlider() {
     setHasChanges(true);
   };
   
-  const handleForceChange = (key: keyof ForceLayoutParams, value: number) => {
-    setForce(prev => ({ ...prev, [key]: value }));
+  const handleForceChange = (key: keyof ForceSettings, value: number) => {
+    setForceSettings({ ...forceSettings, [key]: value });
     setHasChanges(true);
   };
   
   const handleApply = () => {
     recomputeEdges();
     setHasChanges(false);
-    // Force layout params are passed via a custom event that the graph can listen to
-    window.dispatchEvent(new CustomEvent('graph-settings-update', { 
-      detail: { force, colorMode } 
-    }));
   };
   
   const applyPreset = (name: string) => {
@@ -226,7 +206,7 @@ export function SimilaritySlider() {
         maxEdgesPerNode: preset.maxEdges,
       });
       if (preset.force) {
-        setForce(prev => ({ ...prev, ...preset.force }));
+        setForceSettings({ ...forceSettings, ...preset.force });
       }
       setHasChanges(true);
     }
@@ -239,7 +219,7 @@ export function SimilaritySlider() {
       thresholdMax: 1.0,
       maxEdgesPerNode: 20,
     });
-    setForce(DEFAULT_FORCE);
+    setForceSettings(DEFAULT_FORCE_SETTINGS);
     setColorMode('uniform');
     setHasChanges(true);
   };
@@ -444,7 +424,7 @@ export function SimilaritySlider() {
           <div className="flex justify-between mb-1">
             <span className="text-[10px] text-nebula-400">Gravity</span>
             <span className="text-[10px] text-stellar-cyan font-mono">
-              {force.gravity.toFixed(2)}
+              {forceSettings.gravity.toFixed(2)}
             </span>
           </div>
           <input
@@ -452,7 +432,7 @@ export function SimilaritySlider() {
             min="0.01"
             max="0.3"
             step="0.01"
-            value={force.gravity}
+            value={forceSettings.gravity}
             onChange={(e) => handleForceChange('gravity', parseFloat(e.target.value))}
             className="similarity-slider"
           />
@@ -463,7 +443,7 @@ export function SimilaritySlider() {
           <div className="flex justify-between mb-1">
             <span className="text-[10px] text-nebula-400">Node Spacing</span>
             <span className="text-[10px] text-stellar-cyan font-mono">
-              {force.scaling.toFixed(1)}x
+              {forceSettings.scaling.toFixed(1)}x
             </span>
           </div>
           <input
@@ -471,7 +451,7 @@ export function SimilaritySlider() {
             min="0.3"
             max="3"
             step="0.1"
-            value={force.scaling}
+            value={forceSettings.scaling}
             onChange={(e) => handleForceChange('scaling', parseFloat(e.target.value))}
             className="similarity-slider"
           />
@@ -482,7 +462,7 @@ export function SimilaritySlider() {
           <div className="flex justify-between mb-1">
             <span className="text-[10px] text-nebula-400">Weight Influence</span>
             <span className="text-[10px] text-stellar-cyan font-mono">
-              {force.edgeWeightInfluence.toFixed(1)}x
+              {forceSettings.edgeWeightInfluence.toFixed(1)}x
             </span>
           </div>
           <input
@@ -490,7 +470,7 @@ export function SimilaritySlider() {
             min="0"
             max="2"
             step="0.1"
-            value={force.edgeWeightInfluence}
+            value={forceSettings.edgeWeightInfluence}
             onChange={(e) => handleForceChange('edgeWeightInfluence', parseFloat(e.target.value))}
             className="similarity-slider"
           />
