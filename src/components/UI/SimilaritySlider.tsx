@@ -2,23 +2,18 @@ import { useGalleryStore } from '@/stores/galleryStore';
 import type { SimilarityMode } from '@/types/gallery';
 
 const modes: { value: SimilarityMode; label: string; description: string }[] = [
-  { value: 'composite', label: 'Combined', description: 'CLIP + metadata blend' },
-  { value: 'full', label: 'CLIP Only', description: 'Visual similarity from AI' },
-  { value: 'tags', label: 'Tags', description: 'Shared keywords' },
-  { value: 'mood', label: 'Mood', description: 'Atmospheric similarity' },
-  { value: 'colors', label: 'Colors', description: 'Color palette match' },
-  { value: 'description', label: 'Description', description: 'Text content overlap' },
+  { value: 'clip', label: 'CLIP', description: 'Visual similarity from AI embeddings' },
+  { value: 'composite', label: 'Composite', description: 'CLIP + metadata blend' },
 ];
 
 export function SimilaritySlider() {
   const { 
     similarity, 
     setSimilarity, 
-    edgeParams, 
-    setEdgeParams,
     edges, 
     layout,
     filteredImages,
+    recomputeEdges,
   } = useGalleryStore();
   
   // Only show for network layouts
@@ -32,7 +27,8 @@ export function SimilaritySlider() {
   };
   
   const handleMaxEdgesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEdgeParams({
+    setSimilarity({
+      ...similarity,
       maxEdgesPerNode: parseInt(e.target.value, 10),
     });
   };
@@ -42,6 +38,10 @@ export function SimilaritySlider() {
       ...similarity,
       mode,
     });
+  };
+  
+  const handleApply = () => {
+    recomputeEdges();
   };
   
   // Check if CLIP neighbors are available
@@ -56,9 +56,7 @@ export function SimilaritySlider() {
         </div>
         <div className="flex flex-wrap gap-2">
           {modes.map(({ value, label, description }) => {
-            // Disable CLIP-based modes if no neighbors available
-            const needsClip = value === 'composite' || value === 'full';
-            const disabled = needsClip && !hasClipNeighbors;
+            const disabled = !hasClipNeighbors;
             
             return (
               <button
@@ -96,8 +94,8 @@ export function SimilaritySlider() {
         </div>
         <input
           type="range"
-          min="0.3"
-          max="0.95"
+          min="0.2"
+          max="0.9"
           step="0.05"
           value={similarity.threshold}
           onChange={handleThresholdChange}
@@ -114,7 +112,7 @@ export function SimilaritySlider() {
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm text-nebula-300">Max Edges / Node</label>
           <span className="text-xs text-stellar-cyan font-mono">
-            {edgeParams.maxEdgesPerNode}
+            {similarity.maxEdgesPerNode}
           </span>
         </div>
         <input
@@ -122,7 +120,7 @@ export function SimilaritySlider() {
           min="3"
           max="50"
           step="1"
-          value={edgeParams.maxEdgesPerNode}
+          value={similarity.maxEdgesPerNode}
           onChange={handleMaxEdgesChange}
           className="similarity-slider"
         />
@@ -131,6 +129,15 @@ export function SimilaritySlider() {
           <span>Dense</span>
         </div>
       </div>
+      
+      {/* Apply Button */}
+      <button
+        onClick={handleApply}
+        className="w-full py-2 text-sm rounded-lg bg-stellar-cyan/20 text-stellar-cyan 
+                   hover:bg-stellar-cyan/30 transition-colors font-medium"
+      >
+        Apply & Compute Edges
+      </button>
       
       {/* Stats */}
       <div className="text-xs text-nebula-400 pt-2 border-t border-nebula-800 space-y-1">
@@ -142,7 +149,7 @@ export function SimilaritySlider() {
           <span>Images</span>
           <span className="text-stellar-cyan font-mono">{filteredImages.length}</span>
         </div>
-        {edges.length > 0 && (
+        {edges.length > 0 && filteredImages.length > 0 && (
           <div className="flex justify-between">
             <span>Avg edges/node</span>
             <span className="text-stellar-cyan font-mono">
