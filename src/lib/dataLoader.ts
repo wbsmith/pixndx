@@ -28,14 +28,22 @@ async function loadAllImages(): Promise<ImageMetadata[]> {
       try {
         // Try to fetch JSON first (much faster - ~10x faster parsing)
         const response = await fetch('/localImages.json');
+        console.log(`[dataLoader] JSON fetch status: ${response.status} ${response.statusText}`);
+        
         if (response.ok) {
           const data = await response.json();
-          cachedImages = data.images;
-          console.log(`✅ Loaded ${cachedImages!.length} images from JSON`);
-          return cachedImages!;
+          if (data.images && Array.isArray(data.images)) {
+            cachedImages = data.images;
+            console.log(`✅ Loaded ${cachedImages!.length} images from JSON`);
+            return cachedImages!;
+          } else {
+            console.warn('[dataLoader] JSON missing "images" array, falling back to module');
+          }
+        } else {
+          console.warn(`[dataLoader] JSON fetch returned ${response.status}, falling back to module`);
         }
       } catch (e) {
-        console.warn('JSON fetch failed, falling back to module import');
+        console.warn('[dataLoader] JSON fetch failed:', e);
       }
       
       // Fallback to module import (slower but always works)

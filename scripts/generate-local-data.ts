@@ -372,8 +372,9 @@ export default localImages;
   const jsonSizeMB = (Buffer.byteLength(jsonContent, 'utf8') / (1024 * 1024)).toFixed(2);
   console.log(`✅ Written: ${jsonOutput} (${jsonSizeMB} MB)`);
 
-  // Copy JSON to public folder for fetch access
-  const publicDir = path.join(path.dirname(output), '..', 'public');
+  // Copy JSON to public folder for fetch access (project root's public/)
+  const projectRoot = path.resolve(path.dirname(output), '../..');
+  const publicDir = path.join(projectRoot, 'public');
   fs.mkdirSync(publicDir, { recursive: true });
   const publicJsonPath = path.join(publicDir, 'localImages.json');
   fs.writeFileSync(publicJsonPath, jsonContent);
