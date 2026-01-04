@@ -20,9 +20,47 @@ import { motion } from 'framer-motion';
 import * as d3 from 'd3';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
-import { useGalleryStore } from '@/stores/galleryStore';
+import { useGalleryStore, type ColorMode } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
+
+// =============================================================================
+// COLOR HELPERS
+// =============================================================================
+
+// Color palettes for different modes
+const CLUSTER_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+];
+
+const MOOD_COLORS: Record<string, string> = {
+  peaceful: '#98D8C8',
+  dramatic: '#E74C3C',
+  mysterious: '#9B59B6',
+  joyful: '#F1C40F',
+  melancholic: '#3498DB',
+  energetic: '#E67E22',
+  serene: '#1ABC9C',
+  tense: '#C0392B',
+};
+
+function getNodeColor(img: ImageMetadata, colorMode: ColorMode): string {
+  switch (colorMode) {
+    case 'uniform':
+      return '#6366F2';  // stellar-violet
+    case 'cluster':
+      return CLUSTER_COLORS[(img.cluster ?? 0) % CLUSTER_COLORS.length];
+    case 'community':
+      return CLUSTER_COLORS[(img.community ?? 0) % CLUSTER_COLORS.length];
+    case 'mood':
+      return MOOD_COLORS[img.mood?.toLowerCase() ?? ''] ?? '#6366F2';
+    case 'color':
+      return getDominantColor(img);
+    default:
+      return '#6366F2';
+  }
+}
 
 // =============================================================================
 // TYPES
@@ -58,7 +96,8 @@ function buildGraph(
   images: ImageMetadata[],
   edges: SimilarityEdge[],
   width: number,
-  height: number
+  height: number,
+  colorMode: ColorMode
 ): Graph<NodeAttributes, EdgeAttributes> {
   const graph = new Graph<NodeAttributes, EdgeAttributes>({ type: 'undirected' });
   
@@ -78,7 +117,7 @@ function buildGraph(
       x: width / 2 + Math.cos(angle) * radius + (Math.random() - 0.5) * 50,
       y: height / 2 + Math.sin(angle) * radius + (Math.random() - 0.5) * 50,
       size: 1,
-      color: getDominantColor(img),
+      color: getNodeColor(img, colorMode),
     });
   });
   
@@ -141,11 +180,11 @@ export function NetworkGraphScalable() {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
-  const { filteredImages, edges, openModal, forceSettings } = useGalleryStore();
+  const { filteredImages, edges, openModal, forceSettings, colorMode } = useGalleryStore();
   
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isComputing, setIsComputing] = useState(false);
-  const [layoutComplete, setLayoutComplete] = useState(false);
+  const [layoutVersion, setLayoutVersion] = useState(0);  // Incremented to trigger re-render
   const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0 });
   
   
@@ -169,18 +208,23 @@ export function NetworkGraphScalable() {
     if (filteredImages.length === 0) return;
     
     setIsComputing(true);
-    setLayoutComplete(false);
     
     const startTime = performance.now();
     
+    console.log(`[NetworkGraphScalable] Building: ${filteredImages.length} images, ${edges.length} edges`);
+    console.log(`[NetworkGraphScalable] forceSettings: gravity=${forceSettings.gravity}, scaling=${forceSettings.scaling}, edgeWeight=${forceSettings.edgeWeightInfluence}`);
+    
     // Build graph
-    const graph = buildGraph(filteredImages, edges, dimensions.width, dimensions.height);
+    const graph = buildGraph(filteredImages, edges, dimensions.width, dimensions.height, colorMode);
     graphRef.current = graph;
+    
+    console.log(`[NetworkGraphScalable] Graph: ${graph.order} nodes, ${graph.size} edges`);
     
     // Compute layout with store's force settings
     computeLayout(graph, {
       gravity: forceSettings.gravity * 20,  // Scale for ForceAtlas2 (expects ~1-10)
-      scalingRatio: forceSettings.scaling * 10,  // Scale for ForceAtlas2
+      scalingRatio: forceSettings.scaling * 20,  // Scale for ForceAtlas2
+      edgeWeightInfluence: forceSettings.edgeWeightInfluence,
     });
     
     // Normalize positions to fit viewport
@@ -195,13 +239,16 @@ export function NetworkGraphScalable() {
     });
     
     setIsComputing(false);
-    setLayoutComplete(true);
+    // Increment version to trigger D3 render - ALWAYS changes, unlike boolean
+    setLayoutVersion(v => v + 1);
     
-  }, [filteredImages, edges, dimensions.width, dimensions.height, forceSettings]);
+  }, [filteredImages, edges, dimensions.width, dimensions.height, forceSettings, colorMode]);
   
-  // Render with D3 when layout is complete
+  // Render with D3 when layout is complete (triggered by layoutVersion change)
   useEffect(() => {
-    if (!layoutComplete || !graphRef.current || !svgRef.current) return;
+    if (layoutVersion === 0 || !graphRef.current || !svgRef.current) return;
+    
+    console.log(`[NetworkGraphScalable] Rendering D3, layoutVersion=${layoutVersion}`);
     
     const graph = graphRef.current;
     const svg = d3.select(svgRef.current);
@@ -412,7 +459,7 @@ export function NetworkGraphScalable() {
       .scale(scale);
     svg.call(zoom.transform as any, initialTransform);
     
-  }, [layoutComplete, dimensions, openModal]);
+  }, [layoutVersion, dimensions, openModal]);
   
   return (
     <motion.div

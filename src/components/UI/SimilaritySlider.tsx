@@ -1,14 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
 import { RotateCcw, Play } from 'lucide-react';
-import { useGalleryStore, DEFAULT_FORCE_SETTINGS, type ForceSettings } from '@/stores/galleryStore';
+import { useGalleryStore, DEFAULT_FORCE_SETTINGS, type ForceSettings, type ColorMode } from '@/stores/galleryStore';
 import { computeEdgeStats, type EdgeStats } from '@/lib/similarity/edgeComputation';
 import type { SimilarityMode } from '@/types/gallery';
 
 // =============================================================================
 // TYPES
 // =============================================================================
-
-export type ColorMode = 'uniform' | 'cluster' | 'community' | 'mood' | 'color';
 
 // =============================================================================
 // PRESETS
@@ -145,10 +143,10 @@ export function SimilaritySlider() {
     recomputeEdges,
     forceSettings,
     setForceSettings,
+    colorMode,
+    setColorMode,
   } = useGalleryStore();
   
-  // Local state for coloring (not persisted to store)
-  const [colorMode, setColorMode] = useState<ColorMode>('uniform');
   const [hasChanges, setHasChanges] = useState(false);
   
   // Compute edge statistics for current image set
@@ -199,12 +197,12 @@ export function SimilaritySlider() {
   const applyPreset = (name: string) => {
     const preset = PRESETS[name];
     if (preset) {
-      setSimilarity({
-        ...similarity,
+    setSimilarity({
+      ...similarity,
         thresholdMin: preset.thresholdMin,
         thresholdMax: preset.thresholdMax,
         maxEdgesPerNode: preset.maxEdges,
-      });
+    });
       if (preset.force) {
         setForceSettings({ ...forceSettings, ...preset.force });
       }

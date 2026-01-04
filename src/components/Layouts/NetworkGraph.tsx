@@ -1,9 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import * as d3 from 'd3';
-import { useGalleryStore } from '@/stores/galleryStore';
+import { useGalleryStore, type ColorMode } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata } from '@/types/gallery';
+
+// =============================================================================
+// COLOR HELPERS
+// =============================================================================
+
+const CLUSTER_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+];
+
+const MOOD_COLORS: Record<string, string> = {
+  peaceful: '#98D8C8',
+  dramatic: '#E74C3C',
+  mysterious: '#9B59B6',
+  joyful: '#F1C40F',
+  melancholic: '#3498DB',
+  energetic: '#E67E22',
+  serene: '#1ABC9C',
+  tense: '#C0392B',
+};
+
+function getNodeColor(img: ImageMetadata, colorMode: ColorMode): string {
+  switch (colorMode) {
+    case 'uniform':
+      return '#6366F2';
+    case 'cluster':
+      return CLUSTER_COLORS[(img.cluster ?? 0) % CLUSTER_COLORS.length];
+    case 'community':
+      return CLUSTER_COLORS[(img.community ?? 0) % CLUSTER_COLORS.length];
+    case 'mood':
+      return MOOD_COLORS[img.mood?.toLowerCase() ?? ''] ?? '#6366F2';
+    case 'color':
+      return getDominantColor(img);
+    default:
+      return '#6366F2';
+  }
+}
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -17,7 +54,7 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 export function NetworkGraph() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { filteredImages, edges, openModal, forceSettings } = useGalleryStore();
+  const { filteredImages, edges, openModal, forceSettings, colorMode } = useGalleryStore();
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isStable, setIsStable] = useState(false);
   const [nodeCount, setNodeCount] = useState(0);
@@ -164,7 +201,7 @@ export function NetworkGraph() {
       .style('pointer-events', 'all');
 
     node.append('circle').attr('r', nodeRadius + 3)
-      .attr('fill', (d) => getDominantColor(d.image))
+      .attr('fill', (d) => getNodeColor(d.image, colorMode))
       .attr('opacity', 0.3).style('filter', 'blur(4px)');
 
     node.append('image')
@@ -175,7 +212,7 @@ export function NetworkGraph() {
       .attr('preserveAspectRatio', 'xMidYMid slice');
 
     node.append('circle').attr('r', nodeRadius - 1).attr('fill', 'none')
-      .attr('stroke', (d) => getDominantColor(d.image))
+      .attr('stroke', (d) => getNodeColor(d.image, colorMode))
       .attr('stroke-width', 1.5).attr('opacity', 0.85);
 
     node.append('circle').attr('r', nodeRadius + 2).attr('fill', 'none')
@@ -240,7 +277,7 @@ export function NetworkGraph() {
     svg.call(zoom.transform as any, d3.zoomIdentity.translate(width * 0.05, height * 0.05).scale(scale));
 
     return () => { simulation.stop(); simulationRef.current = null; };
-  }, [filteredImages, edges, dimensions, openModal, forceSettings]);
+  }, [filteredImages, edges, dimensions, openModal, forceSettings, colorMode]);
 
   return (
     <motion.div ref={containerRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

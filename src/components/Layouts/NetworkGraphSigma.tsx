@@ -12,11 +12,11 @@
  * Note: Requires sigma and @sigma/node-image packages
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
-import { useGalleryStore } from '@/stores/galleryStore';
+import { useGalleryStore, type ColorMode } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
 
@@ -45,12 +45,50 @@ interface EdgeAttributes {
 }
 
 // =============================================================================
+// COLOR HELPERS
+// =============================================================================
+
+const CLUSTER_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+];
+
+const MOOD_COLORS: Record<string, string> = {
+  peaceful: '#98D8C8',
+  dramatic: '#E74C3C',
+  mysterious: '#9B59B6',
+  joyful: '#F1C40F',
+  melancholic: '#3498DB',
+  energetic: '#E67E22',
+  serene: '#1ABC9C',
+  tense: '#C0392B',
+};
+
+function getNodeColor(img: ImageMetadata, colorMode: ColorMode): string {
+  switch (colorMode) {
+    case 'uniform':
+      return '#6366F2';
+    case 'cluster':
+      return CLUSTER_COLORS[(img.cluster ?? 0) % CLUSTER_COLORS.length];
+    case 'community':
+      return CLUSTER_COLORS[(img.community ?? 0) % CLUSTER_COLORS.length];
+    case 'mood':
+      return MOOD_COLORS[img.mood?.toLowerCase() ?? ''] ?? '#6366F2';
+    case 'color':
+      return getDominantColor(img);
+    default:
+      return '#6366F2';
+  }
+}
+
+// =============================================================================
 // GRAPH BUILDER
 // =============================================================================
 
 function buildGraph(
   images: ImageMetadata[],
-  edges: SimilarityEdge[]
+  edges: SimilarityEdge[],
+  colorMode: ColorMode
 ): Graph<NodeAttributes, EdgeAttributes> {
   const graph = new Graph<NodeAttributes, EdgeAttributes>({ type: 'undirected' });
   
@@ -68,7 +106,7 @@ function buildGraph(
       x: Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
       y: Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
       size: 15,
-      color: getDominantColor(img),
+      color: getNodeColor(img, colorMode),
       image: img.urls.small,
       label: img.main_subject || img.id,
       imageData: img,
@@ -135,9 +173,10 @@ export function NetworkGraphSigma() {
   const sigmaRef = useRef<any>(null);  // Sigma instance
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
-  const { filteredImages, edges, openModal, forceSettings } = useGalleryStore();
+  const { filteredImages, edges, openModal, forceSettings, colorMode } = useGalleryStore();
   
   const [isComputing, setIsComputing] = useState(false);
+  const [layoutVersion, setLayoutVersion] = useState(0);  // Incremented to trigger re-render
   const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0 });
   const [sigmaAvailable, setSigmaAvailable] = useState(false);
   
@@ -159,10 +198,19 @@ export function NetworkGraphSigma() {
     setIsComputing(true);
     const startTime = performance.now();
     
+    console.log(`[NetworkGraphSigma] Building: ${filteredImages.length} images, ${edges.length} edges`);
+    console.log(`[NetworkGraphSigma] forceSettings: gravity=${forceSettings.gravity}, scaling=${forceSettings.scaling}, edgeWeight=${forceSettings.edgeWeightInfluence}`);
+    
     // Build and layout graph
-    const graph = buildGraph(filteredImages, edges);
-    runLayout(graph, { gravity: forceSettings.gravity, scaling: forceSettings.scaling });
+    const graph = buildGraph(filteredImages, edges, colorMode);
+    runLayout(graph, { 
+      gravity: forceSettings.gravity, 
+      scaling: forceSettings.scaling,
+      edgeWeightInfluence: forceSettings.edgeWeightInfluence,
+    });
     graphRef.current = graph;
+    
+    console.log(`[NetworkGraphSigma] Graph: ${graph.order} nodes, ${graph.size} edges`);
     
     setStats({
       nodes: graph.order,
@@ -171,11 +219,15 @@ export function NetworkGraphSigma() {
     });
     
     setIsComputing(false);
-  }, [filteredImages, edges, forceSettings]);
+    // Increment version to trigger Sigma re-init - ALWAYS changes
+    setLayoutVersion(v => v + 1);
+  }, [filteredImages, edges, forceSettings, colorMode]);
   
-  // Initialize Sigma renderer
+  // Initialize Sigma renderer (triggered by layoutVersion change)
   useEffect(() => {
-    if (!sigmaAvailable || !containerRef.current || !graphRef.current || isComputing) return;
+    if (!sigmaAvailable || !containerRef.current || !graphRef.current || layoutVersion === 0) return;
+    
+    console.log(`[NetworkGraphSigma] Initializing Sigma, layoutVersion=${layoutVersion}`);
     
     const initSigma = async () => {
       const Sigma = (await import('sigma')).default;
@@ -277,7 +329,7 @@ export function NetworkGraphSigma() {
         sigmaRef.current = null;
       }
     };
-  }, [sigmaAvailable, isComputing, openModal]);
+  }, [sigmaAvailable, layoutVersion, openModal]);
   
   // Fallback if Sigma not available
   if (!sigmaAvailable) {

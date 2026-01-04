@@ -25,6 +25,9 @@ export const DEFAULT_FORCE_SETTINGS: ForceSettings = {
   edgeWeightInfluence: 1.0,
 };
 
+// Node coloring modes for network graph
+export type ColorMode = 'uniform' | 'cluster' | 'community' | 'mood' | 'color';
+
 // =============================================================================
 // STORE INTERFACE
 // =============================================================================
@@ -44,6 +47,7 @@ interface GalleryStore {
   layout: LayoutConfig;
   similarity: SimilarityConfig;
   forceSettings: ForceSettings;  // Force layout parameters
+  colorMode: ColorMode;  // How nodes are colored in network graph
   
   // Search
   searchQuery: string;
@@ -64,6 +68,7 @@ interface GalleryStore {
   setLayout: (layout: LayoutConfig) => void;
   setSimilarity: (config: SimilarityConfig) => void;
   setForceSettings: (settings: ForceSettings) => void;
+  setColorMode: (mode: ColorMode) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilters: (filters: SearchQuery['filters']) => void;
   performSearch: () => void;
@@ -185,6 +190,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   // Force layout settings
   forceSettings: DEFAULT_FORCE_SETTINGS,
+  colorMode: 'uniform' as ColorMode,
   
   searchQuery: '',
   searchFilters: undefined,
@@ -297,6 +303,11 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     set({ forceSettings: settings, graphVersion: get().graphVersion + 1 });
     // Incrementing graphVersion forces graph to re-render with new settings
     // User must click "Apply" button to trigger recomputeEdges()
+  },
+  
+  setColorMode: (mode) => {
+    // Just update color mode - affects rendering, not layout
+    set({ colorMode: mode, graphVersion: get().graphVersion + 1 });
   },
   
   setSearchQuery: (query) => {
