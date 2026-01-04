@@ -202,6 +202,13 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
    * Shows first 50 images almost immediately, then loads the rest in background.
    */
   initializeData: async () => {
+    // Guard against double-initialization (React StrictMode)
+    const { images } = get();
+    if (images.length > 0) {
+      console.log('initializeData already called, skipping');
+      return;
+    }
+    
     set({ loading: true });
     
     try {
@@ -210,17 +217,29 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
         set({ loadProgress: progress });
       });
       
+      // Deduplicate initial images (in case source has duplicates)
+      const seen = new Set<string>();
+      const uniqueInitial = initialImages.filter(img => {
+        if (seen.has(img.id)) return false;
+        seen.add(img.id);
+        return true;
+      });
+      
       // Show initial images immediately
       set({ 
-        images: initialImages, 
-        filteredImages: initialImages,
-        loading: initialImages.length < 100,  // Still loading if more to come
+        images: uniqueInitial, 
+        filteredImages: uniqueInitial,
+        loading: uniqueInitial.length < 100,  // Still loading if more to come
       });
       
       // Load remaining in background
       await loadRemainingImages((chunk, progress) => {
         const { images, searchQuery } = get();
-        const newImages = [...images, ...chunk];
+        
+        // Deduplicate by ID to prevent React key warnings
+        const existingIds = new Set(images.map(img => img.id));
+        const uniqueChunk = chunk.filter(img => !existingIds.has(img.id));
+        const newImages = [...images, ...uniqueChunk];
         
         // If there's no search query, also update filteredImages
         const newFiltered = searchQuery ? get().filteredImages : newImages;
@@ -246,7 +265,10 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   addImages: (newImages) => {
     const { images, searchQuery } = get();
-    const allImages = [...images, ...newImages];
+    // Deduplicate by ID
+    const existingIds = new Set(images.map(img => img.id));
+    const uniqueNew = newImages.filter(img => !existingIds.has(img.id));
+    const allImages = [...images, ...uniqueNew];
     const filtered = searchQuery ? get().filteredImages : allImages;
     set({ images: allImages, filteredImages: filtered });
   },

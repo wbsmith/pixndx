@@ -1,15 +1,11 @@
 /**
  * Progressive Data Loader
  * 
- * Instead of loading all 33MB of image data at once,
- * this loads a small initial batch for instant UI,
- * then streams the rest in the background.
+ * Fetches image data as JSON (much faster than importing JS module).
+ * JSON parsing is ~10x faster than JavaScript evaluation.
  */
 
 import type { ImageMetadata } from '@/types/gallery';
-
-const INITIAL_BATCH_SIZE = 50;  // Show this many immediately
-const CHUNK_SIZE = 200;         // Load this many at a time in background
 
 export interface LoadProgress {
   loaded: number;
@@ -17,80 +13,90 @@ export interface LoadProgress {
   complete: boolean;
 }
 
-type ProgressCallback = (progress: LoadProgress) => void;
+// Cache the loaded data
+let cachedImages: ImageMetadata[] | null = null;
+let loadPromise: Promise<ImageMetadata[]> | null = null;
 
 /**
- * Load images progressively.
- * Returns initial batch immediately, then calls onProgress as more load.
+ * Load all images - tries JSON first (fast), falls back to module import.
  */
-export async function loadImagesProgressively(
-  onProgress?: ProgressCallback
-): Promise<ImageMetadata[]> {
-  // Dynamic import - this is code-split by Vite
-  const { localImages } = await import('@/data/localImages');
+async function loadAllImages(): Promise<ImageMetadata[]> {
+  if (cachedImages) return cachedImages;
   
-  // If small dataset, just return everything
-  if (localImages.length <= INITIAL_BATCH_SIZE * 2) {
-    onProgress?.({ loaded: localImages.length, total: localImages.length, complete: true });
-    return localImages;
+  if (!loadPromise) {
+    loadPromise = (async () => {
+      try {
+        // Try to fetch JSON first (much faster - ~10x faster parsing)
+        const response = await fetch('/localImages.json');
+        if (response.ok) {
+          const data = await response.json();
+          cachedImages = data.images;
+          console.log(`✅ Loaded ${cachedImages!.length} images from JSON`);
+          return cachedImages!;
+        }
+      } catch (e) {
+        console.warn('JSON fetch failed, falling back to module import');
+      }
+      
+      // Fallback to module import (slower but always works)
+      const mod = await import('@/data/localImages');
+      cachedImages = mod.localImages;
+      console.log(`✅ Loaded ${cachedImages!.length} images from module`);
+      return cachedImages!;
+    })();
   }
   
-  // Return initial batch immediately
-  const initialBatch = localImages.slice(0, INITIAL_BATCH_SIZE);
-  
-  // Report initial progress
-  onProgress?.({ 
-    loaded: INITIAL_BATCH_SIZE, 
-    total: localImages.length, 
-    complete: false 
-  });
-  
-  // Return initial batch - caller can start rendering
-  // The rest will be added via the store
-  return initialBatch;
+  return loadPromise;
 }
 
 /**
- * Load remaining images in chunks.
- * Call this after initial render to populate the rest.
+ * Load images progressively.
+ * Returns initial batch quickly, rest comes via loadRemainingImages.
+ */
+export async function loadImagesProgressively(
+  onProgress?: (progress: LoadProgress) => void
+): Promise<ImageMetadata[]> {
+  const INITIAL_BATCH = 100;
+  
+  const allImages = await loadAllImages();
+  
+  // For small datasets, just return everything
+  if (allImages.length <= INITIAL_BATCH * 2) {
+    onProgress?.({ loaded: allImages.length, total: allImages.length, complete: true });
+    return allImages;
+  }
+  
+  // Return initial batch
+  onProgress?.({ 
+    loaded: INITIAL_BATCH, 
+    total: allImages.length, 
+    complete: false 
+  });
+  
+  return allImages.slice(0, INITIAL_BATCH);
+}
+
+/**
+ * Load remaining images.
  */
 export async function loadRemainingImages(
   onChunk: (images: ImageMetadata[], progress: LoadProgress) => void
 ): Promise<void> {
-  const { localImages } = await import('@/data/localImages');
+  const INITIAL_BATCH = 100;
   
-  if (localImages.length <= INITIAL_BATCH_SIZE) {
-    return; // Nothing more to load
+  const allImages = await loadAllImages();
+  
+  if (allImages.length <= INITIAL_BATCH) {
+    return;
   }
   
-  const remaining = localImages.slice(INITIAL_BATCH_SIZE);
-  const total = localImages.length;
-  let loaded = INITIAL_BATCH_SIZE;
+  const remaining = allImages.slice(INITIAL_BATCH);
+  const total = allImages.length;
   
-  // Load in chunks with small delays to keep UI responsive
-  for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
-    const chunk = remaining.slice(i, i + CHUNK_SIZE);
-    loaded += chunk.length;
-    
-    onChunk(chunk, {
-      loaded,
-      total,
-      complete: loaded >= total,
-    });
-    
-    // Small delay to let React render
-    if (loaded < total) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-  }
+  // Add all remaining at once
+  onChunk(remaining, {
+    loaded: total,
+    total,
+    complete: true,
+  });
 }
-
-/**
- * Get just the image count without loading all data.
- * Useful for showing "Loading X of Y" before data is ready.
- */
-export async function getImageCount(): Promise<number> {
-  const { localImages } = await import('@/data/localImages');
-  return localImages.length;
-}
-

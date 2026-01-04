@@ -60,7 +60,15 @@ export function NetworkGraph() {
     // Check if we have UMAP layout data
     const hasLayoutData = displayImages.some(img => img.layoutPosition);
     
-    const nodes: GraphNode[] = displayImages.map((img, i) => {
+    // Deduplicate images by ID
+    const seenIds = new Set<string>();
+    const uniqueImages = displayImages.filter(img => {
+      if (seenIds.has(img.id)) return false;
+      seenIds.add(img.id);
+      return true;
+    });
+    
+    const nodes: GraphNode[] = uniqueImages.map((img, i) => {
       // Use UMAP position if available, otherwise use circular layout
       if (img.layoutPosition) {
         // UMAP positions are in [0, 1000] range, scale to fit viewport
@@ -74,8 +82,8 @@ export function NetworkGraph() {
       }
       
       // Fallback: circular arrangement
-      const angle = (i / displayImages.length) * 2 * Math.PI;
-      const radius = Math.sqrt(displayImages.length) * 15 + Math.random() * 100;
+      const angle = (i / uniqueImages.length) * 2 * Math.PI;
+      const radius = Math.sqrt(uniqueImages.length) * 15 + Math.random() * 100;
       return {
         id: img.id,
         image: img,

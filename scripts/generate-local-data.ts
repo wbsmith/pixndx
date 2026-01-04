@@ -274,7 +274,29 @@ Workflow:
     }
   }
 
-  console.log(`\n✅ Loaded ${images.length} images`);
+  // Check for duplicate IDs
+  const seenIds = new Set<string>();
+  const duplicates: string[] = [];
+  const uniqueImages = images.filter(img => {
+    if (seenIds.has(img.id)) {
+      duplicates.push(img.id);
+      return false;
+    }
+    seenIds.add(img.id);
+    return true;
+  });
+
+  if (duplicates.length > 0) {
+    console.log(`\n⚠️  Found ${duplicates.length} duplicate IDs (removed):`);
+    duplicates.slice(0, 5).forEach(id => console.log(`   - ${id}`));
+    if (duplicates.length > 5) console.log(`   ... and ${duplicates.length - 5} more`);
+  }
+
+  // Replace images with deduplicated list
+  images.length = 0;
+  images.push(...uniqueImages);
+
+  console.log(`\n✅ Loaded ${images.length} unique images`);
   console.log(`   With CLIP neighbors:    ${withNeighbors}`);
   console.log(`   Without CLIP neighbors: ${withoutNeighbors}`);
   console.log(`   With layout data:       ${withLayout}`);
@@ -331,6 +353,31 @@ export default localImages;
 
   const sizeMB = (Buffer.byteLength(tsContent, 'utf8') / (1024 * 1024)).toFixed(2);
   console.log(`\n✅ Written: ${output} (${sizeMB} MB)`);
+
+  // Also generate JSON for faster loading (JSON parses ~10x faster than JS)
+  const jsonOutput = output.replace('.ts', '.json');
+  const jsonContent = JSON.stringify({
+    images,
+    clusterInfo,
+    communityInfo,
+    meta: {
+      generated: new Date().toISOString(),
+      source: src,
+      count: images.length,
+      withNeighbors,
+      withLayout,
+    }
+  });
+  fs.writeFileSync(jsonOutput, jsonContent);
+  const jsonSizeMB = (Buffer.byteLength(jsonContent, 'utf8') / (1024 * 1024)).toFixed(2);
+  console.log(`✅ Written: ${jsonOutput} (${jsonSizeMB} MB)`);
+
+  // Copy JSON to public folder for fetch access
+  const publicDir = path.join(path.dirname(output), '..', 'public');
+  fs.mkdirSync(publicDir, { recursive: true });
+  const publicJsonPath = path.join(publicDir, 'localImages.json');
+  fs.writeFileSync(publicJsonPath, jsonContent);
+  console.log(`✅ Written: ${publicJsonPath} (for fetch access)`);
 
   console.log(`\n💡 Next steps:`);
   console.log(`   1. Start image server:  npx serve ${src} -p 8080 --cors`);

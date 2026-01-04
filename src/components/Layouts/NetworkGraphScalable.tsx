@@ -62,8 +62,13 @@ function buildGraph(
 ): Graph<NodeAttributes, EdgeAttributes> {
   const graph = new Graph<NodeAttributes, EdgeAttributes>({ type: 'undirected' });
   
-  // Add nodes with initial random positions
+  // Add nodes with initial random positions (skip duplicates)
+  const addedNodes = new Set<string>();
   images.forEach((img, i) => {
+    // Skip if already added (duplicate ID)
+    if (addedNodes.has(img.id)) return;
+    addedNodes.add(img.id);
+    
     // Distribute in a circle initially for faster convergence
     const angle = (i / images.length) * 2 * Math.PI;
     const radius = Math.min(width, height) * 0.3;

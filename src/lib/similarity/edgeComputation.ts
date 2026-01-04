@@ -41,53 +41,60 @@ export function computeEdgeStats(
   images: ImageMetadata[],
   mode: SimilarityMode
 ): EdgeStats | null {
-  const validIds = new Set(images.map(img => img.id));
-  const weights: number[] = [];
-  const seen = new Set<string>();
-  
-  for (const image of images) {
-    if (!image.clipNeighbors) continue;
+  try {
+    if (!images || images.length === 0) return null;
     
-    for (const neighbor of image.clipNeighbors) {
-      if (!validIds.has(neighbor.id)) continue;
+    const validIds = new Set(images.map(img => img.id));
+    const weights: number[] = [];
+    const seen = new Set<string>();
+    
+    for (const image of images) {
+      if (!image.clipNeighbors) continue;
       
-      // Deduplicate
-      const key = [image.id, neighbor.id].sort().join('|');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      
-      const weight = mode === 'clip' ? neighbor.clipWeight : neighbor.compositeWeight;
-      const actualWeight = weight ?? (neighbor as any).weight ?? 0;
-      if (actualWeight > 0) {
-        weights.push(actualWeight);
+      for (const neighbor of image.clipNeighbors) {
+        if (!neighbor?.id || !validIds.has(neighbor.id)) continue;
+        
+        // Deduplicate
+        const key = [image.id, neighbor.id].sort().join('|');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        
+        const weight = mode === 'clip' ? neighbor.clipWeight : neighbor.compositeWeight;
+        const actualWeight = weight ?? (neighbor as any).weight ?? 0;
+        if (actualWeight > 0) {
+          weights.push(actualWeight);
+        }
       }
     }
+    
+    if (weights.length === 0) return null;
+    
+    weights.sort((a, b) => a - b);
+    
+    const min = weights[0];
+    const max = weights[weights.length - 1];
+    const sum = weights.reduce((a, b) => a + b, 0);
+    const mean = sum / weights.length;
+    const median = weights.length % 2 === 0
+      ? (weights[weights.length / 2 - 1] + weights[weights.length / 2]) / 2
+      : weights[Math.floor(weights.length / 2)];
+    
+    const squaredDiffs = weights.map(w => Math.pow(w - mean, 2));
+    const variance = squaredDiffs.reduce((a, b) => a + b, 0) / weights.length;
+    const stdDev = Math.sqrt(variance);
+    
+    return {
+      min,
+      max,
+      mean,
+      median,
+      stdDev,
+      totalPotential: weights.length,
+    };
+  } catch (e) {
+    console.error('Error computing edge stats:', e);
+    return null;
   }
-  
-  if (weights.length === 0) return null;
-  
-  weights.sort((a, b) => a - b);
-  
-  const min = weights[0];
-  const max = weights[weights.length - 1];
-  const sum = weights.reduce((a, b) => a + b, 0);
-  const mean = sum / weights.length;
-  const median = weights.length % 2 === 0
-    ? (weights[weights.length / 2 - 1] + weights[weights.length / 2]) / 2
-    : weights[Math.floor(weights.length / 2)];
-  
-  const squaredDiffs = weights.map(w => Math.pow(w - mean, 2));
-  const variance = squaredDiffs.reduce((a, b) => a + b, 0) / weights.length;
-  const stdDev = Math.sqrt(variance);
-  
-  return {
-    min,
-    max,
-    mean,
-    median,
-    stdDev,
-    totalPotential: weights.length,
-  };
 }
 
 // =============================================================================
@@ -102,12 +109,15 @@ export function computeEdges(
   images: ImageMetadata[],
   params: EdgeComputationParams
 ): SimilarityEdge[] {
-  const { mode, thresholdMin, thresholdMax, maxEdgesPerNode } = params;
-  
-  console.time('computeEdges');
-  
-  // Build set of valid IDs (for filtered image sets)
-  const validIds = new Set(images.map(img => img.id));
+  try {
+    if (!images || images.length === 0) return [];
+    
+    const { mode, thresholdMin, thresholdMax, maxEdgesPerNode } = params;
+    
+    console.time('computeEdges');
+    
+    // Build set of valid IDs (for filtered image sets)
+    const validIds = new Set(images.map(img => img.id));
   
   // Debug: check how many images have neighbors
   const withNeighbors = images.filter(img => img.clipNeighbors && img.clipNeighbors.length > 0);
@@ -174,4 +184,8 @@ export function computeEdges(
   console.log(`Filtered ${edges.length} edges from ${candidateEdges.length} candidates`);
   
   return edges;
+  } catch (e) {
+    console.error('Error computing edges:', e);
+    return [];
+  }
 }
