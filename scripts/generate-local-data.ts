@@ -6,8 +6,10 @@
  * Reads your processed_gallery metadata and generates a TypeScript file
  * that can be imported directly for local development.
  * 
- * Edges are NOT precomputed here - instead, we include clipNeighbors per image
- * which allows runtime edge computation with adjustable threshold/limits.
+ * Includes:
+ * - CLIP neighbors for edge computation
+ * - UMAP layout positions (if layout.json exists)
+ * - Cluster/community assignments (if layout.json exists)
  * 
  * Usage:
  *   npx tsx scripts/generate-local-data.ts --source ./gallery_processed
@@ -44,6 +46,31 @@ interface RawMetadata {
   };
 }
 
+interface LayoutNode {
+  id: string;
+  x: number;
+  y: number;
+  cluster: number;
+  community: number;
+  cluster_probability: number;
+}
+
+interface LayoutData {
+  version: string;
+  algorithm: {
+    layout: string;
+    clustering: string;
+  };
+  stats: {
+    total_images: number;
+    n_clusters: number;
+    n_communities: number;
+  };
+  clusters: Record<string, { name: string; count: number; common_tags?: string[] }>;
+  communities: Record<string, { name: string; count: number; common_tags?: string[] }>;
+  nodes: LayoutNode[];
+}
+
 interface OutputImage {
   id: string;
   filename: string;
@@ -55,6 +82,11 @@ interface OutputImage {
   main_colors: Record<string, string>;
   exif: Record<string, unknown>;
   clipNeighbors?: ClipNeighbor[];
+  // Layout data (from UMAP)
+  layoutPosition?: { x: number; y: number };
+  cluster?: number;
+  community?: number;
+  clusterProbability?: number;
 }
 
 // =============================================================================
@@ -94,10 +126,11 @@ Examples:
   npx tsx scripts/generate-local-data.ts -s ./gallery_processed -u http://localhost:8080
 
 Workflow:
-  1. Run preprocessing/compute_neighbors.py first to compute CLIP neighbors
-  2. Run this script to generate frontend data
-  3. Start image server: npx serve ./gallery_processed -p 8080 --cors
-  4. Start app: npm run dev
+  1. Run preprocessing/compute_neighbors.py to compute CLIP neighbors
+  2. Run preprocessing/cluster_layout.py --cluster to compute UMAP + clusters (optional)
+  3. Run this script to generate frontend data
+  4. Start image server: npx serve ./gallery_processed -p 8080 --cors
+  5. Start app: npm run dev
 `);
     process.exit(0);
   }
@@ -114,6 +147,7 @@ Workflow:
 
   const metaDir = path.join(src, 'metadata');
   const smallDir = path.join(src, 'small');
+  const layoutPath = path.join(metaDir, 'layout.json');
 
   if (!fs.existsSync(metaDir)) {
     console.error(`❌ Metadata directory not found: ${metaDir}`);
@@ -130,9 +164,36 @@ Workflow:
   console.log(`   Image URL:  ${baseUrl}`);
   console.log(`   Output:     ${output}`);
 
-  // Find all JSON metadata files
+  // Load layout data if available
+  let layoutData: LayoutData | null = null;
+  let layoutMap: Map<string, LayoutNode> = new Map();
+  let clusterInfo: Record<string, { name: string; count: number; common_tags?: string[] }> = {};
+  let communityInfo: Record<string, { name: string; count: number; common_tags?: string[] }> = {};
+  
+  if (fs.existsSync(layoutPath)) {
+    try {
+      layoutData = JSON.parse(fs.readFileSync(layoutPath, 'utf-8'));
+      if (layoutData && layoutData.nodes) {
+        for (const node of layoutData.nodes) {
+          layoutMap.set(node.id, node);
+        }
+        clusterInfo = layoutData.clusters || {};
+        communityInfo = layoutData.communities || {};
+        console.log(`\n🧭 Layout data found:`);
+        console.log(`   Algorithm:   ${layoutData.algorithm?.layout} + ${layoutData.algorithm?.clustering}`);
+        console.log(`   Clusters:    ${layoutData.stats?.n_clusters}`);
+        console.log(`   Communities: ${layoutData.stats?.n_communities}`);
+      }
+    } catch (err) {
+      console.warn(`   ⚠️  Could not parse layout.json: ${err}`);
+    }
+  } else {
+    console.log(`\n💡 No layout.json found. Run cluster_layout.py for UMAP positions & clusters.`);
+  }
+
+  // Find all JSON metadata files (exclude layout.json and edges*.json)
   const jsonFiles = fs.readdirSync(metaDir)
-    .filter(f => f.endsWith('.json'))
+    .filter(f => f.endsWith('.json') && !f.startsWith('layout') && !f.startsWith('edges') && !f.startsWith('clusters'))
     .slice(0, limit);
 
   console.log(`\n📄 Found ${jsonFiles.length} metadata files`);
@@ -141,6 +202,7 @@ Workflow:
   let withNeighbors = 0;
   let withoutNeighbors = 0;
   let totalNeighbors = 0;
+  let withLayout = 0;
 
   for (const jsonFile of jsonFiles) {
     try {
@@ -183,6 +245,16 @@ Workflow:
         withoutNeighbors++;
       }
 
+      // Include layout data if available
+      const layoutNode = layoutMap.get(outputImage.id);
+      if (layoutNode) {
+        outputImage.layoutPosition = { x: layoutNode.x, y: layoutNode.y };
+        outputImage.cluster = layoutNode.cluster;
+        outputImage.community = layoutNode.community;
+        outputImage.clusterProbability = layoutNode.cluster_probability;
+        withLayout++;
+      }
+
       images.push(outputImage);
     } catch (err) {
       console.error(`   ❌ Error reading ${jsonFile}:`, err);
@@ -192,6 +264,7 @@ Workflow:
   console.log(`\n✅ Loaded ${images.length} images`);
   console.log(`   With CLIP neighbors:    ${withNeighbors}`);
   console.log(`   Without CLIP neighbors: ${withoutNeighbors}`);
+  console.log(`   With layout data:       ${withLayout}`);
   if (withNeighbors > 0) {
     console.log(`   Avg neighbors/image:    ${(totalNeighbors / withNeighbors).toFixed(1)}`);
   }
@@ -209,6 +282,7 @@ Workflow:
 // Source: ${src}
 // Images: ${images.length}
 // With CLIP neighbors: ${withNeighbors}
+// With layout data: ${withLayout}
 // =============================================================================
 
 import type { ImageMetadata } from '@/types/gallery';
@@ -219,13 +293,21 @@ import type { ImageMetadata } from '@/types/gallery';
  * Each image includes:
  * - Core metadata (tags, mood, colors, description)
  * - clipNeighbors: Precomputed similar images (for CLIP-based edges)
- * 
- * Edge computation happens at runtime based on user-selected:
- * - Similarity mode (clip, metadata, composite)
- * - Threshold
- * - Max edges per node
+ * - layoutPosition: UMAP 2D coordinates (if computed)
+ * - cluster: HDBSCAN cluster assignment (if computed)
+ * - community: Louvain community assignment (if computed)
  */
 export const localImages: ImageMetadata[] = ${JSON.stringify(images, null, 2)};
+
+/**
+ * Cluster metadata from HDBSCAN (if computed)
+ */
+export const clusterInfo: Record<string, { name: string; count: number; common_tags?: string[] }> = ${JSON.stringify(clusterInfo, null, 2)};
+
+/**
+ * Community metadata from Louvain (if computed)
+ */
+export const communityInfo: Record<string, { name: string; count: number; common_tags?: string[] }> = ${JSON.stringify(communityInfo, null, 2)};
 
 export default localImages;
 `;

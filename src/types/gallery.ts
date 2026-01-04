@@ -27,6 +27,19 @@ export interface ImageMetadata {
   // Used for CLIP-based edge computation at runtime
   clipNeighbors?: ClipNeighbor[];
   
+  // Precomputed layout data (from preprocessing/cluster_layout.py)
+  // UMAP 2D position for initial graph layout
+  layoutPosition?: {
+    x: number;
+    y: number;
+  };
+  // HDBSCAN cluster assignment (-1 = noise/unclustered)
+  cluster?: number;
+  // Louvain community assignment
+  community?: number;
+  // Probability of cluster membership (0-1)
+  clusterProbability?: number;
+  
   // Optional computed fields for similarity (legacy)
   embedding?: {
     clip: number[];

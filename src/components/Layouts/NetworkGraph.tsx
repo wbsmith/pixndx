@@ -62,7 +62,23 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
     svg.call(zoom);
     const container = svg.append('g');
 
+    // Check if we have UMAP layout data
+    const hasLayoutData = displayImages.some(img => img.layoutPosition);
+    
     const nodes: GraphNode[] = displayImages.map((img, i) => {
+      // Use UMAP position if available, otherwise use circular layout
+      if (img.layoutPosition) {
+        // UMAP positions are in [0, 1000] range, scale to fit viewport
+        const scale = Math.min(width, height) / 1200;
+        return {
+          id: img.id,
+          image: img,
+          x: width / 2 + (img.layoutPosition.x - 500) * scale,
+          y: height / 2 + (img.layoutPosition.y - 500) * scale,
+        };
+      }
+      
+      // Fallback: circular arrangement
       const angle = (i / displayImages.length) * 2 * Math.PI;
       const radius = Math.sqrt(displayImages.length) * 15 + Math.random() * 100;
       return {
@@ -117,19 +133,24 @@ export function NetworkGraph({ settings }: NetworkGraphProps) {
     const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodes.length)));
     const chargeStrength = Math.max(-150, -40000 / nodes.length) * scaling;
 
+    // If we have UMAP positions, use gentler forces to preserve the layout
+    const alphaDecay = hasLayoutData ? 0.05 : 0.018;  // Converge faster with UMAP
+    const velocityDecay = hasLayoutData ? 0.6 : 0.4;  // More friction with UMAP
+    const linkStrengthMultiplier = hasLayoutData ? 0.5 : 1.0;  // Weaker links with UMAP
+
     const simulation = d3.forceSimulation(nodes)
       .force('link', d3.forceLink<GraphNode, GraphLink>(links)
         .id((d) => d.id)
         .distance((d) => (20 + 80 * (1 - d.weight)) * scaling)
-        .strength((d) => (0.2 + d.weight * 0.6) * edgeWeightInfluence))
+        .strength((d) => (0.2 + d.weight * 0.6) * edgeWeightInfluence * linkStrengthMultiplier))
       .force('charge', d3.forceManyBody()
-        .strength(chargeStrength)
+        .strength(chargeStrength * (hasLayoutData ? 0.3 : 1))  // Weaker repulsion with UMAP
         .distanceMin(nodeRadius)
         .distanceMax(350 * scaling))
-      .force('center', d3.forceCenter(width / 2, height / 2).strength(gravity))
+      .force('center', d3.forceCenter(width / 2, height / 2).strength(gravity * (hasLayoutData ? 0.2 : 1)))
       .force('collision', d3.forceCollide().radius(nodeRadius + 2).strength(0.6))
-      .velocityDecay(0.4)
-      .alphaDecay(0.018)
+      .velocityDecay(velocityDecay)
+      .alphaDecay(alphaDecay)
       .alphaMin(0.001);
 
     simulationRef.current = simulation;

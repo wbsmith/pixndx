@@ -169,12 +169,13 @@ Examples:
         if not cluster_script.exists():
             print(f"⚠️  Clustering script not found: {cluster_script}")
         else:
-            cluster_output = output_dir / "clusters.json"
+            layout_output = output_dir / "layout.json"
             success = run_command([
                 sys.executable, str(cluster_script),
                 '--gallery', str(gallery_path),
-                '--output', str(cluster_output)
-            ], f"Step {steps_total}: Clustering & Layout")
+                '--output', str(layout_output),
+                '--algorithm', 'both',  # Run both HDBSCAN and Louvain
+            ], f"Step {steps_total}: UMAP Layout & Clustering (HDBSCAN + Louvain)")
             
             if success:
                 steps_completed += 1
@@ -192,13 +193,15 @@ Examples:
     if args.find_duplicates and (output_dir / "duplicates.json").exists():
         print(f"   {output_dir / 'duplicates.json'}")
     
-    if args.cluster and (output_dir / "clusters.json").exists():
-        print(f"   {output_dir / 'clusters.json'}")
+    if args.cluster and (output_dir / "layout.json").exists():
+        layout_path = output_dir / "layout.json"
+        size_mb = layout_path.stat().st_size / (1024 * 1024)
+        print(f"   {layout_path} ({size_mb:.2f}MB)")
     
     print(f"\n💡 Next step: Generate frontend data with:")
     print(f"   npx tsx scripts/generate-local-data.ts \\")
     print(f"       --source {gallery_path} \\")
-    print(f"       --edges {edges_output}")
+    print(f"       --image-base-url https://your-domain.com/images")
 
 
 if __name__ == "__main__":
