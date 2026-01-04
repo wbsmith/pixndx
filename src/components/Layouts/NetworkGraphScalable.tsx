@@ -15,7 +15,7 @@
  * - 10,000+ nodes: consider switching to WebGL (Sigma.js)
  */
 
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import * as d3 from 'd3';
 import Graph from 'graphology';
@@ -86,6 +86,7 @@ interface LayoutSettings {
   scalingRatio: number;
   strongGravityMode: boolean;
   slowDown: number;
+  edgeWeightInfluence: number;
 }
 
 // =============================================================================
@@ -156,6 +157,7 @@ function computeLayout(
     scalingRatio: Math.max(1, Math.log10(nodeCount) * 5),
     strongGravityMode: true,
     slowDown: 1 + nodeCount / 500,
+    edgeWeightInfluence: 1.0,
   };
   
   const finalSettings = { ...defaultSettings, ...settings };
@@ -482,7 +484,7 @@ export function NetworkGraphScalable() {
         <div className="text-nebula-300">
           {stats.nodes} nodes • {stats.edges} edges
         </div>
-        <div className={layoutComplete ? 'text-green-400' : 'text-yellow-400'}>
+        <div className={layoutVersion > 0 ? 'text-green-400' : 'text-yellow-400'}>
           {isComputing ? '○ Computing layout...' : `● Layout computed (${stats.time.toFixed(0)}ms)`}
         </div>
       </div>
