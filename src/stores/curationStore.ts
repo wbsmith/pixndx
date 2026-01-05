@@ -466,18 +466,46 @@ export const useCurationStore = create<CurationStore>()(
       
       exportAsShellScript: (baseDir: string) => {
         const decisions = Object.values(get().decisions);
+        const deleteCount = decisions.filter(d => d.status === 'delete').length;
+        const archiveCount = decisions.filter(d => d.status === 'archive').length;
         
         const lines = [
           '#!/bin/bash',
-          `# PixNdx Gallery Curation Export`,
+          '#',
+          '# PixNdx Gallery Curation Script',
           `# Generated: ${new Date().toISOString()}`,
-          `# Total decisions: ${decisions.length}`,
+          `# Deletions: ${deleteCount}, Archives: ${archiveCount}`,
+          '#',
+          '# Usage: ./pixndx_curation.sh /path/to/gallery_processed',
+          '#',
           '',
-          `BASE_DIR="${baseDir}"`,
+          '# Check for required argument',
+          'if [ -z "$1" ]; then',
+          `  echo "Usage: $0 /path/to/gallery_processed"`,
+          `  echo ""`,
+          `  echo "Default: ${baseDir}"`,
+          `  echo ""`,
+          '  exit 1',
+          'fi',
+          '',
+          'BASE_DIR="$1"',
+          '',
+          '# Verify directory exists',
+          'if [ ! -d "$BASE_DIR" ]; then',
+          '  echo "❌ Directory not found: $BASE_DIR"',
+          '  exit 1',
+          'fi',
+          '',
+          'echo "📁 Processing gallery: $BASE_DIR"',
+          'echo ""',
           '',
           '# Create output directories',
           'mkdir -p "$BASE_DIR/archive/full" "$BASE_DIR/archive/medium" "$BASE_DIR/archive/small" "$BASE_DIR/archive/metadata"',
-          'mkdir -p "$BASE_DIR/deleted"',
+          'mkdir -p "$BASE_DIR/deleted/full" "$BASE_DIR/deleted/medium" "$BASE_DIR/deleted/small" "$BASE_DIR/deleted/metadata"',
+          '',
+          '# Counters',
+          'DELETED=0',
+          'ARCHIVED=0',
           '',
           '# Process images',
         ];
@@ -485,27 +513,43 @@ export const useCurationStore = create<CurationStore>()(
         decisions.forEach(d => {
           if (d.status === 'delete') {
             lines.push(`# Delete: ${d.imageId}`);
-            lines.push(`mv "$BASE_DIR/full/${d.imageId}."* "$BASE_DIR/deleted/" 2>/dev/null`);
-            lines.push(`mv "$BASE_DIR/medium/${d.imageId}."* "$BASE_DIR/deleted/" 2>/dev/null`);
-            lines.push(`mv "$BASE_DIR/small/${d.imageId}."* "$BASE_DIR/deleted/" 2>/dev/null`);
-            lines.push(`mv "$BASE_DIR/metadata/${d.imageId}.json" "$BASE_DIR/deleted/" 2>/dev/null`);
+            lines.push(`if ls "$BASE_DIR/full/${d.imageId}."* 1>/dev/null 2>&1; then`);
+            lines.push(`  mv "$BASE_DIR/full/${d.imageId}."* "$BASE_DIR/deleted/full/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/medium/${d.imageId}."* "$BASE_DIR/deleted/medium/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/small/${d.imageId}."* "$BASE_DIR/deleted/small/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/metadata/${d.imageId}.json" "$BASE_DIR/deleted/metadata/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/metadata/${d.imageId}.npy" "$BASE_DIR/deleted/metadata/" 2>/dev/null`);
+            lines.push('  ((DELETED++))');
+            lines.push(`  echo "🗑️  Deleted: ${d.imageId}"`);
+            lines.push('fi');
             lines.push('');
           } else if (d.status === 'archive') {
             lines.push(`# Archive: ${d.imageId}`);
-            lines.push(`mv "$BASE_DIR/full/${d.imageId}."* "$BASE_DIR/archive/full/" 2>/dev/null`);
-            lines.push(`mv "$BASE_DIR/medium/${d.imageId}."* "$BASE_DIR/archive/medium/" 2>/dev/null`);
-            lines.push(`mv "$BASE_DIR/small/${d.imageId}."* "$BASE_DIR/archive/small/" 2>/dev/null`);
-            lines.push(`mv "$BASE_DIR/metadata/${d.imageId}.json" "$BASE_DIR/archive/metadata/" 2>/dev/null`);
+            lines.push(`if ls "$BASE_DIR/full/${d.imageId}."* 1>/dev/null 2>&1; then`);
+            lines.push(`  mv "$BASE_DIR/full/${d.imageId}."* "$BASE_DIR/archive/full/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/medium/${d.imageId}."* "$BASE_DIR/archive/medium/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/small/${d.imageId}."* "$BASE_DIR/archive/small/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/metadata/${d.imageId}.json" "$BASE_DIR/archive/metadata/" 2>/dev/null`);
+            lines.push(`  mv "$BASE_DIR/metadata/${d.imageId}.npy" "$BASE_DIR/archive/metadata/" 2>/dev/null`);
+            lines.push('  ((ARCHIVED++))');
+            lines.push(`  echo "📦 Archived: ${d.imageId}"`);
+            lines.push('fi');
             lines.push('');
           }
         });
         
-        const deleteCount = decisions.filter(d => d.status === 'delete').length;
-        const archiveCount = decisions.filter(d => d.status === 'archive').length;
-        
         lines.push('echo ""');
-        lines.push(`echo "✅ Processed ${deleteCount} deletions, ${archiveCount} archives"`);
-        lines.push('echo "⚠️  Review deleted/ folder before permanently removing"');
+        lines.push('echo "════════════════════════════════════════════════"');
+        lines.push('echo "✅ Complete: $DELETED deleted, $ARCHIVED archived"');
+        lines.push('echo ""');
+        lines.push('echo "Deleted files are in: $BASE_DIR/deleted/"');
+        lines.push('echo "Archived files are in: $BASE_DIR/archive/"');
+        lines.push('echo ""');
+        lines.push('echo "⚠️  To permanently remove deleted files:"');
+        lines.push('echo "    rm -rf \\"$BASE_DIR/deleted\\""');
+        lines.push('echo ""');
+        lines.push('echo "🔄 To recompute neighbors after deletion:"');
+        lines.push('echo "    ~/pixndx/preprocessing/venv/bin/python ~/pixndx/preprocessing/compute_neighbors.py --gallery \\"$BASE_DIR\\" --threshold 0.25 --max-neighbors 150"');
         lines.push('echo ""');
         
         return lines.join('\n');
