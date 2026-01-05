@@ -299,9 +299,9 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   },
   
   setForceSettings: (settings) => {
-    set({ forceSettings: settings, graphVersion: get().graphVersion + 1 });
-    // Incrementing graphVersion forces graph to re-render with new settings
-    // User must click "Apply" button to trigger recomputeEdges()
+    // Just update settings - don't trigger re-render
+    // User must click "Apply" button to trigger recomputeEdges() which increments graphVersion
+    set({ forceSettings: settings });
   },
   
   setColorMode: (mode) => {

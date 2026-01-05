@@ -277,7 +277,9 @@ export function NetworkGraph() {
     svg.call(zoom.transform as any, d3.zoomIdentity.translate(width * 0.05, height * 0.05).scale(scale));
 
     return () => { simulation.stop(); simulationRef.current = null; };
-  }, [filteredImages, edges, dimensions, openModal, forceSettings, colorMode]);
+  // Note: forceSettings intentionally NOT in deps - only recompute when Apply is clicked (edges change)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredImages, edges, dimensions, openModal, colorMode]);
 
   return (
     <motion.div ref={containerRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

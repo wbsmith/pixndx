@@ -95,8 +95,8 @@ function buildGraph(
   // Add nodes (skip duplicates)
   const addedNodes = new Set<string>();
   images.forEach((img, i) => {
-    // Skip if already added (duplicate ID)
-    if (addedNodes.has(img.id)) return;
+    // Skip if already added (duplicate ID or already in graph)
+    if (addedNodes.has(img.id) || graph.hasNode(img.id)) return;
     addedNodes.add(img.id);
     
     const angle = (i / images.length) * 2 * Math.PI;
@@ -138,6 +138,7 @@ function buildGraph(
 interface ForceParams {
   gravity: number;
   scaling: number;
+  edgeWeightInfluence?: number;
 }
 
 function runLayout(graph: Graph<NodeAttributes, EdgeAttributes>, forceParams?: ForceParams): void {
@@ -148,6 +149,9 @@ function runLayout(graph: Graph<NodeAttributes, EdgeAttributes>, forceParams?: F
   
   const gravity = forceParams?.gravity ?? 0.05;
   const scaling = forceParams?.scaling ?? 1.0;
+  const edgeWeightInfluence = forceParams?.edgeWeightInfluence ?? 1.0;
+  
+  console.log(`  ForceAtlas2 params: gravity=${(gravity * 10).toFixed(2)}, scalingRatio=${(scaling * 10).toFixed(2)}, edgeWeight=${edgeWeightInfluence.toFixed(2)}`);
   
   forceAtlas2.assign(graph, {
     iterations: Math.min(300, Math.max(50, 500 - nodeCount * 0.05)),
@@ -158,6 +162,7 @@ function runLayout(graph: Graph<NodeAttributes, EdgeAttributes>, forceParams?: F
       scalingRatio: scaling * 10,
       strongGravityMode: true,
       slowDown: 2,
+      edgeWeightInfluence: edgeWeightInfluence,
     },
   });
   
@@ -221,7 +226,9 @@ export function NetworkGraphSigma() {
     setIsComputing(false);
     // Increment version to trigger Sigma re-init - ALWAYS changes
     setLayoutVersion(v => v + 1);
-  }, [filteredImages, edges, forceSettings, colorMode]);
+  // Note: forceSettings intentionally NOT in deps - only recompute when Apply is clicked (edges change)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredImages, edges, colorMode]);
   
   // Initialize Sigma renderer (triggered by layoutVersion change)
   useEffect(() => {

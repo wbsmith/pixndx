@@ -105,8 +105,8 @@ function buildGraph(
   // Add nodes with initial random positions (skip duplicates)
   const addedNodes = new Set<string>();
   images.forEach((img, i) => {
-    // Skip if already added (duplicate ID)
-    if (addedNodes.has(img.id)) return;
+    // Skip if already added (duplicate ID or already in graph)
+    if (addedNodes.has(img.id) || graph.hasNode(img.id)) return;
     addedNodes.add(img.id);
     
     // Distribute in a circle initially for faster convergence
@@ -162,7 +162,9 @@ function computeLayout(
   
   const finalSettings = { ...defaultSettings, ...settings };
   
-  console.log(`Running ForceAtlas2: ${nodeCount} nodes, ${graph.size} edges, ${finalSettings.iterations} iterations`);
+  console.log(`Running ForceAtlas2: ${nodeCount} nodes, ${graph.size} edges`);
+  console.log(`  Settings: gravity=${finalSettings.gravity.toFixed(2)}, scalingRatio=${finalSettings.scalingRatio.toFixed(2)}, edgeWeight=${finalSettings.edgeWeightInfluence.toFixed(2)}`);
+  console.log(`  Iterations: ${finalSettings.iterations}, barnesHut=${finalSettings.barnesHutOptimize}`);
   const startTime = performance.now();
   
   // Run synchronous layout (for smaller graphs)
@@ -214,7 +216,7 @@ export function NetworkGraphScalable() {
     const startTime = performance.now();
     
     console.log(`[NetworkGraphScalable] Building: ${filteredImages.length} images, ${edges.length} edges`);
-    console.log(`[NetworkGraphScalable] forceSettings: gravity=${forceSettings.gravity}, scaling=${forceSettings.scaling}, edgeWeight=${forceSettings.edgeWeightInfluence}`);
+    console.log(`[NetworkGraphScalable] forceSettings from store: gravity=${forceSettings.gravity.toFixed(3)}, scaling=${forceSettings.scaling.toFixed(1)}, edgeWeight=${forceSettings.edgeWeightInfluence.toFixed(2)}`);
     
     // Build graph
     const graph = buildGraph(filteredImages, edges, dimensions.width, dimensions.height, colorMode);
@@ -244,7 +246,9 @@ export function NetworkGraphScalable() {
     // Increment version to trigger D3 render - ALWAYS changes, unlike boolean
     setLayoutVersion(v => v + 1);
     
-  }, [filteredImages, edges, dimensions.width, dimensions.height, forceSettings, colorMode]);
+  // Note: forceSettings intentionally NOT in deps - only recompute when Apply is clicked (edges change)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredImages, edges, dimensions.width, dimensions.height, colorMode]);
   
   // Render with D3 when layout is complete (triggered by layoutVersion change)
   useEffect(() => {

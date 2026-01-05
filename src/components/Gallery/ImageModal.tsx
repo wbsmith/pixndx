@@ -346,11 +346,11 @@ export function ImageModal() {
               </div>
             </div>
             
-            <div className={`flex h-full ${isFullscreen ? '' : 'flex-col lg:flex-row'}`}>
+            <div className={`flex ${isFullscreen ? 'h-full' : 'h-full max-h-[90vh] flex-col lg:flex-row'}`}>
               {/* Image container */}
               <div 
                 ref={imageContainerRef}
-                className={`relative bg-black overflow-hidden ${isFullscreen ? 'flex-1' : 'flex-1 min-h-[40vh] lg:min-h-0'}`}
+                className={`relative bg-black overflow-hidden ${isFullscreen ? 'flex-1' : 'flex-1 min-h-0 lg:max-h-[90vh]'}`}
                 style={{ cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in' }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -369,10 +369,13 @@ export function ImageModal() {
                     ref={imageRef}
                     src={selectedImage.urls.full}
                     alt={selectedImage.main_subject}
-                    className="max-w-full max-h-full object-contain select-none"
+                    className="object-contain select-none"
                     style={{
-                      // Ensure proper aspect ratio for portrait images
-                      maxHeight: isFullscreen ? 'calc(100vh - 80px)' : 'calc(100% - 20px)',
+                      // Constrain both width and height to fit container
+                      maxWidth: '100%',
+                      maxHeight: isFullscreen ? 'calc(100vh - 80px)' : isPortrait ? '65vh' : '100%',
+                      width: 'auto',
+                      height: 'auto',
                     }}
                     draggable={false}
                   />
