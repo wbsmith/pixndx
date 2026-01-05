@@ -167,9 +167,19 @@ function computeLayout(
   console.log(`  Iterations: ${finalSettings.iterations}, barnesHut=${finalSettings.barnesHutOptimize}`);
   const startTime = performance.now();
   
-  // Run synchronous layout (for smaller graphs)
-  // For very large graphs, use the web worker version
-  forceAtlas2.assign(graph, finalSettings);
+  // ForceAtlas2 expects iterations at top level, layout settings nested in 'settings'
+  forceAtlas2.assign(graph, {
+    iterations: finalSettings.iterations,
+    settings: {
+      barnesHutOptimize: finalSettings.barnesHutOptimize,
+      barnesHutTheta: finalSettings.barnesHutTheta,
+      gravity: finalSettings.gravity,
+      scalingRatio: finalSettings.scalingRatio,
+      strongGravityMode: finalSettings.strongGravityMode,
+      slowDown: finalSettings.slowDown,
+      edgeWeightInfluence: finalSettings.edgeWeightInfluence,
+    },
+  });
   
   const elapsed = performance.now() - startTime;
   console.log(`Layout computed in ${elapsed.toFixed(0)}ms`);
@@ -263,9 +273,9 @@ export function NetworkGraphScalable() {
     // Clear previous
     svg.selectAll('*').remove();
     
-    // Compute node radius based on count
+    // Compute node radius based on count - same formula as D3 renderer
     const nodeCount = graph.order;
-    const nodeRadius = Math.max(8, Math.min(30, 400 / Math.sqrt(nodeCount)));
+    const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodeCount)));
     
     // Setup zoom
     const zoom = d3.zoom<SVGSVGElement, unknown>()
