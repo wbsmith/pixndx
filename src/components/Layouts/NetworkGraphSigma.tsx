@@ -178,7 +178,8 @@ export function NetworkGraphSigma() {
   const sigmaRef = useRef<any>(null);  // Sigma instance
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
-  const { filteredImages, edges, openModal, forceSettings, colorMode } = useGalleryStore();
+  // Read stable values from store - forceSettings is read fresh inside useEffect to avoid stale closures
+  const { filteredImages, edges, openModal, colorMode } = useGalleryStore();
   
   const [isComputing, setIsComputing] = useState(false);
   const [layoutVersion, setLayoutVersion] = useState(0);  // Incremented to trigger re-render
@@ -202,6 +203,9 @@ export function NetworkGraphSigma() {
     
     setIsComputing(true);
     const startTime = performance.now();
+    
+    // Get fresh forceSettings from store to avoid stale closures
+    const forceSettings = useGalleryStore.getState().forceSettings;
     
     console.log(`[NetworkGraphSigma] Building: ${filteredImages.length} images, ${edges.length} edges`);
     console.log(`[NetworkGraphSigma] forceSettings: gravity=${forceSettings.gravity}, scaling=${forceSettings.scaling}, edgeWeight=${forceSettings.edgeWeightInfluence}`);

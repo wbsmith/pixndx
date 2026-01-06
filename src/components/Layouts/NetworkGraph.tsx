@@ -54,7 +54,8 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 export function NetworkGraph() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { filteredImages, edges, openModal, forceSettings, colorMode } = useGalleryStore();
+  // Read stable values from store - forceSettings is read fresh inside useEffect to avoid stale closures
+  const { filteredImages, edges, openModal, colorMode } = useGalleryStore();
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isStable, setIsStable] = useState(false);
   const [nodeCount, setNodeCount] = useState(0);
@@ -147,8 +148,8 @@ export function NetworkGraph() {
     setNodeCount(nodes.length);
     setEdgeCount(links.length);
 
-    // Force settings from store
-    const { gravity, scaling, edgeWeightInfluence } = forceSettings;
+    // Get fresh force settings from store to avoid stale closures
+    const { gravity, scaling, edgeWeightInfluence } = useGalleryStore.getState().forceSettings;
 
     // Scale parameters based on graph size
     const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodes.length)));

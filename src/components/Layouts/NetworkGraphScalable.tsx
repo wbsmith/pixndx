@@ -194,7 +194,8 @@ export function NetworkGraphScalable() {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
-  const { filteredImages, edges, openModal, forceSettings, colorMode } = useGalleryStore();
+  // Read stable values from store - forceSettings is read fresh inside useEffect to avoid stale closures
+  const { filteredImages, edges, openModal, colorMode } = useGalleryStore();
   
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isComputing, setIsComputing] = useState(false);
@@ -225,7 +226,10 @@ export function NetworkGraphScalable() {
     
     const startTime = performance.now();
     
-    console.log(`[NetworkGraphScalable] Building: ${filteredImages.length} images, ${edges.length} edges`);
+    // Get fresh forceSettings from store to avoid stale closures
+    const forceSettings = useGalleryStore.getState().forceSettings;
+    
+    console.log(`[NetworkGraphScalable] MOUNT - Building: ${filteredImages.length} images, ${edges.length} edges`);
     console.log(`[NetworkGraphScalable] forceSettings from store: gravity=${forceSettings.gravity.toFixed(3)}, scaling=${forceSettings.scaling.toFixed(1)}, edgeWeight=${forceSettings.edgeWeightInfluence.toFixed(2)}`);
     
     // Build graph
@@ -235,11 +239,16 @@ export function NetworkGraphScalable() {
     console.log(`[NetworkGraphScalable] Graph: ${graph.order} nodes, ${graph.size} edges`);
     
     // Compute layout with store's force settings
+    // ForceAtlas2 defaults: gravity ~1, scalingRatio ~2
+    // Our sliders: gravity 0.01-0.3, scaling 0.3-3
+    // Scale appropriately: gravity * 50 → range 0.5-15, scaling * 10 → range 3-30
     computeLayout(graph, {
-      gravity: forceSettings.gravity * 20,  // Scale for ForceAtlas2 (expects ~1-10)
-      scalingRatio: forceSettings.scaling * 20,  // Scale for ForceAtlas2
+      gravity: forceSettings.gravity * 50,
+      scalingRatio: forceSettings.scaling * 10,
       edgeWeightInfluence: forceSettings.edgeWeightInfluence,
     });
+    
+    console.log(`[NetworkGraphScalable] Applied FA2: gravity=${(forceSettings.gravity * 50).toFixed(1)}, scalingRatio=${(forceSettings.scaling * 10).toFixed(1)}`);
     
     // Normalize positions to fit viewport
     normalizePositions(graph, dimensions.width, dimensions.height);
