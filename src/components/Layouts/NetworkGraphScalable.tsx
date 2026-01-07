@@ -265,9 +265,11 @@ export function NetworkGraphScalable() {
     // Increment version to trigger D3 render - ALWAYS changes, unlike boolean
     setLayoutVersion(v => v + 1);
     
-  // Note: forceSettings intentionally NOT in deps - only recompute when Apply is clicked (edges change)
+  // Note: forceSettings and colorMode intentionally NOT in deps
+  // - forceSettings: only recompute when Apply is clicked (edges change)
+  // - colorMode: handled by separate effect that just updates colors
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredImages, edges, dimensions.width, dimensions.height, colorMode]);
+  }, [filteredImages, edges, dimensions.width, dimensions.height]);
   
   // Render with D3 when layout is complete (triggered by layoutVersion change)
   useEffect(() => {
@@ -485,6 +487,34 @@ export function NetworkGraphScalable() {
     svg.call(zoom.transform as any, initialTransform);
     
   }, [layoutVersion, dimensions, openModal]);
+  
+  // Update colors when colorMode changes (without recomputing layout)
+  useEffect(() => {
+    if (!svgRef.current || !graphRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    const graph = graphRef.current;
+    const currentColorMode = useGalleryStore.getState().colorMode;
+    
+    console.log(`[NetworkGraphScalable] Updating colors to mode: ${currentColorMode}`);
+    
+    // Update glow circles (first circle in each node group)
+    svg.selectAll('g.node').each(function(this: SVGGElement, d: any) {
+      const nodeId = d?.id || d3.select(this).attr('data-id');
+      if (!nodeId || !graph.hasNode(nodeId)) return;
+      
+      const nodeData = graph.getNodeAttributes(nodeId);
+      const newColor = getNodeColor(nodeData.image, currentColorMode);
+      
+      // Update glow (first circle)
+      d3.select(this).select('circle:first-of-type')
+        .attr('fill', newColor);
+      
+      // Update ring (third circle - after glow and clip circle)
+      d3.select(this).select('circle:nth-of-type(3)')
+        .attr('stroke', newColor);
+    });
+  }, [colorMode]);
   
   return (
     <motion.div

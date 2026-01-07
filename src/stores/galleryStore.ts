@@ -190,7 +190,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   // Force layout settings
   forceSettings: DEFAULT_FORCE_SETTINGS,
-  colorMode: 'uniform' as ColorMode,
+  colorMode: 'color' as ColorMode,  // Default to color-based node outlines
   
   searchQuery: '',
   searchFilters: undefined,
@@ -305,8 +305,9 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   },
   
   setColorMode: (mode) => {
-    // Just update color mode - affects rendering, not layout
-    set({ colorMode: mode, graphVersion: get().graphVersion + 1 });
+    // Just update color mode - does NOT trigger full re-layout
+    // Graph components will update colors via a separate effect
+    set({ colorMode: mode });
   },
   
   setSearchQuery: (query) => {

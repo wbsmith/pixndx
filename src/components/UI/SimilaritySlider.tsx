@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { RotateCcw, Play } from 'lucide-react';
 import { useGalleryStore, DEFAULT_FORCE_SETTINGS, type ForceSettings, type ColorMode } from '@/stores/galleryStore';
 import { computeEdgeStats, type EdgeStats } from '@/lib/similarity/edgeComputation';
@@ -159,6 +159,18 @@ export function SimilaritySlider() {
   const hasClipNeighbors = useMemo(() => {
     return filteredImages.some(img => img.clipNeighbors && img.clipNeighbors.length > 0);
   }, [filteredImages]);
+  
+  // Track if we've initialized thresholdMin from edge stats
+  const [initializedThreshold, setInitializedThreshold] = useState(false);
+  
+  // Set initial thresholdMin to min edge weight when stats first become available
+  useEffect(() => {
+    if (edgeStats && !initializedThreshold && edgeStats.min > 0) {
+      console.log(`[SimilaritySlider] Setting initial thresholdMin to ${edgeStats.min.toFixed(2)}`);
+      setSimilarity({ ...similarity, thresholdMin: edgeStats.min });
+      setInitializedThreshold(true);
+    }
+  }, [edgeStats, initializedThreshold, similarity, setSimilarity]);
   
   // Callbacks must be defined before any early returns (React hooks rule)
   const handleThresholdMinChange = useCallback((value: number) => {

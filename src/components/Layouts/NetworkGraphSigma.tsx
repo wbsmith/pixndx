@@ -230,9 +230,11 @@ export function NetworkGraphSigma() {
     setIsComputing(false);
     // Increment version to trigger Sigma re-init - ALWAYS changes
     setLayoutVersion(v => v + 1);
-  // Note: forceSettings intentionally NOT in deps - only recompute when Apply is clicked (edges change)
+  // Note: forceSettings and colorMode intentionally NOT in deps
+  // - forceSettings: only recompute when Apply is clicked (edges change)
+  // - colorMode: handled by separate effect that just updates colors
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredImages, edges, colorMode]);
+  }, [filteredImages, edges]);
   
   // Initialize Sigma renderer (triggered by layoutVersion change)
   useEffect(() => {
@@ -341,6 +343,25 @@ export function NetworkGraphSigma() {
       }
     };
   }, [sigmaAvailable, layoutVersion, openModal]);
+  
+  // Update colors when colorMode changes (without recomputing layout)
+  useEffect(() => {
+    if (!graphRef.current || !sigmaRef.current) return;
+    
+    const graph = graphRef.current;
+    const currentColorMode = useGalleryStore.getState().colorMode;
+    
+    console.log(`[NetworkGraphSigma] Updating colors to mode: ${currentColorMode}`);
+    
+    // Update node colors in the graph
+    graph.forEachNode((node, attrs) => {
+      const newColor = getNodeColor(attrs.imageData, currentColorMode);
+      graph.setNodeAttribute(node, 'color', newColor);
+    });
+    
+    // Refresh Sigma display
+    sigmaRef.current.refresh();
+  }, [colorMode]);
   
   // Fallback if Sigma not available
   if (!sigmaAvailable) {

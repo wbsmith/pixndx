@@ -278,9 +278,40 @@ export function NetworkGraph() {
     svg.call(zoom.transform as any, d3.zoomIdentity.translate(width * 0.05, height * 0.05).scale(scale));
 
     return () => { simulation.stop(); simulationRef.current = null; };
-  // Note: forceSettings intentionally NOT in deps - only recompute when Apply is clicked (edges change)
+  // Note: forceSettings and colorMode intentionally NOT in deps
+  // - forceSettings: only recompute when Apply is clicked (edges change)  
+  // - colorMode: handled by separate effect that just updates colors
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredImages, edges, dimensions, openModal, colorMode]);
+  }, [filteredImages, edges, dimensions, openModal]);
+  
+  // Update colors when colorMode changes (without recomputing layout)
+  useEffect(() => {
+    if (!svgRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    const currentColorMode = useGalleryStore.getState().colorMode;
+    
+    console.log(`[NetworkGraph] Updating colors to mode: ${currentColorMode}`);
+    
+    // Update each node's glow and ring colors
+    svg.selectAll('g').filter(function() {
+      return d3.select(this).selectAll('circle').size() >= 3;
+    }).each(function(d: any) {
+      if (!d?.image) return;
+      const newColor = getNodeColor(d.image, currentColorMode);
+      
+      // First circle is glow
+      d3.select(this).select('circle:first-of-type')
+        .attr('fill', newColor);
+      
+      // Second circle after image is the ring
+      const circles = d3.select(this).selectAll('circle');
+      if (circles.size() >= 3) {
+        d3.select(circles.nodes()[2])
+          .attr('stroke', newColor);
+      }
+    });
+  }, [colorMode]);
 
   return (
     <motion.div ref={containerRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
