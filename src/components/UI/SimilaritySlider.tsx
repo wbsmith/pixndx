@@ -166,11 +166,13 @@ export function SimilaritySlider() {
   // Set initial thresholdMin to min edge weight when stats first become available
   useEffect(() => {
     if (edgeStats && !initializedThreshold && edgeStats.min > 0) {
+      // Get current similarity from store to avoid stale closures
+      const currentSimilarity = useGalleryStore.getState().similarity;
       console.log(`[SimilaritySlider] Setting initial thresholdMin to ${edgeStats.min.toFixed(2)}`);
-      setSimilarity({ ...similarity, thresholdMin: edgeStats.min });
+      setSimilarity({ ...currentSimilarity, thresholdMin: edgeStats.min });
       setInitializedThreshold(true);
     }
-  }, [edgeStats, initializedThreshold, similarity, setSimilarity]);
+  }, [edgeStats, initializedThreshold, setSimilarity]);
   
   // Callbacks must be defined before any early returns (React hooks rule)
   const handleThresholdMinChange = useCallback((value: number) => {
