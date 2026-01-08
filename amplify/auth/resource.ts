@@ -16,31 +16,23 @@ export const auth = defineAuth({
     email: {
       // Email verification settings
       verificationEmailStyle: 'CODE',
-      verificationEmailSubject: 'Welcome to PicGraf',
+      verificationEmailSubject: `Welcome to PicGraf Gallery`,
       verificationEmailBody: (createCode) =>
-        `Your verification code is: ${createCode()}`,
+        `Welcome to PicGraf Gallery!\n\nYour verification code is: ${createCode()}\n\nThis code expires in 24 hours.`,
     },
   },
   
-  // User attributes to collect
-  userAttributes: {
-    preferredUsername: {
-      required: false,
-      mutable: true,
-    },
-  },
+  // No extra user attributes - just email
+  // Email is automatically used as the username
   
   // Account recovery options
   accountRecovery: 'EMAIL_ONLY',
   
-  // Multi-factor authentication (optional but recommended)
+  // Multi-factor authentication (optional)
   multifactor: {
     mode: 'OPTIONAL',
     totp: true,
   },
-
-  // Password policy
-  // Amplify Gen 2 uses sensible defaults, but you can customize via CDK
 });
 
 /**
