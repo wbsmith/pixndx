@@ -105,7 +105,7 @@ export function TimelineLayout() {
     if (container) {
       const scrollAmount = direction === 'left' ? -400 : 400;
       container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-      setScrollPosition(container.scrollLeft + scrollAmount);
+      _setScrollPosition(container.scrollLeft + scrollAmount);
     }
   };
   

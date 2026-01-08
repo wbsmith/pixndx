@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, X, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from './stores/galleryStore';

@@ -284,7 +284,7 @@ export function ClusterView() {
                       <div
                         className="w-14 h-14 rounded-lg overflow-hidden ring-2 transition-all"
                         style={{
-                          ringColor: isHovered ? cluster.color : 'transparent',
+                          ['--tw-ring-color' as string]: isHovered ? cluster.color : 'transparent',
                           boxShadow: isHovered ? `0 0 20px ${cluster.color}40` : 'none',
                         }}
                       >

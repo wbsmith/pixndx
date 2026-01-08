@@ -17,7 +17,7 @@ interface ImageCurationOverlayProps {
 
 export function ImageCurationOverlay({ image, showControls = true }: ImageCurationOverlayProps) {
   const { isAdminMode } = useCurationStore();
-  const { status, rating, isSelected, toggleSelected, setRating, setStatus } = useImageCuration(image.id);
+  const { status, rating, isSelected, toggleSelected, setRating: _setRating, setStatus } = useImageCuration(image.id);
   
   if (!isAdminMode) return null;
   

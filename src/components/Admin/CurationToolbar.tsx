@@ -23,7 +23,7 @@ import {
   FileJson,
   Terminal,
 } from 'lucide-react';
-import { useCurationStore, type CurationStatus } from '@/stores/curationStore';
+import { useCurationStore } from '@/stores/curationStore';
 
 export function CurationToolbar() {
   const {

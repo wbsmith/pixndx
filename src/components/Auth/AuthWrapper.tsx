@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
+import { Authenticator } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME, APP_TAGLINE } from '../../config';
