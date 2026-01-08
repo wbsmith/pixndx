@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, X, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from './stores/galleryStore';
@@ -9,6 +9,7 @@ import { GalleryView } from './components/Gallery/GalleryView';
 import { ImageModal } from './components/Gallery/ImageModal';
 import { AdminModeToggle, CurationToolbar } from './components/Admin';
 import { APP_NAME, IS_LOCAL_DEV } from './config';
+import { configureAmplify } from './lib/amplify';
 
 // Use config for local dev detection
 const isLocalDev = IS_LOCAL_DEV;
@@ -16,19 +17,6 @@ const isLocalDev = IS_LOCAL_DEV;
 // Lazy load auth components only when needed (production)
 const AuthWrapper = lazy(() => import('./components/Auth/AuthWrapper').then(mod => ({ default: mod.AuthWrapper })));
 const UserMenu = lazy(() => import('./components/Auth/AuthWrapper').then(mod => ({ default: mod.UserMenu })));
-
-// Configure Amplify in production
-if (!isLocalDev) {
-  // This will be executed when building for production
-  // The amplify_outputs.json is auto-generated during Amplify build
-  import('aws-amplify').then(({ Amplify }) => {
-    import('../amplify_outputs.json').then((outputs) => {
-      Amplify.configure(outputs.default || outputs);
-    }).catch(() => {
-      console.warn('Amplify outputs not found - this is expected in development');
-    });
-  });
-}
 
 function AppContent() {
   const { 
@@ -247,9 +235,26 @@ function AuthLoadingFallback() {
 
 // Main App - wraps with auth in production, skips in dev
 function App() {
+  const [amplifyReady, setAmplifyReady] = useState(isLocalDev);
+  
+  // Configure Amplify on mount (production only)
+  useEffect(() => {
+    if (!isLocalDev) {
+      configureAmplify().then((configured) => {
+        console.log(`[App] Amplify configuration complete: ${configured}`);
+        setAmplifyReady(true);
+      });
+    }
+  }, []);
+  
   // In local dev mode, skip authentication
   if (isLocalDev) {
     return <AppContent />;
+  }
+  
+  // Wait for Amplify to be configured
+  if (!amplifyReady) {
+    return <AuthLoadingFallback />;
   }
   
   // In production, wrap with Amplify authentication

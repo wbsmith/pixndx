@@ -54,10 +54,10 @@ export function ProtectedImage({
         setIsLoading(true);
         setHasError(false);
 
-        // Get signed URL from Amplify Storage
+        // Get signed URL from Amplify Storage (v6 API uses 'path')
         // URL expires in 15 minutes by default
         const result = await getUrl({
-          key: `images/${size}/${s3Key}`,
+          path: `images/${size}/${s3Key}`,
           options: {
             expiresIn: 900, // 15 minutes
             validateObjectExistence: true,
@@ -90,7 +90,7 @@ export function ProtectedImage({
     const refreshInterval = setInterval(async () => {
       try {
         const result = await getUrl({
-          key: `images/${size}/${s3Key}`,
+          path: `images/${size}/${s3Key}`,
           options: { expiresIn: 900 },
         });
         setSignedUrl(result.url.toString());
@@ -200,7 +200,7 @@ export function useSignedUrl(s3Key: string, size: 'small' | 'medium' | 'full' = 
         setError(null);
 
         const result = await getUrl({
-          key: `images/${size}/${s3Key}`,
+          path: `images/${size}/${s3Key}`,
           options: { expiresIn: 900 },
         });
 
@@ -239,7 +239,7 @@ export async function getSignedUrls(
     s3Keys.map(async (key) => {
       try {
         const result = await getUrl({
-          key: `images/${size}/${key}`,
+          path: `images/${size}/${key}`,
           options: { expiresIn: 900 },
         });
         urlMap.set(key, result.url.toString());

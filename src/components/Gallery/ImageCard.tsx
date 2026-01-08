@@ -1,14 +1,61 @@
-import { memo, useState } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { ImageMetadata } from '@/types/gallery';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { getColorPalette } from '@/lib/similarity/vectors';
 import { ImageCurationOverlay } from '@/components/Admin/ImageCurationOverlay';
+import { IS_LOCAL_DEV } from '@/config';
+import { extractS3Key, isAmplifyConfigured } from '@/lib/amplify';
 
 interface ImageCardProps {
   image: ImageMetadata;
   index?: number;
   showInfo?: boolean;
+}
+
+// Cache for signed URLs to avoid repeated API calls
+const signedUrlCache = new Map<string, { url: string; expires: number }>();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+async function getSignedUrl(s3Url: string, size: 'small' | 'medium' | 'full' = 'small'): Promise<string> {
+  // In local dev, use the URL directly
+  if (IS_LOCAL_DEV || !isAmplifyConfigured()) {
+    return s3Url;
+  }
+  
+  // Check cache
+  const cacheKey = `${size}:${s3Url}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && Date.now() < cached.expires) {
+    return cached.url;
+  }
+  
+  // Extract the filename from the S3 URL
+  const key = extractS3Key(s3Url);
+  if (!key) {
+    console.warn('Could not extract S3 key from URL:', s3Url);
+    return s3Url; // Fallback to direct URL
+  }
+  
+  try {
+    const { getUrl } = await import('aws-amplify/storage');
+    const result = await getUrl({
+      path: `images/${size}/${key}`,
+      options: { expiresIn: 900 }, // 15 minutes
+    });
+    const signedUrl = result.url.toString();
+    
+    // Cache the result
+    signedUrlCache.set(cacheKey, {
+      url: signedUrl,
+      expires: Date.now() + CACHE_TTL,
+    });
+    
+    return signedUrl;
+  } catch (error) {
+    console.error('Failed to get signed URL:', error);
+    return s3Url; // Fallback to direct URL
+  }
 }
 
 export const ImageCard = memo(function ImageCard({ 
@@ -18,6 +65,7 @@ export const ImageCard = memo(function ImageCard({
 }: ImageCardProps) {
   const { openModal, setHoveredImage, hoveredImage } = useGalleryStore();
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   
   const isHovered = hoveredImage?.id === image.id;
   const palette = getColorPalette(image);
@@ -25,6 +73,26 @@ export const ImageCard = memo(function ImageCard({
   
   // Only stagger animation for first batch (avoids CPU overhead on scroll)
   const shouldAnimate = index < 50;
+  
+  // Get signed URL for the image
+  useEffect(() => {
+    let mounted = true;
+    
+    // In local dev, use URL directly
+    if (IS_LOCAL_DEV) {
+      setImageUrl(image.urls.small);
+      return;
+    }
+    
+    // In production, get signed URL
+    getSignedUrl(image.urls.small, 'small').then((url) => {
+      if (mounted) {
+        setImageUrl(url);
+      }
+    });
+    
+    return () => { mounted = false; };
+  }, [image.urls.small]);
   
   return (
     <motion.div
@@ -38,21 +106,23 @@ export const ImageCard = memo(function ImageCard({
     >
       <div className="relative aspect-[3/2] overflow-hidden bg-cosmos-deep">
         {/* Placeholder while loading */}
-        {!imageLoaded && (
+        {(!imageLoaded || !imageUrl) && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-nebula-500 border-t-transparent rounded-full animate-spin" />
           </div>
         )}
         
-        <img
-          src={image.urls.small}
-          alt={image.main_subject}
-          className={`w-full h-full object-cover transition-opacity duration-300 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          loading="lazy"
-          onLoad={() => setImageLoaded(true)}
-        />
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt={image.main_subject}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            loading="lazy"
+            onLoad={() => setImageLoaded(true)}
+          />
+        )}
         
         {/* Admin mode curation overlay */}
         <ImageCurationOverlay image={image} />
