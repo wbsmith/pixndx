@@ -39,7 +39,6 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   } = options;
   
   const {
-    images,
     searchQuery,
     searchFilters,
     setSearchQuery,

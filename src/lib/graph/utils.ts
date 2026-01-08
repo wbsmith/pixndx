@@ -43,9 +43,12 @@ export function calculateInitialZoom(nodeCount: number, options?: {
  * Get a dominant color from image metadata for node styling
  */
 export function getDominantColorFromImage(image: ImageMetadata): string {
-  // Try to get the first color from the palette
-  if (image.colors?.palette && image.colors.palette.length > 0) {
-    return image.colors.palette[0];
+  // Try to get the first color from main_colors
+  if (image.main_colors) {
+    const colors = Object.values(image.main_colors);
+    if (colors.length > 0) {
+      return colors[0];
+    }
   }
   // Fallback to a default color
   return '#6366f1';

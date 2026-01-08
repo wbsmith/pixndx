@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useGalleryStore } from '@/stores/galleryStore';
-import type { ImageMetadata, LayoutType, SimilarityMode } from '@/types/gallery';
+import type { ImageMetadata, LayoutType } from '@/types/gallery';
 
 interface UseGalleryReturn {
   // Images

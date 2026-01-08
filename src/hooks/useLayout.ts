@@ -198,7 +198,7 @@ function computeMoodSpectrumLayout(imageCount: number) {
   };
 }
 
-function computeClusterLayout(imageCount: number, edgeCount: number) {
+function computeClusterLayout(imageCount: number, _edgeCount: number) {
   const suggestedClusters = Math.max(2, Math.min(8, Math.floor(Math.sqrt(imageCount))));
   return {
     type: 'cluster' as const,

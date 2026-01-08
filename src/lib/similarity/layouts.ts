@@ -1,5 +1,5 @@
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
-import { getDominantColor, getColorPalette } from './vectors';
+import { getDominantColor } from './vectors';
 
 // Types
 export interface LayoutNode {

@@ -1,11 +1,29 @@
 import type {
   ImageMetadata,
-  SimilarityMode,
-  SimilarityEdge,
-  SimilarityConfig,
   ColorAnalysis,
   ColorFamily,
 } from '@/types/gallery';
+
+// Local type for legacy similarity computation (not used in production)
+type LegacySimilarityMode = 'full' | 'colors' | 'mood' | 'tags' | 'description' | 'composite';
+
+interface LegacySimilarityConfig {
+  mode: LegacySimilarityMode;
+  threshold: number;
+  weights?: {
+    visual: number;
+    semantic: number;
+    color: number;
+    mood: number;
+  };
+}
+
+interface LegacySimilarityEdge {
+  source: string;
+  target: string;
+  weight: number;
+  mode: LegacySimilarityMode;
+}
 
 // Cosine similarity between two vectors
 export function cosineSimilarity(a: number[], b: number[]): number {
@@ -139,11 +157,11 @@ function descriptionSimilarity(img1: ImageMetadata, img2: ImageMetadata): number
   return jaccardSimilarity(words1, words2);
 }
 
-// Main similarity function
+// Main similarity function (legacy - not used in production)
 export function computeSimilarity(
   img1: ImageMetadata,
   img2: ImageMetadata,
-  config: SimilarityConfig
+  config: LegacySimilarityConfig
 ): number {
   switch (config.mode) {
     case 'full':
@@ -210,12 +228,12 @@ function computeCompositeSimilarity(
   return weightSum === 0 ? 0 : total / weightSum;
 }
 
-// Get edges above threshold
+// Get edges above threshold (legacy - not used in production)
 export function getEdgesAboveThreshold(
   images: ImageMetadata[],
-  config: SimilarityConfig
-): SimilarityEdge[] {
-  const edges: SimilarityEdge[] = [];
+  config: LegacySimilarityConfig
+): LegacySimilarityEdge[] {
+  const edges: LegacySimilarityEdge[] = [];
   const seen = new Set<string>();
   
   for (let i = 0; i < images.length; i++) {
@@ -337,12 +355,12 @@ export function groupByColorFamily(images: ImageMetadata[]): Map<ColorFamily, Im
   return groups;
 }
 
-// Get k most similar images
+// Get k most similar images (legacy - not used in production)
 export function getKMostSimilar(
   targetImage: ImageMetadata,
   allImages: ImageMetadata[],
   k: number,
-  config: SimilarityConfig
+  config: LegacySimilarityConfig
 ): Array<{ image: ImageMetadata; similarity: number }> {
   const similarities = allImages
     .filter((img) => img.id !== targetImage.id)

@@ -1,8 +1,8 @@
 /**
  * Progressive Data Loader
  * 
- * Fetches image data as JSON (much faster than importing JS module).
- * JSON parsing is ~10x faster than JavaScript evaluation.
+ * In local dev: Fetches from JSON or localImages.ts
+ * In production: Data comes from Amplify Data API (DynamoDB)
  */
 
 import type { ImageMetadata } from '@/types/gallery';
@@ -13,18 +13,32 @@ export interface LoadProgress {
   complete: boolean;
 }
 
+// Detect if we're in production (Amplify) or local dev
+const isProduction = typeof window !== 'undefined' && 
+  !window.location.hostname.includes('localhost') &&
+  !window.location.hostname.includes('127.0.0.1');
+
 // Cache the loaded data
 let cachedImages: ImageMetadata[] | null = null;
 let loadPromise: Promise<ImageMetadata[]> | null = null;
 
 /**
  * Load all images - tries JSON first (fast), falls back to module import.
+ * In production, returns empty array (data should come from API).
  */
 async function loadAllImages(): Promise<ImageMetadata[]> {
   if (cachedImages) return cachedImages;
   
   if (!loadPromise) {
     loadPromise = (async () => {
+      // In production, data comes from Amplify Data API
+      // Return empty for now - the app will fetch from API
+      if (isProduction) {
+        console.log('[dataLoader] Production mode - data from Amplify API');
+        cachedImages = [];
+        return cachedImages;
+      }
+      
       try {
         // Try to fetch JSON first (much faster - ~10x faster parsing)
         const response = await fetch('/localImages.json');
@@ -46,11 +60,17 @@ async function loadAllImages(): Promise<ImageMetadata[]> {
         console.warn('[dataLoader] JSON fetch failed:', e);
       }
       
-      // Fallback to module import (slower but always works)
-      const mod = await import('@/data/localImages');
-      cachedImages = mod.localImages;
-      console.log(`✅ Loaded ${cachedImages!.length} images from module`);
-      return cachedImages!;
+      // Fallback to stub (empty array) - avoids bundling huge localImages.ts
+      try {
+        const mod = await import('@/data/localImages.stub');
+        cachedImages = mod.localImages;
+        console.log(`✅ Loaded ${cachedImages!.length} images from stub`);
+        return cachedImages!;
+      } catch {
+        console.warn('[dataLoader] Stub import failed, returning empty array');
+        cachedImages = [];
+        return cachedImages;
+      }
     })();
   }
   

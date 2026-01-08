@@ -14,7 +14,6 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ImageMetadata } from '@/types/gallery';
 
 // =============================================================================
 // TYPES
