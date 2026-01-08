@@ -21,7 +21,7 @@ export function SearchSuggestions({
   query, 
   isVisible, 
   onSelect, 
-  onClose 
+  onClose: _onClose 
 }: SearchSuggestionsProps) {
   const suggestions = useMemo(() => {
     if (!query.trim() || query.length < 2) {

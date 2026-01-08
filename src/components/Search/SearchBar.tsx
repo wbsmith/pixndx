@@ -7,7 +7,7 @@ export function SearchBar() {
   const { searchQuery, setSearchQuery } = useGalleryStore();
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [focused, setFocused] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [_suggestions, _setSuggestions] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   

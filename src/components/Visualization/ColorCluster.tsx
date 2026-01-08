@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGalleryStore } from '@/stores/galleryStore';
-import { groupByColorFamily, analyzeColor, getDominantColor, getColorPalette } from '@/lib/similarity/vectors';
+import { groupByColorFamily, getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, ColorFamily } from '@/types/gallery';
 
 interface ColorClusterProps {
@@ -187,7 +187,7 @@ function RadialColorCluster({
                       style={{
                         width: imageRadius * 2,
                         height: imageRadius * 2,
-                        ringColor: dominantColor,
+                        ['--tw-ring-color' as string]: dominantColor,
                       }}
                     >
                       <img
@@ -315,7 +315,7 @@ function GridColorCluster({ clusters, onImageClick }: GridColorClusterProps) {
               <div
                 key={image.id}
                 className="aspect-square rounded-lg overflow-hidden cursor-pointer hover:ring-2 transition-all"
-                style={{ ringColor: cluster.info.color }}
+                style={{ ['--tw-ring-color' as string]: cluster.info.color }}
                 onClick={() => onImageClick(image)}
               >
                 <img

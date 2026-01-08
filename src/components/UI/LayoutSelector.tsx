@@ -1,4 +1,4 @@
-import { Grid3X3, Network, Palette, Activity, Clock, Layers } from 'lucide-react';
+import { Grid3X3, Network, Palette, Activity, Layers } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
 import type { LayoutType } from '@/types/gallery';
 

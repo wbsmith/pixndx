@@ -155,7 +155,7 @@ export function ForceGraph({
             if (!event.active) simulation.alphaTarget(0);
             d.fx = null;
             d.fy = null;
-          })
+          }) as any
       );
     
     // Node glow background
@@ -204,7 +204,7 @@ export function ForceGraph({
         event.stopPropagation();
         onNodeClick?.(d.image);
       })
-      .on('mouseenter', (event, d) => {
+      .on('mouseenter', (_event, d) => {
         onNodeHover?.(d.image);
         
         // Highlight connected edges
@@ -224,7 +224,7 @@ export function ForceGraph({
         
         // Highlight connected nodes
         node.selectAll('.node-glow')
-          .attr('opacity', (n: GraphNode) => {
+          .attr('opacity', ((n: GraphNode) => {
             if (n.id === d.id) return 1;
             const isConnected = links.some((l) => {
               const source = typeof l.source === 'object' ? l.source.id : l.source;
@@ -233,7 +233,7 @@ export function ForceGraph({
                      (target === d.id && source === n.id);
             });
             return isConnected ? 0.8 : 0.3;
-          });
+          }) as any);
       })
       .on('mouseleave', () => {
         onNodeHover?.(null);
@@ -280,11 +280,11 @@ export function ForceGraph({
     
     svg.selectAll('.nodes g')
       .selectAll('.node-border')
-      .attr('stroke-width', function(this: SVGCircleElement) {
+      .attr('stroke-width', (function(this: SVGCircleElement) {
         const nodeGroup = d3.select(this.parentNode as SVGGElement);
         const nodeData = nodeGroup.datum() as GraphNode;
         return nodeData.id === hoveredImageId ? 4 : 2;
-      });
+      }) as any);
   }, [hoveredImageId, isInitialized]);
   
   return (
