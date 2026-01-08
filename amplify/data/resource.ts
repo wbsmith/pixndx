@@ -131,7 +131,7 @@ const schema = a.schema({
     .query()
     .arguments({
       query: a.string().required(),
-      limit: a.integer().default(20),
+      limit: a.integer(), // Default handled in Lambda: 20
       filters: a.json(), // Optional filters: { tags?, mood?, colors?, dateRange?, minRating? }
       sortBy: a.enum(['relevance', 'rating', 'date']),
       sortOrder: a.enum(['asc', 'desc']),
@@ -148,7 +148,7 @@ const schema = a.schema({
     .arguments({
       imageIds: a.id().array().required(),
       mode: a.enum(['full', 'colors', 'mood', 'tags', 'description', 'composite']),
-      threshold: a.float().default(0.3),
+      threshold: a.float(), // Default handled in Lambda: 0.3
       weights: a.json(), // { visual, semantic, color, mood }
     })
     .returns(a.ref('SimilarityEdge').array())
@@ -162,7 +162,7 @@ const schema = a.schema({
     .query()
     .arguments({
       imageId: a.id().required(),
-      limit: a.integer().default(10),
+      limit: a.integer(), // Default handled in Lambda: 10
       mode: a.enum(['full', 'colors', 'mood', 'tags', 'description', 'composite']),
     })
     .returns(a.ref('SearchResult').array())
@@ -175,8 +175,8 @@ const schema = a.schema({
   topRatedImages: a
     .query()
     .arguments({
-      limit: a.integer().default(20),
-      minRatings: a.integer().default(1), // Minimum number of ratings
+      limit: a.integer(), // Default handled in Lambda: 20
+      minRatings: a.integer(), // Default handled in Lambda: 1
     })
     .returns(a.ref('SearchResult').array())
     .handler(a.handler.function(searchImages))
