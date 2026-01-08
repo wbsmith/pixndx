@@ -4,6 +4,8 @@ import * as d3 from 'd3';
 import { useGalleryStore, type ColorMode } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata } from '@/types/gallery';
+import { getSignedImageUrl } from '@/lib/amplify';
+import { IS_LOCAL_DEV } from '@/config';
 
 // =============================================================================
 // COLOR HELPERS
@@ -87,6 +89,30 @@ export function NetworkGraph() {
 
     // No node limit - use all filtered images
     const displayImages = filteredImages;
+    
+    // Pre-fetch signed URLs for all images (in production)
+    const signedUrlsRef: Map<string, string> = new Map();
+    
+    const initGraph = async () => {
+      if (!IS_LOCAL_DEV) {
+        console.log(`[NetworkGraph] Fetching signed URLs for ${displayImages.length} images...`);
+        await Promise.all(
+          displayImages.map(async (img) => {
+            try {
+              const url = await getSignedImageUrl(img.urls.small, 'small');
+              signedUrlsRef.set(img.id, url);
+            } catch {
+              signedUrlsRef.set(img.id, img.urls.small);
+            }
+          })
+        );
+        console.log(`[NetworkGraph] Signed URLs fetched`);
+      }
+      
+      buildGraph();
+    };
+    
+    const buildGraph = () => {
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.02, 5])
@@ -206,7 +232,7 @@ export function NetworkGraph() {
       .attr('opacity', 0.3).style('filter', 'blur(4px)');
 
     node.append('image')
-      .attr('xlink:href', (d) => d.image.urls.small)
+      .attr('xlink:href', (d) => signedUrlsRef.get(d.id) || d.image.urls.small)
       .attr('x', -nodeRadius + 2).attr('y', -nodeRadius + 2)
       .attr('width', (nodeRadius - 2) * 2).attr('height', (nodeRadius - 2) * 2)
       .attr('clip-path', (d) => `url(#clip-${safeId(d.id)})`)
@@ -276,8 +302,16 @@ export function NetworkGraph() {
     // Auto-scale zoom based on node count
     const scale = Math.min(0.9, Math.max(0.08, 30 / Math.sqrt(nodes.length)));
     svg.call(zoom.transform as any, d3.zoomIdentity.translate(width * 0.05, height * 0.05).scale(scale));
+    }; // end buildGraph
+    
+    initGraph();
 
-    return () => { simulation.stop(); simulationRef.current = null; };
+    return () => { 
+      if (simulationRef.current) {
+        simulationRef.current.stop(); 
+        simulationRef.current = null; 
+      }
+    };
   // Note: forceSettings and colorMode intentionally NOT in deps
   // - forceSettings: only recompute when Apply is clicked (edges change)  
   // - colorMode: handled by separate effect that just updates colors

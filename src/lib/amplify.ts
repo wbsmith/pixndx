@@ -102,3 +102,82 @@ export function getS3Path(filename: string, size: 'small' | 'medium' | 'full' = 
   return `images/${size}/${filename}`;
 }
 
+// Cache for signed URLs to avoid repeated API calls
+const signedUrlCache = new Map<string, { url: string; expires: number }>();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Get a signed URL for an S3 image
+ * Handles caching and falls back to direct URL in dev mode
+ */
+export async function getSignedImageUrl(
+  s3Url: string, 
+  size: 'small' | 'medium' | 'full' = 'small'
+): Promise<string> {
+  // In local dev, use the URL directly
+  if (IS_LOCAL_DEV || !amplifyConfigured) {
+    return s3Url;
+  }
+  
+  // Check cache
+  const cacheKey = `${size}:${s3Url}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && Date.now() < cached.expires) {
+    return cached.url;
+  }
+  
+  // Extract the filename from the S3 URL
+  const key = extractS3Key(s3Url);
+  if (!key) {
+    console.warn('Could not extract S3 key from URL:', s3Url);
+    return s3Url; // Fallback to direct URL
+  }
+  
+  try {
+    const { getUrl } = await import('aws-amplify/storage');
+    const result = await getUrl({
+      path: `images/${size}/${key}`,
+      options: { expiresIn: 900 }, // 15 minutes
+    });
+    const signedUrl = result.url.toString();
+    
+    // Cache the result
+    signedUrlCache.set(cacheKey, {
+      url: signedUrl,
+      expires: Date.now() + CACHE_TTL,
+    });
+    
+    return signedUrl;
+  } catch (error) {
+    console.error('Failed to get signed URL:', error);
+    return s3Url; // Fallback to direct URL
+  }
+}
+
+/**
+ * Batch fetch signed URLs for multiple images
+ * More efficient than individual calls for gallery views
+ */
+export async function getSignedImageUrls(
+  images: Array<{ id: string; url: string }>,
+  size: 'small' | 'medium' | 'full' = 'small'
+): Promise<Map<string, string>> {
+  const urlMap = new Map<string, string>();
+  
+  // In local dev, return direct URLs
+  if (IS_LOCAL_DEV || !amplifyConfigured) {
+    images.forEach(img => urlMap.set(img.id, img.url));
+    return urlMap;
+  }
+  
+  // Fetch all URLs in parallel
+  await Promise.all(
+    images.map(async (img) => {
+      const signedUrl = await getSignedImageUrl(img.url, size);
+      urlMap.set(img.id, signedUrl);
+    })
+  );
+  
+  return urlMap;
+}
+

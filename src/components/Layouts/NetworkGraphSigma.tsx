@@ -19,6 +19,8 @@ import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { useGalleryStore, type ColorMode } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
+import { getSignedImageUrl } from '@/lib/amplify';
+import { IS_LOCAL_DEV } from '@/config';
 
 // Sigma imports - these will error until packages are installed
 // import Sigma from 'sigma';
@@ -88,7 +90,8 @@ function getNodeColor(img: ImageMetadata, colorMode: ColorMode): string {
 function buildGraph(
   images: ImageMetadata[],
   edges: SimilarityEdge[],
-  colorMode: ColorMode
+  colorMode: ColorMode,
+  signedUrls: Map<string, string>
 ): Graph<NodeAttributes, EdgeAttributes> {
   const graph = new Graph<NodeAttributes, EdgeAttributes>({ type: 'undirected' });
   
@@ -102,12 +105,15 @@ function buildGraph(
     const angle = (i / images.length) * 2 * Math.PI;
     const radius = Math.sqrt(images.length) * 10;
     
+    // Use signed URL if available, otherwise fall back to direct URL
+    const imageUrl = signedUrls.get(img.id) || img.urls.small;
+    
     graph.addNode(img.id, {
       x: Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
       y: Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
       size: 15,
       color: getNodeColor(img, colorMode),
-      image: img.urls.small,
+      image: imageUrl,
       label: img.main_subject || img.id,
       imageData: img,
     });
@@ -201,35 +207,63 @@ export function NetworkGraphSigma() {
   useEffect(() => {
     if (filteredImages.length === 0) return;
     
-    setIsComputing(true);
-    const startTime = performance.now();
+    let cancelled = false;
     
-    // Get fresh forceSettings from store to avoid stale closures
-    const forceSettings = useGalleryStore.getState().forceSettings;
+    const buildGraphAsync = async () => {
+      setIsComputing(true);
+      const startTime = performance.now();
+      
+      // Get fresh forceSettings from store to avoid stale closures
+      const forceSettings = useGalleryStore.getState().forceSettings;
+      
+      console.log(`[NetworkGraphSigma] Building: ${filteredImages.length} images, ${edges.length} edges`);
+      console.log(`[NetworkGraphSigma] forceSettings: gravity=${forceSettings.gravity}, scaling=${forceSettings.scaling}, edgeWeight=${forceSettings.edgeWeightInfluence}`);
+      
+      // Pre-fetch signed URLs for all images (in production)
+      const signedUrls = new Map<string, string>();
+      if (!IS_LOCAL_DEV) {
+        console.log(`[NetworkGraphSigma] Fetching signed URLs for ${filteredImages.length} images...`);
+        await Promise.all(
+          filteredImages.map(async (img) => {
+            try {
+              const url = await getSignedImageUrl(img.urls.small, 'small');
+              signedUrls.set(img.id, url);
+            } catch (e) {
+              // Use direct URL as fallback
+              signedUrls.set(img.id, img.urls.small);
+            }
+          })
+        );
+        console.log(`[NetworkGraphSigma] Signed URLs fetched`);
+      }
+      
+      if (cancelled) return;
+      
+      // Build and layout graph
+      const graph = buildGraph(filteredImages, edges, colorMode, signedUrls);
+      runLayout(graph, { 
+        gravity: forceSettings.gravity, 
+        scaling: forceSettings.scaling,
+        edgeWeightInfluence: forceSettings.edgeWeightInfluence,
+      });
+      graphRef.current = graph;
+      
+      console.log(`[NetworkGraphSigma] Graph: ${graph.order} nodes, ${graph.size} edges`);
+      
+      setStats({
+        nodes: graph.order,
+        edges: graph.size,
+        time: performance.now() - startTime,
+      });
+      
+      setIsComputing(false);
+      // Increment version to trigger Sigma re-init - ALWAYS changes
+      setLayoutVersion(v => v + 1);
+    };
     
-    console.log(`[NetworkGraphSigma] Building: ${filteredImages.length} images, ${edges.length} edges`);
-    console.log(`[NetworkGraphSigma] forceSettings: gravity=${forceSettings.gravity}, scaling=${forceSettings.scaling}, edgeWeight=${forceSettings.edgeWeightInfluence}`);
+    buildGraphAsync();
     
-    // Build and layout graph
-    const graph = buildGraph(filteredImages, edges, colorMode);
-    runLayout(graph, { 
-      gravity: forceSettings.gravity, 
-      scaling: forceSettings.scaling,
-      edgeWeightInfluence: forceSettings.edgeWeightInfluence,
-    });
-    graphRef.current = graph;
-    
-    console.log(`[NetworkGraphSigma] Graph: ${graph.order} nodes, ${graph.size} edges`);
-    
-    setStats({
-      nodes: graph.order,
-      edges: graph.size,
-      time: performance.now() - startTime,
-    });
-    
-    setIsComputing(false);
-    // Increment version to trigger Sigma re-init - ALWAYS changes
-    setLayoutVersion(v => v + 1);
+    return () => { cancelled = true; };
   // Note: forceSettings and colorMode intentionally NOT in deps
   // - forceSettings: only recompute when Apply is clicked (edges change)
   // - colorMode: handled by separate effect that just updates colors

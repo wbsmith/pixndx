@@ -5,57 +5,12 @@ import { useGalleryStore } from '@/stores/galleryStore';
 import { getColorPalette } from '@/lib/similarity/vectors';
 import { ImageCurationOverlay } from '@/components/Admin/ImageCurationOverlay';
 import { IS_LOCAL_DEV } from '@/config';
-import { extractS3Key, isAmplifyConfigured } from '@/lib/amplify';
+import { getSignedImageUrl } from '@/lib/amplify';
 
 interface ImageCardProps {
   image: ImageMetadata;
   index?: number;
   showInfo?: boolean;
-}
-
-// Cache for signed URLs to avoid repeated API calls
-const signedUrlCache = new Map<string, { url: string; expires: number }>();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-async function getSignedUrl(s3Url: string, size: 'small' | 'medium' | 'full' = 'small'): Promise<string> {
-  // In local dev, use the URL directly
-  if (IS_LOCAL_DEV || !isAmplifyConfigured()) {
-    return s3Url;
-  }
-  
-  // Check cache
-  const cacheKey = `${size}:${s3Url}`;
-  const cached = signedUrlCache.get(cacheKey);
-  if (cached && Date.now() < cached.expires) {
-    return cached.url;
-  }
-  
-  // Extract the filename from the S3 URL
-  const key = extractS3Key(s3Url);
-  if (!key) {
-    console.warn('Could not extract S3 key from URL:', s3Url);
-    return s3Url; // Fallback to direct URL
-  }
-  
-  try {
-    const { getUrl } = await import('aws-amplify/storage');
-    const result = await getUrl({
-      path: `images/${size}/${key}`,
-      options: { expiresIn: 900 }, // 15 minutes
-    });
-    const signedUrl = result.url.toString();
-    
-    // Cache the result
-    signedUrlCache.set(cacheKey, {
-      url: signedUrl,
-      expires: Date.now() + CACHE_TTL,
-    });
-    
-    return signedUrl;
-  } catch (error) {
-    console.error('Failed to get signed URL:', error);
-    return s3Url; // Fallback to direct URL
-  }
 }
 
 export const ImageCard = memo(function ImageCard({ 
@@ -85,7 +40,7 @@ export const ImageCard = memo(function ImageCard({
     }
     
     // In production, get signed URL
-    getSignedUrl(image.urls.small, 'small').then((url) => {
+    getSignedImageUrl(image.urls.small, 'small').then((url) => {
       if (mounted) {
         setImageUrl(url);
       }

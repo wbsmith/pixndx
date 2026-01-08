@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, Camera, Aperture, ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
+import { getSignedImageUrl } from '@/lib/amplify';
+import { IS_LOCAL_DEV } from '@/config';
 
 export function ImageModal() {
   const { 
@@ -19,6 +21,9 @@ export function ImageModal() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
+  
+  // Signed URL for production
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
   
   // Image dimensions for 1:1 zoom calculation
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
@@ -57,15 +62,36 @@ export function ImageModal() {
     return () => window.removeEventListener('resize', updateContainerDimensions);
   }, [isFullscreen, modalOpen]);
   
-  // Load image dimensions when image changes
+  // Load signed URL and image dimensions when image changes
   useEffect(() => {
     if (!selectedImage) return;
     
-    const img = new Image();
-    img.onload = () => {
-      setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.src = selectedImage.urls.full;
+    let mounted = true;
+    
+    // In local dev, use URL directly
+    if (IS_LOCAL_DEV) {
+      setSignedUrl(selectedImage.urls.full);
+      const img = new Image();
+      img.onload = () => {
+        if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.src = selectedImage.urls.full;
+      return () => { mounted = false; };
+    }
+    
+    // In production, get signed URL first
+    getSignedImageUrl(selectedImage.urls.full, 'full').then((url) => {
+      if (!mounted) return;
+      setSignedUrl(url);
+      
+      const img = new Image();
+      img.onload = () => {
+        if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.src = url;
+    });
+    
+    return () => { mounted = false; };
   }, [selectedImage?.id]);
   
   // Reset all state when image changes or modal closes
@@ -73,6 +99,7 @@ export function ImageModal() {
     setScale(1);
     setPosition({ x: 0, y: 0 });
     setIsFullscreen(false);
+    setSignedUrl(null); // Clear URL so we fetch fresh one
   }, [selectedImage?.id]);
   
   // Reset fullscreen when modal closes
@@ -365,20 +392,26 @@ export function ImageModal() {
                     transition: isDragging ? 'none' : 'transform 0.15s ease-out',
                   }}
                 >
-                  <img
-                    ref={imageRef}
-                    src={selectedImage.urls.full}
-                    alt={selectedImage.main_subject}
-                    className="object-contain select-none"
-                    style={{
-                      // Constrain both width and height to fit container
-                      maxWidth: '100%',
-                      maxHeight: isFullscreen ? 'calc(100vh - 80px)' : isPortrait ? '65vh' : '100%',
-                      width: 'auto',
-                      height: 'auto',
-                    }}
-                    draggable={false}
-                  />
+                  {signedUrl ? (
+                    <img
+                      ref={imageRef}
+                      src={signedUrl}
+                      alt={selectedImage.main_subject}
+                      className="object-contain select-none"
+                      style={{
+                        // Constrain both width and height to fit container
+                        maxWidth: '100%',
+                        maxHeight: isFullscreen ? 'calc(100vh - 80px)' : isPortrait ? '65vh' : '100%',
+                        width: 'auto',
+                        height: 'auto',
+                      }}
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      <div className="w-12 h-12 border-4 border-stellar-cyan/30 border-t-stellar-cyan rounded-full animate-spin" />
+                    </div>
+                  )}
                 </div>
                 
                 {/* Navigation buttons - positioned inside image area, show on hover near edges */}
