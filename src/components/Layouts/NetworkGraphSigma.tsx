@@ -35,7 +35,8 @@ interface NodeAttributes {
   y: number;
   size: number;
   color: string;
-  image: string;      // URL for Sigma
+  type: string;       // Node type for Sigma (e.g., 'image')
+  image: string;      // URL for Sigma NodeImageProgram
   label: string;
   imageData: ImageMetadata;  // Full data for click handler
 }
