@@ -8,7 +8,7 @@
 export const config = {
   // App display name - shown in header, auth screens, etc.
   // Override with VITE_APP_NAME environment variable
-  appName: import.meta.env.VITE_APP_NAME || 'PixGraf',
+  appName: import.meta.env.VITE_APP_NAME || 'PicGraf',
   
   // App tagline - shown on auth screen
   appTagline: import.meta.env.VITE_APP_TAGLINE || 'Explore the collection',

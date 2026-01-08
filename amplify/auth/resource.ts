@@ -1,7 +1,7 @@
 import { defineAuth } from '@aws-amplify/backend';
 
 /**
- * Authentication configuration for PixNdx Gallery
+ * Authentication configuration for PicGraf Gallery
  * 
  * IMPORTANT: This gallery requires authentication to access.
  * All users must sign in to view images.
@@ -16,7 +16,7 @@ export const auth = defineAuth({
     email: {
       // Email verification settings
       verificationEmailStyle: 'CODE',
-      verificationEmailSubject: 'Welcome to PixNdx Gallery',
+      verificationEmailSubject: 'Welcome to PicGraf',
       verificationEmailBody: (createCode) =>
         `Your verification code is: ${createCode()}`,
     },

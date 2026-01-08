@@ -27,7 +27,7 @@ frontend:
         - |
           echo "Building for branch: $AWS_BRANCH"
           if [ "$AWS_BRANCH" = "main" ]; then
-            sed -i 's/<title>.*<\/title>/<title>PixGraf<\/title>/' index.html
+            sed -i 's/<title>.*<\/title>/<title>PicGraf<\/title>/' index.html
           elif [ "$AWS_BRANCH" = "pixndx" ]; then
             sed -i 's/<title>.*<\/title>/<title>PixNdx<\/title>/' index.html
           elif [ "$AWS_BRANCH" = "sorqua" ]; then

@@ -1,8 +1,8 @@
 /**
  * Progressive Data Loader
  * 
- * In local dev: Fetches from JSON or localImages.ts
- * In production: Data comes from Amplify Data API (DynamoDB)
+ * Loads image data from JSON file (works in both dev and production).
+ * The JSON file contains S3 URLs for production.
  */
 
 import type { ImageMetadata } from '@/types/gallery';
@@ -13,34 +13,20 @@ export interface LoadProgress {
   complete: boolean;
 }
 
-// Detect if we're in production (Amplify) or local dev
-const isProduction = typeof window !== 'undefined' && 
-  !window.location.hostname.includes('localhost') &&
-  !window.location.hostname.includes('127.0.0.1');
-
 // Cache the loaded data
 let cachedImages: ImageMetadata[] | null = null;
 let loadPromise: Promise<ImageMetadata[]> | null = null;
 
 /**
- * Load all images - tries JSON first (fast), falls back to module import.
- * In production, returns empty array (data should come from API).
+ * Load all images from JSON file.
  */
 async function loadAllImages(): Promise<ImageMetadata[]> {
   if (cachedImages) return cachedImages;
   
   if (!loadPromise) {
     loadPromise = (async () => {
-      // In production, data comes from Amplify Data API
-      // Return empty for now - the app will fetch from API
-      if (isProduction) {
-        console.log('[dataLoader] Production mode - data from Amplify API');
-        cachedImages = [];
-        return cachedImages;
-      }
-      
       try {
-        // Try to fetch JSON first (much faster - ~10x faster parsing)
+        // Fetch JSON (works in both dev and production)
         const response = await fetch('/localImages.json');
         console.log(`[dataLoader] JSON fetch status: ${response.status} ${response.statusText}`);
         
@@ -51,26 +37,19 @@ async function loadAllImages(): Promise<ImageMetadata[]> {
             console.log(`✅ Loaded ${cachedImages!.length} images from JSON`);
             return cachedImages!;
           } else {
-            console.warn('[dataLoader] JSON missing "images" array, falling back to module');
+            console.warn('[dataLoader] JSON missing "images" array');
           }
         } else {
-          console.warn(`[dataLoader] JSON fetch returned ${response.status}, falling back to module`);
+          console.warn(`[dataLoader] JSON fetch returned ${response.status}`);
         }
       } catch (e) {
         console.warn('[dataLoader] JSON fetch failed:', e);
       }
       
-      // Fallback to stub (empty array) - avoids bundling huge localImages.ts
-      try {
-        const mod = await import('@/data/localImages.stub');
-        cachedImages = mod.localImages;
-        console.log(`✅ Loaded ${cachedImages!.length} images from stub`);
-        return cachedImages!;
-      } catch {
-        console.warn('[dataLoader] Stub import failed, returning empty array');
-        cachedImages = [];
-        return cachedImages;
-      }
+      // Fallback to empty
+      console.warn('[dataLoader] No data loaded, returning empty array');
+      cachedImages = [];
+      return cachedImages;
     })();
   }
   
