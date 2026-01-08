@@ -92,6 +92,7 @@ export function NetworkGraph() {
     
     // Pre-fetch signed URLs for all images (in production)
     const signedUrlsRef: Map<string, string> = new Map();
+    let cancelled = false;
     
     const initGraph = async () => {
       if (!IS_LOCAL_DEV) {
@@ -108,6 +109,9 @@ export function NetworkGraph() {
         );
         console.log(`[NetworkGraph] Signed URLs fetched`);
       }
+      
+      // Don't render if component was unmounted during fetch
+      if (cancelled) return;
       
       buildGraph();
     };
@@ -307,6 +311,7 @@ export function NetworkGraph() {
     initGraph();
 
     return () => { 
+      cancelled = true;
       if (simulationRef.current) {
         simulationRef.current.stop(); 
         simulationRef.current = null; 

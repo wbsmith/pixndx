@@ -288,6 +288,7 @@ export function NetworkGraphScalable() {
     
     // Pre-fetch signed URLs for all images
     const signedUrlsRef = new Map<string, string>();
+    let cancelled = false;
     
     const renderGraph = async () => {
       if (!IS_LOCAL_DEV) {
@@ -305,6 +306,9 @@ export function NetworkGraphScalable() {
         await Promise.all(imagePromises);
         console.log(`[NetworkGraphScalable] Signed URLs fetched`);
       }
+      
+      // Don't render if component was unmounted during fetch
+      if (cancelled) return;
       
       doRender();
     };
@@ -516,6 +520,7 @@ export function NetworkGraphScalable() {
     
     renderGraph();
     
+    return () => { cancelled = true; };
   }, [layoutVersion, dimensions, openModal]);
   
   // Update colors when colorMode changes (without recomputing layout)
