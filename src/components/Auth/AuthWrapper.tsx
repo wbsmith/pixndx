@@ -4,6 +4,7 @@ import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME, APP_TAGLINE } from '../../config';
 import { ImageIcon, Lock } from 'lucide-react';
+import { startSessionRefresh, stopSessionRefresh } from '@/lib/amplify';
 
 // =============================================================================
 // THEME
@@ -332,6 +333,18 @@ interface AuthenticatedAppProps {
 }
 
 function AuthenticatedApp({ children, signOut, user }: AuthenticatedAppProps) {
+  // Start proactive session refresh when authenticated
+  useEffect(() => {
+    if (user) {
+      startSessionRefresh();
+    }
+    
+    // Stop refresh on unmount (logout)
+    return () => {
+      stopSessionRefresh();
+    };
+  }, [user]);
+  
   return (
     <AuthContext.Provider value={{ user, signOut }}>
       {children}

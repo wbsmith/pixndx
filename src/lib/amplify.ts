@@ -68,6 +68,51 @@ export async function waitForAmplify(): Promise<boolean> {
   return configureAmplify();
 }
 
+// Session refresh interval (45 minutes - before the typical 1 hour expiry)
+let sessionRefreshInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Start proactive session refresh to prevent token expiration
+ * Call this after successful authentication
+ */
+export function startSessionRefresh(): void {
+  // Don't start in local dev
+  if (IS_LOCAL_DEV) return;
+  
+  // Clear any existing interval
+  if (sessionRefreshInterval) {
+    clearInterval(sessionRefreshInterval);
+  }
+  
+  // Refresh session every 45 minutes (tokens typically expire in 1 hour)
+  const REFRESH_INTERVAL = 45 * 60 * 1000; // 45 minutes
+  
+  sessionRefreshInterval = setInterval(async () => {
+    try {
+      const { fetchAuthSession } = await import('aws-amplify/auth');
+      await fetchAuthSession({ forceRefresh: true });
+      console.log('[Amplify] Proactive session refresh completed');
+      
+      // Clear the signed URL cache on session refresh to ensure fresh URLs
+      signedUrlCache.clear();
+    } catch (error) {
+      console.warn('[Amplify] Proactive session refresh failed:', error);
+    }
+  }, REFRESH_INTERVAL);
+  
+  console.log('[Amplify] Session refresh scheduled every 45 minutes');
+}
+
+/**
+ * Stop proactive session refresh (call on logout)
+ */
+export function stopSessionRefresh(): void {
+  if (sessionRefreshInterval) {
+    clearInterval(sessionRefreshInterval);
+    sessionRefreshInterval = null;
+  }
+}
+
 /**
  * Extract S3 key from a full S3 URL
  * 
@@ -106,9 +151,56 @@ export function getS3Path(filename: string, size: 'small' | 'medium' | 'full' = 
 const signedUrlCache = new Map<string, { url: string; expires: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+// Track if we're currently refreshing the session to avoid multiple refreshes
+let sessionRefreshPromise: Promise<boolean> | null = null;
+
+/**
+ * Refresh the auth session if it's expired
+ * Returns true if session is valid after refresh attempt
+ */
+async function ensureValidSession(): Promise<boolean> {
+  // If already refreshing, wait for that to complete
+  if (sessionRefreshPromise) {
+    return sessionRefreshPromise;
+  }
+  
+  sessionRefreshPromise = (async () => {
+    try {
+      const { fetchAuthSession } = await import('aws-amplify/auth');
+      // Force refresh the session to get new tokens
+      const session = await fetchAuthSession({ forceRefresh: true });
+      const isValid = !!session.tokens?.accessToken;
+      console.log('[Amplify] Session refreshed:', isValid ? 'valid' : 'invalid');
+      return isValid;
+    } catch (error) {
+      console.error('[Amplify] Failed to refresh session:', error);
+      return false;
+    } finally {
+      // Clear the promise after a short delay to allow retry
+      setTimeout(() => { sessionRefreshPromise = null; }, 1000);
+    }
+  })();
+  
+  return sessionRefreshPromise;
+}
+
+/**
+ * Check if an error is an auth token error
+ */
+function isAuthError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return message.includes('invalid login token') || 
+           message.includes('token') ||
+           message.includes('notauthorized') ||
+           message.includes('credentials');
+  }
+  return false;
+}
+
 /**
  * Get a signed URL for an S3 image
- * Handles caching and falls back to direct URL in dev mode
+ * Handles caching, token refresh, and falls back to direct URL in dev mode
  */
 export async function getSignedImageUrl(
   s3Url: string, 
@@ -133,25 +225,41 @@ export async function getSignedImageUrl(
     return s3Url; // Fallback to direct URL
   }
   
-  try {
-    const { getUrl } = await import('aws-amplify/storage');
-    const result = await getUrl({
-      path: `images/${size}/${key}`,
-      options: { expiresIn: 900 }, // 15 minutes
-    });
-    const signedUrl = result.url.toString();
-    
-    // Cache the result
-    signedUrlCache.set(cacheKey, {
-      url: signedUrl,
-      expires: Date.now() + CACHE_TTL,
-    });
-    
-    return signedUrl;
-  } catch (error) {
-    console.error('Failed to get signed URL:', error);
-    return s3Url; // Fallback to direct URL
-  }
+  // Try to get signed URL, with retry on auth errors
+  const attemptGetUrl = async (isRetry = false): Promise<string> => {
+    try {
+      const { getUrl } = await import('aws-amplify/storage');
+      const result = await getUrl({
+        path: `images/${size}/${key}`,
+        options: { expiresIn: 900 }, // 15 minutes
+      });
+      const signedUrl = result.url.toString();
+      
+      // Cache the result
+      signedUrlCache.set(cacheKey, {
+        url: signedUrl,
+        expires: Date.now() + CACHE_TTL,
+      });
+      
+      return signedUrl;
+    } catch (error) {
+      // If it's an auth error and we haven't retried, refresh session and retry
+      if (!isRetry && isAuthError(error)) {
+        console.log('[Amplify] Auth error, refreshing session...');
+        const sessionValid = await ensureValidSession();
+        if (sessionValid) {
+          // Clear the cache entry and retry
+          signedUrlCache.delete(cacheKey);
+          return attemptGetUrl(true);
+        }
+      }
+      
+      console.error('Failed to get signed URL:', error);
+      return s3Url; // Fallback to direct URL
+    }
+  };
+  
+  return attemptGetUrl();
 }
 
 /**
