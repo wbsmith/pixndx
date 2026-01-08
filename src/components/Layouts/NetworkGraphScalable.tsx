@@ -23,6 +23,8 @@ import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { useGalleryStore, type ColorMode } from '@/stores/galleryStore';
 import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
+import { getSignedImageUrl } from '@/lib/amplify';
+import { IS_LOCAL_DEV } from '@/config';
 
 // =============================================================================
 // COLOR HELPERS
@@ -284,6 +286,31 @@ export function NetworkGraphScalable() {
     // Clear previous
     svg.selectAll('*').remove();
     
+    // Pre-fetch signed URLs for all images
+    const signedUrlsRef = new Map<string, string>();
+    
+    const renderGraph = async () => {
+      if (!IS_LOCAL_DEV) {
+        console.log(`[NetworkGraphScalable] Fetching signed URLs...`);
+        const imagePromises: Promise<void>[] = [];
+        graph.forEachNode((nodeId, attrs) => {
+          imagePromises.push(
+            getSignedImageUrl(attrs.image.urls.small, 'small').then((url) => {
+              signedUrlsRef.set(nodeId, url);
+            }).catch(() => {
+              signedUrlsRef.set(nodeId, attrs.image.urls.small);
+            })
+          );
+        });
+        await Promise.all(imagePromises);
+        console.log(`[NetworkGraphScalable] Signed URLs fetched`);
+      }
+      
+      doRender();
+    };
+    
+    const doRender = () => {
+    
     // Compute node radius based on count - same formula as D3 renderer
     const nodeCount = graph.order;
     const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodeCount)));
@@ -357,9 +384,9 @@ export function NetworkGraphScalable() {
       .attr('opacity', 0.3)
       .style('filter', 'blur(4px)');
     
-    // Image
+    // Image - use signed URL if available
     nodes.append('image')
-      .attr('xlink:href', d => d.image.urls.small)
+      .attr('xlink:href', d => signedUrlsRef.get(d.id) || d.image.urls.small)
       .attr('x', -nodeRadius + 2)
       .attr('y', -nodeRadius + 2)
       .attr('width', (nodeRadius - 2) * 2)
@@ -485,6 +512,9 @@ export function NetworkGraphScalable() {
       .translate(width * 0.05, height * 0.05)
       .scale(scale);
     svg.call(zoom.transform as any, initialTransform);
+    }; // end doRender
+    
+    renderGraph();
     
   }, [layoutVersion, dimensions, openModal]);
   
