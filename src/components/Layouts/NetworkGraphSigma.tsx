@@ -269,14 +269,12 @@ export function NetworkGraphSigma() {
         enableEdgeEvents: true,
         defaultNodeType: nodeProgram ? 'image' : 'circle',
         nodeProgramClasses: nodeProgram ? { image: nodeProgram } : undefined,
-        nodeReducer: (node, data) => {
+        nodeReducer: (_node, data) => {
           return {
             ...data,
-            // Sigma uses 'image' attribute for NodeImageProgram
-            image: data.image,
           };
         },
-        edgeReducer: (edge, data) => {
+        edgeReducer: (_edge, data) => {
           return {
             ...data,
             color: data.color || 'rgba(99, 112, 242, 0.3)',
@@ -328,8 +326,8 @@ export function NetworkGraphSigma() {
         highlightedNode = null;
         highlightedNeighbors.clear();
         
-        sigma.setSetting('nodeReducer', (node, data) => data);
-        sigma.setSetting('edgeReducer', (edge, data) => data);
+        sigma.setSetting('nodeReducer', (_node, data) => data);
+        sigma.setSetting('edgeReducer', (_edge, data) => data);
         sigma.refresh();
       });
     };

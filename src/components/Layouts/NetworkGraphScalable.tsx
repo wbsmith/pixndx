@@ -320,7 +320,7 @@ export function NetworkGraphScalable() {
       image: attrs.image,
     }));
     
-    const edgesData = graph.mapEdges((edgeId, attrs, source, target) => ({
+    const edgesData = graph.mapEdges((_edgeId, attrs, source, target) => ({
       source: graph.getNodeAttribute(source, 'x'),
       sourceY: graph.getNodeAttribute(source, 'y'),
       target: graph.getNodeAttribute(target, 'x'),
@@ -386,20 +386,20 @@ export function NetworkGraphScalable() {
     
     // Interactions
     nodes
-      .on('mouseenter', function(event, d) {
+      .on('mouseenter', function(_event, d) {
         d3.select(this).select('.hover-ring').attr('opacity', 1);
         d3.select(this).raise();
         
         // Find connected nodes
         const connectedIds = new Set<string>([d.id]);
-        graph.forEachEdge(d.id, (edge, attrs, source, target) => {
+        graph.forEachEdge(d.id, (_edge, _attrs, source, target) => {
           connectedIds.add(source);
           connectedIds.add(target);
         });
         
         // Highlight edges
         edgeGroup.selectAll('line')
-          .attr('stroke-opacity', (l: any, i) => {
+          .attr('stroke-opacity', (_l: any, i: number) => {
             const ed = edgesData[i];
             // Check if this edge connects to hovered node
             const nodeData = nodesData.find(n => n.id === d.id);
@@ -409,7 +409,7 @@ export function NetworkGraphScalable() {
               (ed.target === nodeData.x && ed.targetY === nodeData.y);
             return isConnected ? 0.85 : 0.02;
           })
-          .attr('stroke', (l: any, i) => {
+          .attr('stroke', (_l: any, i: number) => {
             const ed = edgesData[i];
             const nodeData = nodesData.find(n => n.id === d.id);
             if (!nodeData) return 'rgba(99, 112, 242, 0.1)';
@@ -440,7 +440,7 @@ export function NetworkGraphScalable() {
     
     // Drag behavior for interactive positioning
     const drag = d3.drag<SVGGElement, typeof nodesData[0]>()
-      .on('start', function(event, d) {
+      .on('start', function(_event, _d) {
         d3.select(this).raise();
       })
       .on('drag', function(event, d) {
@@ -453,7 +453,7 @@ export function NetworkGraphScalable() {
           updateEdges();
         }
       })
-      .on('end', function(event, d) {
+      .on('end', function(_event, d) {
         // Update graph data
         graph.setNodeAttribute(d.id, 'x', d.x);
         graph.setNodeAttribute(d.id, 'y', d.y);
@@ -461,7 +461,7 @@ export function NetworkGraphScalable() {
       });
     
     function updateEdges() {
-      const newEdgesData = graph.mapEdges((edgeId, attrs, source, target) => ({
+      const newEdgesData = graph.mapEdges((_edgeId, attrs, source, target) => ({
         source: graph.getNodeAttribute(source, 'x'),
         sourceY: graph.getNodeAttribute(source, 'y'),
         target: graph.getNodeAttribute(target, 'x'),
@@ -499,7 +499,7 @@ export function NetworkGraphScalable() {
     console.log(`[NetworkGraphScalable] Updating colors to mode: ${currentColorMode}`);
     
     // Update glow circles (first circle in each node group)
-    svg.selectAll('g.node').each(function(this: SVGGElement, d: any) {
+    svg.selectAll('g.node').each((function(this: SVGGElement, d: any) {
       const nodeId = d?.id || d3.select(this).attr('data-id');
       if (!nodeId || !graph.hasNode(nodeId)) return;
       
@@ -513,7 +513,7 @@ export function NetworkGraphScalable() {
       // Update ring (third circle - after glow and clip circle)
       d3.select(this).select('circle:nth-of-type(3)')
         .attr('stroke', newColor);
-    });
+    }) as any);
   }, [colorMode]);
   
   return (
@@ -581,7 +581,7 @@ function normalizePositions(
   let minX = Infinity, maxX = -Infinity;
   let minY = Infinity, maxY = -Infinity;
   
-  graph.forEachNode((node, attrs) => {
+  graph.forEachNode((_node, attrs) => {
     minX = Math.min(minX, attrs.x);
     maxX = Math.max(maxX, attrs.x);
     minY = Math.min(minY, attrs.y);
@@ -600,7 +600,7 @@ function normalizePositions(
   const offsetX = (width - rangeX * scale) / 2;
   const offsetY = (height - rangeY * scale) / 2;
   
-  graph.updateEachNodeAttributes((node, attrs) => ({
+  graph.updateEachNodeAttributes((_node, attrs) => ({
     ...attrs,
     x: (attrs.x - minX) * scale + offsetX,
     y: (attrs.y - minY) * scale + offsetY,

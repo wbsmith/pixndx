@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { analyzeColor, getDominantColor, getColorPalette } from '@/lib/similarity/vectors';
-import type { ImageMetadata } from '@/types/gallery';
+import type {} from '@/types/gallery';
 
 export function ColorWheel() {
   const { filteredImages, openModal, setHoveredImage, hoveredImage } = useGalleryStore();
@@ -120,7 +120,7 @@ export function ColorWheel() {
                 <div
                   className="relative w-16 h-16 rounded-full overflow-hidden ring-2"
                   style={{
-                    ringColor: dominantColor,
+                    ['--tw-ring-color' as string]: dominantColor,
                   }}
                 >
                   <img

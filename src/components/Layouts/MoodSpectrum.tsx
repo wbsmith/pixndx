@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { analyzeColor, getDominantColor } from '@/lib/similarity/vectors';
-import type { ImageMetadata } from '@/types/gallery';
+// Types imported from gallery store
 
 // Map mood keywords to a spectrum value (0 = calm, 1 = energetic)
 const moodToEnergy: Record<string, number> = {

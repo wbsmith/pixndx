@@ -154,7 +154,7 @@ export function FilterPanel({ isOpen, onClose }: FilterPanelProps) {
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {allTags
-                          .filter((tag) => {
+                          .filter((_tag) => {
                             // This is a simplified check - in production you'd have proper category mapping
                             return true;
                           })

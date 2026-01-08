@@ -221,7 +221,7 @@ export function NetworkGraph() {
       .attr('opacity', 0).attr('class', 'hover-ring');
 
     node
-      .on('mouseenter', function (event, d) {
+      .on('mouseenter', function (_event, d) {
         d3.select(this).select('.hover-ring').attr('opacity', 1);
         d3.select(this).raise();
 

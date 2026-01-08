@@ -17,7 +17,7 @@ type GroupBy = 'day' | 'week' | 'month' | 'year';
 export function TimelineLayout() {
   const { filteredImages, openModal, setHoveredImage, hoveredImage } = useGalleryStore();
   const [groupBy, setGroupBy] = useState<GroupBy>('month');
-  const [scrollPosition, setScrollPosition] = useState(0);
+  const [_scrollPosition, _setScrollPosition] = useState(0);
   
   // Parse date from EXIF or filename
   const parseImageDate = (img: ImageMetadata): Date | null => {

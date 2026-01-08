@@ -42,7 +42,7 @@ export function SearchBar() {
   const handleSuggestionClick = (suggestion: string) => {
     setLocalQuery(suggestion);
     setSearchQuery(suggestion);
-    setSuggestions([]);
+    _setSuggestions([]);
   };
   
   // Handle Enter key to search immediately
