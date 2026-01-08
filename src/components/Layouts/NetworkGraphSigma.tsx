@@ -113,6 +113,7 @@ function buildGraph(
       y: Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
       size: 15,
       color: getNodeColor(img, colorMode),
+      type: 'image',  // Required for NodeImageProgram
       image: imageUrl,
       label: img.main_subject || img.id,
       imageData: img,

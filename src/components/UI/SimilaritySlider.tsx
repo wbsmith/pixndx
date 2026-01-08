@@ -434,20 +434,24 @@ export function SimilaritySlider() {
         {/* Gravity */}
         <div className="mb-3">
           <div className="flex justify-between mb-1">
-            <span className="text-[10px] text-nebula-400">Gravity</span>
+            <span className="text-[10px] text-nebula-400">Gravity (center pull)</span>
             <span className="text-[10px] text-stellar-cyan font-mono">
-              {forceSettings.gravity.toFixed(2)}
+              {forceSettings.gravity.toFixed(3)}
             </span>
           </div>
           <input
             type="range"
-            min="0.01"
-            max="0.3"
-            step="0.01"
+            min="0.001"
+            max="1.0"
+            step="0.005"
             value={forceSettings.gravity}
             onChange={(e) => handleForceChange('gravity', parseFloat(e.target.value))}
             className="similarity-slider"
           />
+          <div className="flex justify-between text-[9px] text-nebula-600 mt-0.5">
+            <span>Dispersed</span>
+            <span>Tight cluster</span>
+          </div>
         </div>
         
         {/* Scaling */}
@@ -460,19 +464,23 @@ export function SimilaritySlider() {
           </div>
           <input
             type="range"
-            min="0.3"
-            max="3"
+            min="0.1"
+            max="10"
             step="0.1"
             value={forceSettings.scaling}
             onChange={(e) => handleForceChange('scaling', parseFloat(e.target.value))}
             className="similarity-slider"
           />
+          <div className="flex justify-between text-[9px] text-nebula-600 mt-0.5">
+            <span>Compact</span>
+            <span>Spread out</span>
+          </div>
         </div>
         
         {/* Edge Weight Influence */}
         <div>
           <div className="flex justify-between mb-1">
-            <span className="text-[10px] text-nebula-400">Weight Influence</span>
+            <span className="text-[10px] text-nebula-400">Edge Weight Influence</span>
             <span className="text-[10px] text-stellar-cyan font-mono">
               {forceSettings.edgeWeightInfluence.toFixed(1)}x
             </span>
@@ -480,7 +488,7 @@ export function SimilaritySlider() {
           <input
             type="range"
             min="0"
-            max="2"
+            max="5"
             step="0.1"
             value={forceSettings.edgeWeightInfluence}
             onChange={(e) => handleForceChange('edgeWeightInfluence', parseFloat(e.target.value))}
