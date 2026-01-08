@@ -11,7 +11,7 @@ import { defineStorage } from '@aws-amplify/backend';
  * - embeddings/{filename}.json - Vector embeddings (optional)
  */
 export const storage = defineStorage({
-  name: 'nebulaGalleryStorage',
+  name: 'pixndxGalleryStorage',
   
   access: (allow) => ({
     // Public read access to images

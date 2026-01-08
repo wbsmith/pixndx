@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import '@aws-amplify/ui-react/styles.css';
+import { APP_NAME, APP_TAGLINE } from '../../config';
 
 interface AuthWrapperProps {
   children: React.ReactNode;
@@ -43,10 +44,10 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
           return (
             <div className="text-center py-8">
               <h1 className="text-3xl font-display font-bold text-white mb-2">
-                PixNdx Gallery
+                {APP_NAME}
               </h1>
               <p className="text-nebula-400">
-                Sign in to explore the collection
+                {APP_TAGLINE}
               </p>
             </div>
           );

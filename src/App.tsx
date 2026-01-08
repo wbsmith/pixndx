@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, X, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from './stores/galleryStore';
@@ -8,28 +8,26 @@ import { SimilaritySlider } from './components/UI/SimilaritySlider';
 import { GalleryView } from './components/Gallery/GalleryView';
 import { ImageModal } from './components/Gallery/ImageModal';
 import { AdminModeToggle, CurationToolbar } from './components/Admin';
+import { APP_NAME, IS_LOCAL_DEV } from './config';
 
-// Only import auth components in production
-const isLocalDev = import.meta.env.DEV && !import.meta.env.VITE_USE_AUTH;
+// Use config for local dev detection
+const isLocalDev = IS_LOCAL_DEV;
 
-// Lazy load auth wrapper only when needed
-let AuthWrapper: React.ComponentType<{ children: React.ReactNode }> | null = null;
-let UserMenu: React.ComponentType | null = null;
+// Lazy load auth components only when needed (production)
+const AuthWrapper = lazy(() => import('./components/Auth/AuthWrapper').then(mod => ({ default: mod.AuthWrapper })));
+const UserMenu = lazy(() => import('./components/Auth/AuthWrapper').then(mod => ({ default: mod.UserMenu })));
 
+// Configure Amplify in production
 if (!isLocalDev) {
-  // Dynamic import for production
-  import('./components/Auth/AuthWrapper').then((mod) => {
-    AuthWrapper = mod.AuthWrapper;
-    UserMenu = mod.UserMenu;
+  // This will be executed when building for production
+  // The amplify_outputs.json is auto-generated during Amplify build
+  import('aws-amplify').then(({ Amplify }) => {
+    import('../amplify_outputs.json').then((outputs) => {
+      Amplify.configure(outputs.default || outputs);
+    }).catch(() => {
+      console.warn('Amplify outputs not found - this is expected in development');
+    });
   });
-}
-
-// Configure Amplify only in production
-if (!isLocalDev) {
-  // Uncomment after deployment:
-  // import { Amplify } from 'aws-amplify';
-  // import outputs from '../amplify_outputs.json';
-  // Amplify.configure(outputs);
 }
 
 function AppContent() {
@@ -73,7 +71,7 @@ function AppContent() {
             </div>
             <div>
               <h1 className="text-xl font-display font-bold text-white text-glow">
-                PixNdx Gallery
+                {APP_NAME}
               </h1>
               <p className="text-[10px] text-nebula-400 uppercase tracking-widest">
                 {isLocalDev ? 'Local Dev Mode' : 'Semantic Visual Explorer'}
@@ -235,6 +233,18 @@ function QuickFilter({ label, query }: { label: string; query: string }) {
   );
 }
 
+// Loading fallback for auth wrapper
+function AuthLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-cosmos-void flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-stellar-cyan/30 border-t-stellar-cyan rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-nebula-300">Loading {APP_NAME}...</p>
+      </div>
+    </div>
+  );
+}
+
 // Main App - wraps with auth in production, skips in dev
 function App() {
   // In local dev mode, skip authentication
@@ -242,10 +252,14 @@ function App() {
     return <AppContent />;
   }
   
-  // In production, wrap with auth (lazy loaded)
-  // For now, just render content - auth wrapper loads async
-  // TODO: Add proper suspense boundary
-  return <AppContent />;
+  // In production, wrap with Amplify authentication
+  return (
+    <Suspense fallback={<AuthLoadingFallback />}>
+      <AuthWrapper>
+        <AppContent />
+      </AuthWrapper>
+    </Suspense>
+  );
 }
 
 export default App;

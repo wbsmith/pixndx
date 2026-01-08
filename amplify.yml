@@ -20,6 +20,18 @@ frontend:
       commands:
         # Generate Amplify client configuration
         - npx ampx generate outputs --app-id $AWS_APP_ID --branch $AWS_BRANCH
+        
+        # Set branch-specific HTML title (env vars handle the rest)
+        - |
+          echo "Building for branch: $AWS_BRANCH"
+          if [ "$AWS_BRANCH" = "main" ]; then
+            sed -i 's/<title>.*<\/title>/<title>PixGraf<\/title>/' index.html
+          elif [ "$AWS_BRANCH" = "pixndx" ]; then
+            sed -i 's/<title>.*<\/title>/<title>PixNdx<\/title>/' index.html
+          elif [ "$AWS_BRANCH" = "sorqua" ]; then
+            sed -i 's/<title>.*<\/title>/<title>Sorqua<\/title>/' index.html
+          fi
+        
         - npm run build
   artifacts:
     baseDirectory: dist
@@ -29,3 +41,16 @@ frontend:
     paths:
       - node_modules/**/*
       - .amplify/**/*
+
+# Custom headers for security
+customHeaders:
+  - pattern: '**/*'
+    headers:
+      - key: 'X-Frame-Options'
+        value: 'DENY'
+      - key: 'X-Content-Type-Options'
+        value: 'nosniff'
+      - key: 'X-XSS-Protection'
+        value: '1; mode=block'
+      - key: 'Referrer-Policy'
+        value: 'strict-origin-when-cross-origin'
