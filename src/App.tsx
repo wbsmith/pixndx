@@ -240,7 +240,7 @@ function App() {
   // Configure Amplify on mount (production only)
   useEffect(() => {
     if (!isLocalDev) {
-      configureAmplify().then((configured) => {
+      configureAmplify().then((configured: boolean) => {
         console.log(`[App] Amplify configuration complete: ${configured}`);
         setAmplifyReady(true);
       });
