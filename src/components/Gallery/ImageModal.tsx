@@ -4,6 +4,8 @@ import { X, ChevronLeft, ChevronRight, Camera, Aperture, ZoomIn, ZoomOut, Maximi
 import { useGalleryStore } from '@/stores/galleryStore';
 import { getSignedImageUrl } from '@/lib/amplify';
 import { IS_LOCAL_DEV } from '@/config';
+import { ImageRating } from '@/components/UI/ImageRating';
+import { useImageRating } from '@/stores/ratingStore';
 
 export function ImageModal() {
   const { 
@@ -463,6 +465,9 @@ export function ImageModal() {
                     {selectedImage.main_subject}
                   </h2>
                   
+                  {/* Rating */}
+                  <ImageRatingSection imageId={selectedImage.id} />
+                  
                   <p className="text-sm text-nebula-300 mb-4 leading-relaxed">
                     {selectedImage.description}
                   </p>
@@ -569,5 +574,24 @@ export function ImageModal() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// Separate component to use the rating hook
+function ImageRatingSection({ imageId }: { imageId: string }) {
+  const { avg, count, userRating, submitRating } = useImageRating(imageId);
+  
+  return (
+    <div className="mb-4">
+      <ImageRating
+        imageId={imageId}
+        currentRating={avg}
+        userRating={userRating}
+        totalRatings={count}
+        onRate={async (_id, rating) => submitRating(rating)}
+        size="md"
+        showCount={true}
+      />
+    </div>
   );
 }

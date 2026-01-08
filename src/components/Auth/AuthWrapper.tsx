@@ -393,10 +393,10 @@ export function UserMenu() {
   const initials = email.charAt(0).toUpperCase();
 
   return (
-    <div className="relative">
+    <div className="relative z-[100]">
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-nebula-800 transition-colors"
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-nebula-800 transition-colors relative z-[101]"
       >
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-stellar-cyan to-stellar-violet flex items-center justify-center text-cosmos-void font-bold text-sm">
           {initials}
@@ -408,12 +408,14 @@ export function UserMenu() {
 
       {isOpen && (
         <>
+          {/* Backdrop - blocks all clicks */}
           <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
+            className="fixed inset-0 z-[102] bg-transparent"
+            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
           />
 
-          <div className="absolute right-0 mt-2 w-56 glass rounded-xl py-2 z-50 border border-nebula-700/50">
+          {/* Dropdown menu */}
+          <div className="absolute right-0 mt-2 w-56 glass rounded-xl py-2 z-[103] border border-nebula-700/50">
             <div className="px-4 py-3 border-b border-nebula-700/50">
               <p className="text-sm text-white font-medium truncate">{email}</p>
               <p className="text-xs text-nebula-400 mt-0.5">Signed in</p>
