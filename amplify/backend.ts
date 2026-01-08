@@ -83,8 +83,8 @@ const webAcl = new wafv2.CfnWebACL(backend.data.resources.cfnResources.cfnGraphq
     metricName: 'GalleryWAFMetrics',
     sampledRequestsEnabled: true,
   },
-  name: 'PixGrafWebACL',
-  description: 'WAF rules for PixGraf Gallery API protection',
+  name: 'picgrafWebACL',
+  description: 'WAF rules for picgraf gallery API protection',
   rules: [
     // Rule 1: Rate limiting - Block IPs making too many requests
     {

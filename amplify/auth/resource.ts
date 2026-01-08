@@ -16,9 +16,9 @@ export const auth = defineAuth({
     email: {
       // Email verification settings
       verificationEmailStyle: 'CODE',
-      verificationEmailSubject: `Welcome to PicGraf Gallery`,
+      verificationEmailSubject: `Welcome to picgraf`,
       verificationEmailBody: (createCode) =>
-        `Welcome to PicGraf Gallery!\n\nYour verification code is: ${createCode()}\n\nThis code expires in 24 hours.`,
+        `Welcome to picgraf!\n\nYour verification code is: ${createCode()}\n\nThis code expires in 24 hours.`,
     },
   },
   

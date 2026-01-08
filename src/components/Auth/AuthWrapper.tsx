@@ -1,9 +1,9 @@
 import { useEffect, useState, createContext, useContext } from 'react';
-import { Authenticator, useAuthenticator, ThemeProvider, Theme } from '@aws-amplify/ui-react';
+import { Authenticator, ThemeProvider, Theme } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME, APP_TAGLINE } from '../../config';
-import { ImageIcon, Lock, Mail, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ImageIcon, Lock } from 'lucide-react';
 
 // =============================================================================
 // THEME
@@ -68,12 +68,10 @@ const theme: Theme = {
         },
       },
       fieldcontrol: {
-        backgroundColor: { value: 'rgba(26, 26, 46, 0.8)' },
         borderColor: { value: 'rgba(99, 102, 241, 0.3)' },
         color: { value: '#ffffff' },
         _focus: {
           borderColor: { value: '#22d3ee' },
-          boxShadow: { value: '0 0 0 2px rgba(34, 211, 238, 0.2)' },
         },
       },
       tabs: {
@@ -97,42 +95,6 @@ const theme: Theme = {
   },
 };
 
-// =============================================================================
-// PASSWORD REQUIREMENTS
-// =============================================================================
-
-const PASSWORD_REQUIREMENTS = [
-  { id: 'length', label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
-  { id: 'upper', label: 'One uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
-  { id: 'lower', label: 'One lowercase letter', test: (p: string) => /[a-z]/.test(p) },
-  { id: 'number', label: 'One number', test: (p: string) => /\d/.test(p) },
-  { id: 'special', label: 'One special character (!@#$%^&*)', test: (p: string) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
-];
-
-function PasswordRequirements({ password }: { password: string }) {
-  return (
-    <div className="mt-2 p-3 rounded-lg bg-nebula-900/50 border border-nebula-700/50">
-      <p className="text-xs text-nebula-400 mb-2 font-medium">Password must have:</p>
-      <ul className="space-y-1">
-        {PASSWORD_REQUIREMENTS.map((req) => {
-          const passed = req.test(password);
-          return (
-            <li key={req.id} className="flex items-center gap-2 text-xs">
-              {passed ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-              ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-nebula-500" />
-              )}
-              <span className={passed ? 'text-green-400' : 'text-nebula-400'}>
-                {req.label}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
 
 // =============================================================================
 // CUSTOM COMPONENTS
@@ -182,24 +144,22 @@ const components = {
       );
     },
     FormFields() {
-      const { validationErrors } = useAuthenticator();
-      const [password, setPassword] = useState('');
-      const [showPassword, setShowPassword] = useState(false);
-      
       return (
         <>
-          {/* Email field */}
+          {/* Default form fields */}
           <Authenticator.SignUp.FormFields />
           
-          {/* Password requirements - always visible during sign up */}
-          <PasswordRequirements password={password} />
-          
-          {/* Capture password for requirements display */}
-          <input
-            type="hidden"
-            onChange={(e) => setPassword(e.target.value)}
-            // Hook into the password field
-          />
+          {/* Password requirements hint - shown statically */}
+          <div className="mt-2 p-3 rounded-lg bg-nebula-900/50 border border-nebula-700/50">
+            <p className="text-xs text-nebula-400 mb-2 font-medium">Password must have:</p>
+            <ul className="space-y-1 text-xs text-nebula-400">
+              <li>• At least 8 characters</li>
+              <li>• One uppercase letter</li>
+              <li>• One lowercase letter</li>
+              <li>• One number</li>
+              <li>• One special character (!@#$%^&*)</li>
+            </ul>
+          </div>
         </>
       );
     },
