@@ -28,11 +28,13 @@ function AppContent() {
     searchQuery,
     loading,
     loadProgress,
+    ready,
     initializeData,
+    sortByRatings,
+    setReady,
   } = useGalleryStore();
   
   const { fetchRatingsForImages } = useRatingStore();
-  const { sortByRatings } = useGalleryStore();
   const ratingsFetchedRef = useRef(false);
   
   // Load data progressively on mount
@@ -40,17 +42,25 @@ function AppContent() {
     initializeData();
   }, []);
   
-  // Fetch ratings after images are loaded (only once, in production)
-  // Then sort images by rating
+  // Handle post-load initialization
   useEffect(() => {
-    if (!IS_LOCAL_DEV && images.length > 0 && !loading && !ratingsFetchedRef.current) {
+    // Wait until images are loaded
+    if (images.length === 0 || loading) return;
+    
+    // Local dev: mark ready immediately (no ratings to fetch)
+    if (IS_LOCAL_DEV) {
+      setReady();
+      return;
+    }
+    
+    // Production: fetch ratings, then sort, which marks ready
+    if (!ratingsFetchedRef.current) {
       ratingsFetchedRef.current = true;
-      // Fetch ratings for all images, then sort by rating
       fetchRatingsForImages([]).then(() => {
-        sortByRatings();
+        sortByRatings(); // This sets ready: true
       });
     }
-  }, [images, loading, fetchRatingsForImages, sortByRatings]);
+  }, [images.length, loading, fetchRatingsForImages, sortByRatings, setReady]);
   
   return (
     <div className="h-screen w-screen bg-gradient-cosmos flex flex-col overflow-hidden">
@@ -205,7 +215,25 @@ function AppContent() {
         </motion.aside>
         
         {/* Gallery */}
-        <GalleryView />
+        <div className="flex-1 relative">
+          {/* Loading overlay - shown until ready */}
+          {!ready && (
+            <div className="absolute inset-0 z-30 bg-cosmos-void/90 backdrop-blur-sm flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-stellar-cyan/30 border-t-stellar-cyan rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-nebula-300 text-lg">
+                  {loading ? 'Loading images...' : 'Preparing gallery...'}
+                </p>
+                {loadProgress && (
+                  <p className="text-nebula-500 text-sm mt-2 font-mono">
+                    {loadProgress.loaded} / {loadProgress.total}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <GalleryView />
+        </div>
       </div>
       
       {/* Modal */}

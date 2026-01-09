@@ -57,6 +57,7 @@ interface GalleryStore {
   // UI State
   loading: boolean;
   loadProgress: LoadProgress | null;  // Progressive loading state
+  ready: boolean;  // True when images loaded AND ratings sorted (production)
   sidebarOpen: boolean;
   modalOpen: boolean;
   
@@ -78,6 +79,7 @@ interface GalleryStore {
   openModal: (image: ImageMetadata) => void;
   closeModal: () => void;
   sortByRatings: () => void;  // Sort filtered images by rating (called after ratings load)
+  setReady: () => void;  // Mark gallery as ready (for local dev mode)
 }
 
 // =============================================================================
@@ -183,6 +185,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   searchFilters: undefined,
   loading: true,  // Start in loading state
   loadProgress: null,
+  ready: false,  // Becomes true when images loaded AND ratings sorted
   sidebarOpen: true,
   modalOpen: false,
   
@@ -441,7 +444,9 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
       return 0;
     });
     
-    set({ filteredImages: sorted });
-    console.log('[GalleryStore] Sorted images by rating');
+    set({ filteredImages: sorted, ready: true });
+    console.log('[GalleryStore] Sorted images by rating - gallery ready');
   },
+  
+  setReady: () => set({ ready: true }),
 }));
