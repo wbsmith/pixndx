@@ -31,7 +31,7 @@ export function ImageModal() {
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   
   // Only use URL if it matches current image (prevents stale image flash)
-  const signedUrl = urlData?.imageId === selectedImage?.id ? urlData.url : null;
+  const signedUrl = (urlData && urlData.imageId === selectedImage?.id) ? urlData.url : null;
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
