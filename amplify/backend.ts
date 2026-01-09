@@ -7,6 +7,9 @@ import { ingestImage } from './functions/ingestImage/resource';
 import { computeSimilarity } from './functions/computeSimilarity/resource';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import * as cdk from 'aws-cdk-lib';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 /**
  * PixGraf Gallery Backend
@@ -185,4 +188,84 @@ new wafv2.CfnWebACLAssociation(backend.data.resources.cfnResources.cfnGraphqlApi
 new cdk.CfnOutput(backend.data.resources.cfnResources.cfnGraphqlApi.stack, 'WAFWebACLArn', {
   value: webAcl.attrArn,
   description: 'ARN of the WAF Web ACL protecting the API',
+});
+
+// ============================================================
+// CloudFront CDN for Image Delivery
+// Provides global edge caching for faster image loading
+// ============================================================
+
+// Create Origin Access Identity for CloudFront to access S3
+const originAccessIdentity = new cloudfront.OriginAccessIdentity(
+  backend.storage.resources.bucket.stack,
+  'ImageCDNOriginAccessIdentity',
+  {
+    comment: 'OAI for picgraf image CDN',
+  }
+);
+
+// Grant CloudFront read access to the S3 bucket
+s3Bucket.addToResourcePolicy(
+  new iam.PolicyStatement({
+    actions: ['s3:GetObject'],
+    resources: [`${s3Bucket.bucketArn}/images/*`],
+    principals: [originAccessIdentity.grantPrincipal],
+  })
+);
+
+// Create CloudFront distribution
+const imageDistribution = new cloudfront.Distribution(
+  backend.storage.resources.bucket.stack,
+  'ImageCDN',
+  {
+    comment: 'picgraf Image CDN',
+    defaultBehavior: {
+      origin: new origins.S3Origin(s3Bucket, {
+        originAccessIdentity,
+        originPath: '', // Serve from bucket root
+      }),
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      cachePolicy: new cloudfront.CachePolicy(
+        backend.storage.resources.bucket.stack,
+        'ImageCachePolicy',
+        {
+          cachePolicyName: 'picgraf-image-cache-policy',
+          comment: 'Cache policy for picgraf images',
+          defaultTtl: cdk.Duration.days(7),
+          maxTtl: cdk.Duration.days(365),
+          minTtl: cdk.Duration.hours(1),
+          // Cache based on query strings (for cache busting if needed)
+          queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
+          // Don't cache based on headers (improves cache hit ratio)
+          headerBehavior: cloudfront.CacheHeaderBehavior.none(),
+          cookieBehavior: cloudfront.CacheCookieBehavior.none(),
+          enableAcceptEncodingGzip: true,
+          enableAcceptEncodingBrotli: true,
+        }
+      ),
+      // Allow GET and HEAD only for images
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+      cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+      compress: true,
+    },
+    // Enable HTTP/2 and HTTP/3 for better performance
+    httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
+    // Price class - use all edge locations for best global performance
+    // Change to PriceClass.PRICE_CLASS_100 for US/Europe only (cheaper)
+    priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+    // Enable logging (optional - uncomment if you want access logs)
+    // logBucket: new s3.Bucket(stack, 'CDNLogBucket'),
+    // logFilePrefix: 'cdn-logs/',
+  }
+);
+
+// Output the CloudFront distribution URL
+new cdk.CfnOutput(backend.storage.resources.bucket.stack, 'ImageCDNUrl', {
+  value: `https://${imageDistribution.distributionDomainName}`,
+  description: 'CloudFront CDN URL for images',
+});
+
+new cdk.CfnOutput(backend.storage.resources.bucket.stack, 'ImageCDNDistributionId', {
+  value: imageDistribution.distributionId,
+  description: 'CloudFront Distribution ID (for cache invalidation)',
 });

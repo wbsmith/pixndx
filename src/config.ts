@@ -39,6 +39,16 @@ export const config = {
     // Local image server URL
     imageBaseUrl: import.meta.env.VITE_IMAGE_BASE_URL || 'http://localhost:8080',
   },
+  
+  // CDN settings (set after Amplify deployment outputs the CDN URL)
+  cdn: {
+    // CloudFront CDN URL for images
+    // Set this in Amplify Console after deployment: VITE_CDN_URL
+    imageUrl: import.meta.env.VITE_CDN_URL || '',
+    
+    // Whether to use CDN (falls back to signed URLs if not set)
+    enabled: !!import.meta.env.VITE_CDN_URL,
+  },
 };
 
 // Export individual values for convenience

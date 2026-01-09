@@ -5,7 +5,7 @@
  * for checking if Amplify is properly configured.
  */
 
-import { IS_LOCAL_DEV } from '@/config';
+import { IS_LOCAL_DEV, config } from '@/config';
 
 let amplifyConfigured = false;
 let configurationPromise: Promise<void> | null = null;
@@ -199,8 +199,8 @@ function isAuthError(error: unknown): boolean {
 }
 
 /**
- * Get a signed URL for an S3 image
- * Handles caching, token refresh, and falls back to direct URL in dev mode
+ * Get a URL for an S3 image
+ * Uses CDN if configured, otherwise falls back to signed URLs
  */
 export async function getSignedImageUrl(
   s3Url: string, 
@@ -211,18 +211,23 @@ export async function getSignedImageUrl(
     return s3Url;
   }
   
-  // Check cache
-  const cacheKey = `${size}:${s3Url}`;
-  const cached = signedUrlCache.get(cacheKey);
-  if (cached && Date.now() < cached.expires) {
-    return cached.url;
-  }
-  
   // Extract the filename from the S3 URL
   const key = extractS3Key(s3Url);
   if (!key) {
     console.warn('Could not extract S3 key from URL:', s3Url);
     return s3Url; // Fallback to direct URL
+  }
+  
+  // If CDN is configured, use it directly (no signing needed)
+  if (config.cdn.enabled && config.cdn.imageUrl) {
+    return `${config.cdn.imageUrl}/images/${size}/${encodeURIComponent(key)}`;
+  }
+  
+  // Check cache for signed URL
+  const cacheKey = `${size}:${s3Url}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && Date.now() < cached.expires) {
+    return cached.url;
   }
   
   // Try to get signed URL, with retry on auth errors
