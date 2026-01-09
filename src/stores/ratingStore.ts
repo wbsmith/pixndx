@@ -146,17 +146,28 @@ export const useRatingStore = create<RatingStore>((set, get) => ({
       
       console.log('[RatingStore] Fetching all ratings from database...');
       
-      do {
-        const response = await amplifyClient.models.ImageRating.list({
-          limit: 1000, // Max per page
-          nextToken: nextToken || undefined,
+      // Fetch first page
+      let response = await amplifyClient.models.ImageRating.list({
+        limit: 1000,
+      });
+      
+      if (response.data) {
+        allRatings.push(...response.data);
+      }
+      nextToken = response.nextToken;
+      
+      // Fetch remaining pages
+      while (nextToken) {
+        response = await amplifyClient.models.ImageRating.list({
+          limit: 1000,
+          nextToken,
         });
         
         if (response.data) {
           allRatings.push(...response.data);
         }
         nextToken = response.nextToken;
-      } while (nextToken);
+      }
       
       console.log(`[RatingStore] Fetched ${allRatings.length} total ratings`);
       
