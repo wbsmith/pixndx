@@ -1,7 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Search, X, Sparkles } from 'lucide-react';
+import { Search, X, Sparkles, Star } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Special query constants
+const SPECIAL_QUERIES = {
+  '__top_rated__': { label: 'Top Rated', icon: Star },
+};
 
 export function SearchBar() {
   const { searchQuery, setSearchQuery } = useGalleryStore();
@@ -11,9 +16,17 @@ export function SearchBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Check if we have a special filter active
+  const specialFilter = SPECIAL_QUERIES[searchQuery as keyof typeof SPECIAL_QUERIES];
+  
   // Sync local query with store when store changes externally
+  // Handle special queries like __top_rated__ for display
   useEffect(() => {
-    setLocalQuery(searchQuery);
+    if (searchQuery === '__top_rated__') {
+      setLocalQuery(''); // Don't show internal query in input
+    } else {
+      setLocalQuery(searchQuery);
+    }
   }, [searchQuery]);
   
   // Debounced search - only trigger after user stops typing
@@ -69,18 +82,34 @@ export function SearchBar() {
           className="absolute left-4 top-1/2 -translate-y-1/2 text-nebula-400" 
           size={18} 
         />
-        <input
-          ref={inputRef}
-          type="text"
-          value={localQuery}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 200)}
-          placeholder="Search by description, mood, colors..."
-          className="search-input pr-10"
-        />
-        {localQuery && (
+        
+        {/* Show special filter badge if active */}
+        {specialFilter ? (
+          <div 
+            className="search-input pr-10 flex items-center gap-2 cursor-pointer"
+            onClick={handleClear}
+          >
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stellar-gold/20 text-stellar-gold rounded-full text-sm font-medium">
+              <specialFilter.icon size={14} />
+              {specialFilter.label}
+            </span>
+            <span className="text-nebula-500 text-sm">Click to clear</span>
+          </div>
+        ) : (
+          <input
+            ref={inputRef}
+            type="text"
+            value={localQuery}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 200)}
+            placeholder="Search by description, mood, colors..."
+            className="search-input pr-10"
+          />
+        )}
+        
+        {(localQuery || specialFilter) && (
           <button
             onClick={handleClear}
             className="absolute right-4 top-1/2 -translate-y-1/2 text-nebula-400 hover:text-nebula-200 transition-colors"

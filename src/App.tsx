@@ -1,7 +1,8 @@
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, lazy, Suspense, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, X, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from './stores/galleryStore';
+import { useRatingStore } from './stores/ratingStore';
 import { SearchBar } from './components/Search/SearchBar';
 import { LayoutSelector } from './components/UI/LayoutSelector';
 import { SimilaritySlider } from './components/UI/SimilaritySlider';
@@ -30,10 +31,23 @@ function AppContent() {
     initializeData,
   } = useGalleryStore();
   
+  const { fetchRatingsForImages } = useRatingStore();
+  const ratingsFetchedRef = useRef(false);
+  
   // Load data progressively on mount
   useEffect(() => {
     initializeData();
   }, []);
+  
+  // Fetch ratings after images are loaded (only once, in production)
+  useEffect(() => {
+    if (!IS_LOCAL_DEV && images.length > 0 && !loading && !ratingsFetchedRef.current) {
+      ratingsFetchedRef.current = true;
+      // Fetch ratings for all images in background
+      const imageIds = images.map(img => img.id);
+      fetchRatingsForImages(imageIds);
+    }
+  }, [images, loading, fetchRatingsForImages]);
   
   return (
     <div className="h-screen w-screen bg-gradient-cosmos flex flex-col overflow-hidden">

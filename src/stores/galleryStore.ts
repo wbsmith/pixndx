@@ -8,6 +8,7 @@ import type {
 } from '@/types/gallery';
 import { computeEdges } from '@/lib/similarity/edgeComputation';
 import { loadImagesProgressively, loadRemainingImages, type LoadProgress } from '@/lib/dataLoader';
+import { useRatingStore } from '@/stores/ratingStore';
 
 // =============================================================================
 // FORCE LAYOUT SETTINGS
@@ -79,88 +80,73 @@ interface GalleryStore {
 }
 
 // =============================================================================
-// SEARCH SCORING
+// SEARCH SCORING - AND LOGIC (all words must match)
 // =============================================================================
 
+/**
+ * Check if a single word matches an image
+ * Returns a score > 0 if matched, 0 if not matched
+ */
+function wordMatchScore(image: ImageMetadata, word: string): number {
+  const allTags = Object.values(image.tags)
+    .flat()
+    .map((t) => t.toLowerCase());
+  const tagCategories = Object.keys(image.tags).map(c => c.toLowerCase());
+  const filenameLower = image.filename.toLowerCase();
+  const descriptionLower = image.description.toLowerCase();
+  const moodLower = image.mood.toLowerCase();
+  const subjectLower = image.main_subject.toLowerCase();
+  const colorNames = Object.keys(image.main_colors).map(n => n.toLowerCase());
+  
+  // Check each field for a match - return score for best match found
+  if (filenameLower.includes(word)) return 4;
+  if (allTags.includes(word)) return 3;
+  if (tagCategories.includes(word)) return 2.5;
+  if (allTags.some((t) => t.includes(word))) return 2;
+  if (subjectLower.includes(word)) return 2;
+  if (moodLower.includes(word)) return 2;
+  if (colorNames.some(name => name.includes(word))) return 2;
+  if (descriptionLower.includes(word)) return 1.5;
+  
+  return 0; // No match
+}
+
+/**
+ * Score an image against a search query.
+ * Uses AND logic: ALL words must match for the image to be included.
+ * Returns 0 if any word doesn't match.
+ */
 function scoreImage(image: ImageMetadata, query: string): number {
   if (!query.trim()) return 1;
   
   const queryLower = query.toLowerCase();
-  const queryWords = queryLower.split(/\s+/);
+  const queryWords = queryLower.split(/\s+/).filter(w => w.length > 0);
   
-  let score = 0;
+  if (queryWords.length === 0) return 1;
   
-  // Get all tags as flat array
-  const allTags = Object.values(image.tags)
-    .flat()
-    .map((t) => t.toLowerCase());
-  
-  // Get tag category names too
-  const tagCategories = Object.keys(image.tags).map(c => c.toLowerCase());
-  
-  // Filename matching (high priority)
-  const filenameLower = image.filename.toLowerCase();
-  
+  // AND logic: check that EVERY word matches
+  let totalScore = 0;
   for (const word of queryWords) {
-    // Filename match (highest priority)
-    if (filenameLower.includes(word)) {
-      score += 4;
+    const wordScore = wordMatchScore(image, word);
+    if (wordScore === 0) {
+      // This word didn't match - fail the entire image
+      return 0;
     }
-    // Exact tag match
-    else if (allTags.includes(word)) {
-      score += 3;
-    }
-    // Tag category match
-    else if (tagCategories.includes(word)) {
-      score += 2.5;
-    }
-    // Partial tag match
-    else if (allTags.some((t) => t.includes(word))) {
-      score += 2;
-    }
-    // Description match
-    else if (image.description.toLowerCase().includes(word)) {
-      score += 1.5;
-    }
-    // Mood match
-    else if (image.mood.toLowerCase().includes(word)) {
-      score += 2;
-    }
-    // Main subject match
-    else if (image.main_subject.toLowerCase().includes(word)) {
-      score += 2;
-    }
+    totalScore += wordScore;
   }
   
-  // Bonus for matching multiple words (phrase match)
+  // Bonus for exact phrase match in description or subject
   if (queryWords.length > 1) {
     const phrase = queryLower;
     if (image.description.toLowerCase().includes(phrase)) {
-      score += 2;
+      totalScore += 3;
     }
     if (image.main_subject.toLowerCase().includes(phrase)) {
-      score += 2;
+      totalScore += 3;
     }
   }
   
-  // Color matching - check color names in main_colors keys
-  const colorWords = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'cyan', 'gold', 'golden', 'warm', 'cool', 'bright', 'dark', 'white', 'black', 'gray', 'grey', 'teal', 'amber'];
-  const colorNames = Object.keys(image.main_colors).map(n => n.toLowerCase());
-  
-  for (const word of queryWords) {
-    if (colorWords.includes(word)) {
-      // Check if color name contains the word
-      if (colorNames.some(name => name.includes(word))) {
-        score += 2.5;
-      }
-      // Also check description for color mentions
-      if (image.description.toLowerCase().includes(word)) {
-        score += 1;
-      }
-    }
-  }
-  
-  return score;
+  return totalScore;
 }
 
 // =============================================================================
@@ -325,7 +311,34 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     
     let filtered = [...images];
     
-    // Apply text search
+    // Special case: Top Rated sorting
+    if (searchQuery === '__top_rated__') {
+      const ratingStore = useRatingStore.getState();
+      
+      // Sort by average rating (highest first), with count as tiebreaker
+      filtered = filtered.sort((a, b) => {
+        const ratingA = ratingStore.getRating(a.id);
+        const ratingB = ratingStore.getRating(b.id);
+        
+        // Primary sort: by average rating (descending)
+        if (ratingB.avg !== ratingA.avg) {
+          return ratingB.avg - ratingA.avg;
+        }
+        // Secondary sort: by count (more ratings = more trustworthy)
+        return ratingB.count - ratingA.count;
+      });
+      
+      // Filter to only show rated images
+      filtered = filtered.filter(img => {
+        const rating = ratingStore.getRating(img.id);
+        return rating.count > 0;
+      });
+      
+      set({ filteredImages: filtered, edges: [] });
+      return;
+    }
+    
+    // Apply text search with AND logic
     if (searchQuery.trim()) {
       const scored = filtered.map((img) => ({
         image: img,
