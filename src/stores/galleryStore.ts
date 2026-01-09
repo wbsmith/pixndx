@@ -77,6 +77,7 @@ interface GalleryStore {
   toggleSidebar: () => void;
   openModal: (image: ImageMetadata) => void;
   closeModal: () => void;
+  sortByRatings: () => void;  // Sort filtered images by rating (called after ratings load)
 }
 
 // =============================================================================
@@ -410,4 +411,37 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   openModal: (image) => set({ modalOpen: true, selectedImage: image }),
   
   closeModal: () => set({ modalOpen: false }),
+  
+  sortByRatings: () => {
+    const { filteredImages, searchQuery } = get();
+    
+    // Don't override if there's an active search (let search handle sorting)
+    if (searchQuery.trim()) return;
+    
+    const ratingStore = useRatingStore.getState();
+    
+    // Sort: highest rated first, then by count, then unrated images at the end
+    const sorted = [...filteredImages].sort((a, b) => {
+      const ratingA = ratingStore.getRating(a.id);
+      const ratingB = ratingStore.getRating(b.id);
+      
+      // Both have ratings: sort by avg (desc), then count (desc)
+      if (ratingA.count > 0 && ratingB.count > 0) {
+        if (ratingB.avg !== ratingA.avg) {
+          return ratingB.avg - ratingA.avg;
+        }
+        return ratingB.count - ratingA.count;
+      }
+      
+      // Only one has rating: rated images come first
+      if (ratingA.count > 0 && ratingB.count === 0) return -1;
+      if (ratingB.count > 0 && ratingA.count === 0) return 1;
+      
+      // Neither has rating: maintain original order (by ID for stability)
+      return 0;
+    });
+    
+    set({ filteredImages: sorted });
+    console.log('[GalleryStore] Sorted images by rating');
+  },
 }));

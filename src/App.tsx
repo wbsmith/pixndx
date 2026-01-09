@@ -32,6 +32,7 @@ function AppContent() {
   } = useGalleryStore();
   
   const { fetchRatingsForImages } = useRatingStore();
+  const { sortByRatings } = useGalleryStore();
   const ratingsFetchedRef = useRef(false);
   
   // Load data progressively on mount
@@ -40,14 +41,16 @@ function AppContent() {
   }, []);
   
   // Fetch ratings after images are loaded (only once, in production)
+  // Then sort images by rating
   useEffect(() => {
     if (!IS_LOCAL_DEV && images.length > 0 && !loading && !ratingsFetchedRef.current) {
       ratingsFetchedRef.current = true;
-      // Fetch ratings for all images in background
-      const imageIds = images.map(img => img.id);
-      fetchRatingsForImages(imageIds);
+      // Fetch ratings for all images, then sort by rating
+      fetchRatingsForImages([]).then(() => {
+        sortByRatings();
+      });
     }
-  }, [images, loading, fetchRatingsForImages]);
+  }, [images, loading, fetchRatingsForImages, sortByRatings]);
   
   return (
     <div className="h-screen w-screen bg-gradient-cosmos flex flex-col overflow-hidden">
