@@ -593,7 +593,6 @@ function ImageRatingSection({ imageId }: { imageId: string }) {
         totalRatings={count}
         onRate={async (_id, rating) => submitRating(rating)}
         size="md"
-        showCount={true}
       />
     </div>
   );
