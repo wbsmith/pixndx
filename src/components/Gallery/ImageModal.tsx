@@ -24,11 +24,14 @@ export function ImageModal() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
   
-  // Signed URL for production
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  // Signed URL for production - track which image it belongs to
+  const [urlData, setUrlData] = useState<{ imageId: string; url: string } | null>(null);
   
   // Image dimensions for 1:1 zoom calculation
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  
+  // Only use URL if it matches current image (prevents stale image flash)
+  const signedUrl = urlData?.imageId === selectedImage?.id ? urlData.url : null;
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -69,10 +72,11 @@ export function ImageModal() {
     if (!selectedImage) return;
     
     let mounted = true;
+    const imageId = selectedImage.id;
     
     // In local dev, use URL directly
     if (IS_LOCAL_DEV) {
-      setSignedUrl(selectedImage.urls.full);
+      setUrlData({ imageId, url: selectedImage.urls.full });
       const img = new Image();
       img.onload = () => {
         if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
@@ -84,7 +88,7 @@ export function ImageModal() {
     // In production, get signed URL first
     getSignedImageUrl(selectedImage.urls.full, 'full').then((url) => {
       if (!mounted) return;
-      setSignedUrl(url);
+      setUrlData({ imageId, url });
       
       const img = new Image();
       img.onload = () => {
@@ -96,12 +100,11 @@ export function ImageModal() {
     return () => { mounted = false; };
   }, [selectedImage?.id]);
   
-  // Reset all state when image changes or modal closes
+  // Reset zoom/position when image changes
   useEffect(() => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
     setIsFullscreen(false);
-    setSignedUrl(null); // Clear URL so we fetch fresh one
   }, [selectedImage?.id]);
   
   // Reset fullscreen when modal closes
