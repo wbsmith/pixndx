@@ -394,26 +394,40 @@ export function ImageModal() {
                     transition: isDragging ? 'none' : 'transform 0.15s ease-out',
                   }}
                 >
-                  {signedUrl ? (
-                    <img
-                      ref={imageRef}
-                      src={signedUrl}
-                      alt={selectedImage.main_subject}
-                      className="object-contain select-none"
-                      style={{
-                        // Constrain both width and height to fit container
-                        maxWidth: '100%',
-                        maxHeight: isFullscreen ? 'calc(100vh - 80px)' : isPortrait ? '65vh' : '100%',
-                        width: 'auto',
-                        height: 'auto',
-                      }}
-                      draggable={false}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center">
-                      <div className="w-12 h-12 border-4 border-stellar-cyan/30 border-t-stellar-cyan rounded-full animate-spin" />
-                    </div>
-                  )}
+                  {/* Key forces remount when image changes, preventing stale image flash */}
+                  <AnimatePresence mode="wait">
+                    {signedUrl ? (
+                      <motion.img
+                        key={selectedImage.id}
+                        ref={imageRef}
+                        src={signedUrl}
+                        alt={selectedImage.main_subject}
+                        className="object-contain select-none"
+                        style={{
+                          // Constrain both width and height to fit container
+                          maxWidth: '100%',
+                          maxHeight: isFullscreen ? 'calc(100vh - 80px)' : isPortrait ? '65vh' : '100%',
+                          width: 'auto',
+                          height: 'auto',
+                        }}
+                        draggable={false}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                      />
+                    ) : (
+                      <motion.div 
+                        key="loader"
+                        className="flex items-center justify-center"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <div className="w-12 h-12 border-4 border-stellar-cyan/30 border-t-stellar-cyan rounded-full animate-spin" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 
                 {/* Navigation buttons - positioned inside image area, show on hover near edges */}
