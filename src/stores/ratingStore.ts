@@ -131,8 +131,8 @@ export const useRatingStore = create<RatingStore>((set, get) => ({
     }
   },
 
-  fetchRatingsForImages: async (imageIds: string[]) => {
-    if (IS_LOCAL_DEV || imageIds.length === 0) return;
+  fetchRatingsForImages: async (_imageIds: string[]) => {
+    if (IS_LOCAL_DEV) return;
     
     set({ isLoading: true, error: null });
     
@@ -140,35 +140,52 @@ export const useRatingStore = create<RatingStore>((set, get) => ({
       const amplifyClient = getClient();
       if (!amplifyClient) throw new Error('Amplify client not initialized');
       
-      const updatedRatings = new Map(get().ratings);
+      // Fetch ALL ratings in a single paginated query (much more efficient!)
+      const allRatings: Array<{ imageId: string; rating: number; owner?: string | null }> = [];
+      let nextToken: string | null | undefined = undefined;
       
-      // Fetch ratings in batches to avoid overwhelming the API
-      const batchSize = 25;
-      for (let i = 0; i < imageIds.length; i += batchSize) {
-        const batch = imageIds.slice(i, i + batchSize);
+      console.log('[RatingStore] Fetching all ratings from database...');
+      
+      do {
+        const response = await amplifyClient.models.ImageRating.list({
+          limit: 1000, // Max per page
+          nextToken: nextToken || undefined,
+        });
         
-        await Promise.all(batch.map(async (imageId) => {
-          try {
-            const { data: ratings } = await amplifyClient.models.ImageRating.list({
-              filter: { imageId: { eq: imageId } },
-            });
-            
-            if (ratings && ratings.length > 0) {
-              const totalRating = ratings.reduce((sum, r) => sum + r.rating, 0);
-              const avgRating = totalRating / ratings.length;
-              const userRating = ratings.find(r => r.owner)?.rating;
-              
-              updatedRatings.set(imageId, {
-                avg: avgRating,
-                count: ratings.length,
-                userRating,
-              });
-            }
-          } catch (e) {
-            console.warn(`[RatingStore] Failed to fetch rating for ${imageId}:`, e);
-          }
-        }));
+        if (response.data) {
+          allRatings.push(...response.data);
+        }
+        nextToken = response.nextToken;
+      } while (nextToken);
+      
+      console.log(`[RatingStore] Fetched ${allRatings.length} total ratings`);
+      
+      // Group ratings by imageId and calculate averages
+      const ratingsByImage = new Map<string, number[]>();
+      
+      for (const rating of allRatings) {
+        if (!rating.imageId) continue;
+        
+        const existing = ratingsByImage.get(rating.imageId) || [];
+        existing.push(rating.rating);
+        ratingsByImage.set(rating.imageId, existing);
       }
+      
+      // Convert to our rating data format
+      const updatedRatings = new Map<string, RatingData>();
+      
+      for (const [imageId, ratings] of ratingsByImage) {
+        const totalRating = ratings.reduce((sum, r) => sum + r, 0);
+        const avgRating = totalRating / ratings.length;
+        
+        updatedRatings.set(imageId, {
+          avg: avgRating,
+          count: ratings.length,
+          userRating: undefined, // We'll update this when user rates
+        });
+      }
+      
+      console.log(`[RatingStore] Processed ratings for ${updatedRatings.size} images`);
       
       set({ ratings: updatedRatings, isLoading: false });
     } catch (error) {
