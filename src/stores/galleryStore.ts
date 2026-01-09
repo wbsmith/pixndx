@@ -78,8 +78,39 @@ interface GalleryStore {
   toggleSidebar: () => void;
   openModal: (image: ImageMetadata) => void;
   closeModal: () => void;
-  sortByRatings: () => void;  // Sort filtered images by rating (called after ratings load)
-  setReady: () => void;  // Mark gallery as ready (for local dev mode)
+  applyDefaultSort: () => void;  // Apply rating sort and mark ready - call after ratings loaded
+}
+
+// =============================================================================
+// RATING SORT - Single source of truth for default sort order
+// =============================================================================
+
+/**
+ * Sort images by rating (highest first), with unrated images at the end.
+ * This is THE canonical way to get the default display order.
+ */
+function applyRatingSort(images: ImageMetadata[]): ImageMetadata[] {
+  const ratingStore = useRatingStore.getState();
+  
+  return [...images].sort((a, b) => {
+    const ratingA = ratingStore.getRating(a.id);
+    const ratingB = ratingStore.getRating(b.id);
+    
+    // Both have ratings: sort by avg (desc), then count (desc)
+    if (ratingA.count > 0 && ratingB.count > 0) {
+      if (ratingB.avg !== ratingA.avg) {
+        return ratingB.avg - ratingA.avg;
+      }
+      return ratingB.count - ratingA.count;
+    }
+    
+    // Only one has rating: rated images come first
+    if (ratingA.count > 0 && ratingB.count === 0) return -1;
+    if (ratingB.count > 0 && ratingA.count === 0) return 1;
+    
+    // Neither has rating: maintain original order
+    return 0;
+  });
 }
 
 // =============================================================================
@@ -311,32 +342,20 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   },
   
   performSearch: () => {
-    const { images, searchQuery, searchFilters } = get();
+    const { images, searchQuery, searchFilters, ready } = get();
     
     let filtered = [...images];
     
-    // Special case: Top Rated sorting
+    // Special case: Top Rated - only show rated images, sorted by rating
     if (searchQuery === '__top_rated__') {
       const ratingStore = useRatingStore.getState();
       
-      // Sort by average rating (highest first), with count as tiebreaker
-      filtered = filtered.sort((a, b) => {
-        const ratingA = ratingStore.getRating(a.id);
-        const ratingB = ratingStore.getRating(b.id);
-        
-        // Primary sort: by average rating (descending)
-        if (ratingB.avg !== ratingA.avg) {
-          return ratingB.avg - ratingA.avg;
-        }
-        // Secondary sort: by count (more ratings = more trustworthy)
-        return ratingB.count - ratingA.count;
-      });
-      
-      // Filter to only show rated images
+      // Filter to only rated images, then sort by rating
       filtered = filtered.filter(img => {
         const rating = ratingStore.getRating(img.id);
         return rating.count > 0;
       });
+      filtered = applyRatingSort(filtered);
       
       set({ filteredImages: filtered, edges: [] });
       return;
@@ -373,6 +392,12 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
           )
         );
       }
+    }
+    
+    // NO SEARCH QUERY: Apply default sort (by rating) if gallery is ready
+    // This is the KEY fix - ensures clearing search returns to rating-sorted view
+    if (!searchQuery.trim() && !searchFilters && ready) {
+      filtered = applyRatingSort(filtered);
     }
     
     set({ filteredImages: filtered, edges: [] });
@@ -415,38 +440,23 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   
   closeModal: () => set({ modalOpen: false }),
   
-  sortByRatings: () => {
-    const { filteredImages, searchQuery } = get();
+  /**
+   * Apply default sort (by rating) and mark gallery as ready.
+   * Call this ONCE after ratings are loaded.
+   * After this, performSearch() will maintain rating sort for empty queries.
+   */
+  applyDefaultSort: () => {
+    const { images, searchQuery } = get();
     
-    // Don't override if there's an active search (let search handle sorting)
-    if (searchQuery.trim()) return;
+    // If there's an active search, just mark ready (search handles its own sort)
+    if (searchQuery.trim()) {
+      set({ ready: true });
+      return;
+    }
     
-    const ratingStore = useRatingStore.getState();
-    
-    // Sort: highest rated first, then by count, then unrated images at the end
-    const sorted = [...filteredImages].sort((a, b) => {
-      const ratingA = ratingStore.getRating(a.id);
-      const ratingB = ratingStore.getRating(b.id);
-      
-      // Both have ratings: sort by avg (desc), then count (desc)
-      if (ratingA.count > 0 && ratingB.count > 0) {
-        if (ratingB.avg !== ratingA.avg) {
-          return ratingB.avg - ratingA.avg;
-        }
-        return ratingB.count - ratingA.count;
-      }
-      
-      // Only one has rating: rated images come first
-      if (ratingA.count > 0 && ratingB.count === 0) return -1;
-      if (ratingB.count > 0 && ratingA.count === 0) return 1;
-      
-      // Neither has rating: maintain original order (by ID for stability)
-      return 0;
-    });
-    
+    // Apply rating sort to all images
+    const sorted = applyRatingSort(images);
     set({ filteredImages: sorted, ready: true });
-    console.log('[GalleryStore] Sorted images by rating - gallery ready');
+    console.log('[GalleryStore] Applied default sort (by rating) - gallery ready');
   },
-  
-  setReady: () => set({ ready: true }),
 }));

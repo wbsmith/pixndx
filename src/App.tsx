@@ -30,37 +30,35 @@ function AppContent() {
     loadProgress,
     ready,
     initializeData,
-    sortByRatings,
-    setReady,
+    applyDefaultSort,
   } = useGalleryStore();
   
   const { fetchRatingsForImages } = useRatingStore();
-  const ratingsFetchedRef = useRef(false);
+  const initCompleteRef = useRef(false);
   
   // Load data progressively on mount
   useEffect(() => {
     initializeData();
   }, []);
   
-  // Handle post-load initialization
+  // After images loaded: fetch ratings (prod) or mark ready (dev)
   useEffect(() => {
-    // Wait until images are loaded
+    // Wait until images are fully loaded
     if (images.length === 0 || loading) return;
+    // Only run once
+    if (initCompleteRef.current) return;
+    initCompleteRef.current = true;
     
-    // Local dev: mark ready immediately (no ratings to fetch)
     if (IS_LOCAL_DEV) {
-      setReady();
-      return;
-    }
-    
-    // Production: fetch ratings, then sort, which marks ready
-    if (!ratingsFetchedRef.current) {
-      ratingsFetchedRef.current = true;
+      // Local dev: no ratings, mark ready immediately
+      applyDefaultSort();
+    } else {
+      // Production: fetch ratings, then apply sort
       fetchRatingsForImages([]).then(() => {
-        sortByRatings(); // This sets ready: true
+        applyDefaultSort();
       });
     }
-  }, [images.length, loading, fetchRatingsForImages, sortByRatings, setReady]);
+  }, [images.length, loading, fetchRatingsForImages, applyDefaultSort]);
   
   return (
     <div className="h-screen w-screen bg-gradient-cosmos flex flex-col overflow-hidden">
@@ -214,26 +212,24 @@ function AppContent() {
           </div>
         </motion.aside>
         
-        {/* Gallery */}
-        <div className="flex-1 relative">
-          {/* Loading overlay - shown until ready */}
-          {!ready && (
-            <div className="absolute inset-0 z-30 bg-cosmos-void/90 backdrop-blur-sm flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-16 h-16 border-4 border-stellar-cyan/30 border-t-stellar-cyan rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-nebula-300 text-lg">
-                  {loading ? 'Loading images...' : 'Preparing gallery...'}
+        {/* Gallery - conditional render: loading spinner OR gallery view */}
+        {!ready ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-16 h-16 border-4 border-stellar-cyan/30 border-t-stellar-cyan rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-nebula-300 text-lg">
+                {loading ? 'Loading images...' : 'Preparing gallery...'}
+              </p>
+              {loadProgress && (
+                <p className="text-nebula-500 text-sm mt-2 font-mono">
+                  {loadProgress.loaded} / {loadProgress.total}
                 </p>
-                {loadProgress && (
-                  <p className="text-nebula-500 text-sm mt-2 font-mono">
-                    {loadProgress.loaded} / {loadProgress.total}
-                  </p>
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
+        ) : (
           <GalleryView />
-        </div>
+        )}
       </div>
       
       {/* Modal */}
