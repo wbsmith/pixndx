@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
 
@@ -9,10 +9,13 @@ interface ImageRatingProps {
   totalRatings?: number;
   onRate: (imageId: string, rating: number) => Promise<void>;
   size?: 'sm' | 'md' | 'lg';
-  showCount?: boolean;
-  readOnly?: boolean;
 }
 
+/**
+ * Split rating display:
+ * - Community rating (read-only, shows average)
+ * - Your rating (interactive, empty until you rate)
+ */
 export function ImageRating({
   imageId,
   currentRating = 0,
@@ -20,23 +23,24 @@ export function ImageRating({
   totalRatings = 0,
   onRate,
   size = 'md',
-  showCount = true,
-  readOnly = false,
 }: ImageRatingProps) {
   const [hoverRating, setHoverRating] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localUserRating, setLocalUserRating] = useState(userRating);
 
-  const displayRating = hoverRating ?? localUserRating ?? currentRating;
+  // Sync with prop when it changes (e.g., after fetch)
+  useEffect(() => {
+    setLocalUserRating(userRating);
+  }, [userRating]);
 
   const sizeClasses = {
-    sm: 'w-4 h-4',
-    md: 'w-5 h-5',
-    lg: 'w-6 h-6',
+    sm: 'w-3 h-3',
+    md: 'w-4 h-4',
+    lg: 'w-5 h-5',
   };
 
   const handleRate = useCallback(async (rating: number) => {
-    if (readOnly || isSubmitting) return;
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
     try {
@@ -47,69 +51,103 @@ export function ImageRating({
     } finally {
       setIsSubmitting(false);
     }
-  }, [imageId, onRate, readOnly, isSubmitting]);
+  }, [imageId, onRate, isSubmitting]);
+
+  // What to show for user's interactive stars
+  const userDisplayRating = hoverRating ?? localUserRating ?? 0;
+  const hasUserRated = localUserRating !== undefined && localUserRating > 0;
 
   return (
-    <div className="flex items-center gap-2">
-      <div 
-        className="flex items-center gap-0.5"
-        onMouseLeave={() => !readOnly && setHoverRating(null)}
-      >
-        {[1, 2, 3, 4, 5].map((star) => {
-          const isFilled = star <= displayRating;
-          const isHalf = star - 0.5 <= displayRating && star > displayRating;
+    <div className="space-y-2">
+      {/* Community rating (read-only) */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-nebula-400 w-20">Community:</span>
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((star) => {
+            const isFilled = star <= currentRating;
+            const isHalf = star - 0.5 <= currentRating && star > currentRating;
 
-          return (
-            <motion.button
-              key={star}
-              type="button"
-              disabled={readOnly || isSubmitting}
-              className={`
-                relative transition-transform
-                ${readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110'}
-                ${isSubmitting ? 'opacity-50' : ''}
-              `}
-              onMouseEnter={() => !readOnly && setHoverRating(star)}
-              onClick={() => handleRate(star)}
-              whileTap={readOnly ? undefined : { scale: 0.9 }}
-            >
-              {/* Background star (empty) */}
-              <Star
-                className={`${sizeClasses[size]} text-nebula-600`}
-                strokeWidth={1.5}
-              />
-              
-              {/* Filled star overlay */}
-              <motion.div
-                className="absolute inset-0"
-                initial={false}
-                animate={{ 
-                  opacity: isFilled ? 1 : isHalf ? 0.5 : 0,
-                }}
-                transition={{ duration: 0.15 }}
-              >
+            return (
+              <div key={star} className="relative">
                 <Star
-                  className={`${sizeClasses[size]} text-stellar-gold fill-stellar-gold`}
+                  className={`${sizeClasses[size]} text-nebula-600`}
                   strokeWidth={1.5}
                 />
-              </motion.div>
-            </motion.button>
-          );
-        })}
+                <div
+                  className="absolute inset-0"
+                  style={{ opacity: isFilled ? 1 : isHalf ? 0.5 : 0 }}
+                >
+                  <Star
+                    className={`${sizeClasses[size]} text-stellar-gold fill-stellar-gold`}
+                    strokeWidth={1.5}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <span className="text-xs text-nebula-400 font-mono">
+          {currentRating.toFixed(1)} ({totalRatings})
+        </span>
       </div>
 
-      {showCount && (
-        <div className="flex items-center gap-1 text-xs text-nebula-400">
-          <span className="font-mono">{currentRating.toFixed(1)}</span>
-          {totalRatings > 0 && (
-            <span>({totalRatings})</span>
-          )}
-        </div>
-      )}
+      {/* User's rating (interactive) */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-nebula-400 w-20">Your rating:</span>
+        <div 
+          className="flex items-center gap-0.5 group"
+          onMouseLeave={() => setHoverRating(null)}
+          title={!hasUserRated ? 'Click to rate' : undefined}
+        >
+          {[1, 2, 3, 4, 5].map((star) => {
+            const isFilled = star <= userDisplayRating;
 
-      {localUserRating && !readOnly && (
-        <span className="text-[10px] text-stellar-cyan">Your rating</span>
-      )}
+            return (
+              <motion.button
+                key={star}
+                type="button"
+                disabled={isSubmitting}
+                className={`
+                  relative transition-transform cursor-pointer hover:scale-110
+                  ${isSubmitting ? 'opacity-50' : ''}
+                `}
+                onMouseEnter={() => setHoverRating(star)}
+                onClick={() => handleRate(star)}
+                whileTap={{ scale: 0.9 }}
+              >
+                {/* Background star (empty) */}
+                <Star
+                  className={`${sizeClasses[size]} ${
+                    !hasUserRated && !hoverRating 
+                      ? 'text-nebula-500 group-hover:text-nebula-400' 
+                      : 'text-nebula-600'
+                  }`}
+                  strokeWidth={1.5}
+                />
+                
+                {/* Filled star overlay */}
+                <motion.div
+                  className="absolute inset-0"
+                  initial={false}
+                  animate={{ opacity: isFilled ? 1 : 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Star
+                    className={`${sizeClasses[size]} text-stellar-cyan fill-stellar-cyan`}
+                    strokeWidth={1.5}
+                  />
+                </motion.div>
+              </motion.button>
+            );
+          })}
+        </div>
+        {hasUserRated && (
+          <span className="text-xs text-stellar-cyan font-mono">{localUserRating}</span>
+        )}
+        {!hasUserRated && !hoverRating && (
+          <span className="text-[10px] text-nebula-500 italic">not yet rated</span>
+        )}
+      </div>
     </div>
   );
 }
