@@ -81,14 +81,23 @@ interface EdgeAttributes {
 }
 
 interface LayoutSettings {
+  // Iterations
   iterations: number;
+  
+  // Barnes-Hut optimization (for large graphs)
   barnesHutOptimize: boolean;
   barnesHutTheta: number;
+  
+  // Core FA2 parameters
   gravity: number;
   scalingRatio: number;
-  strongGravityMode: boolean;
-  slowDown: number;
   edgeWeightInfluence: number;
+  slowDown: number;
+  
+  // Gephi-like advanced options
+  linLogMode: boolean;                      // Logarithmic attraction (clusters pop more)
+  strongGravityMode: boolean;               // Stronger pull for isolated nodes
+  outboundAttractionDistribution: boolean;  // Degree-normalized attraction
 }
 
 // =============================================================================
@@ -149,27 +158,39 @@ function computeLayout(
   settings: Partial<LayoutSettings> = {}
 ): void {
   const nodeCount = graph.order;
+  const edgeCount = graph.size;
   
-  // Adaptive settings based on graph size
+  // Adaptive iterations based on graph complexity
+  // More nodes/edges need more iterations to converge
+  const baseIterations = 300;
+  const complexityFactor = Math.log10(Math.max(1, nodeCount * edgeCount / 1000));
+  const adaptiveIterations = Math.min(1000, Math.max(200, baseIterations + complexityFactor * 100));
+  
+  // Adaptive scaling based on node count (more nodes = more spread)
+  const adaptiveScaling = Math.max(1, Math.sqrt(nodeCount) / 10);
+  
+  // Default settings tuned for good visual results
   const defaultSettings: LayoutSettings = {
-    iterations: Math.min(500, Math.max(100, 1000 - nodeCount * 0.3)),
-    barnesHutOptimize: nodeCount > 100,  // Use Barnes-Hut for >100 nodes
-    barnesHutTheta: nodeCount > 1000 ? 0.8 : 0.5,  // More aggressive for large graphs
-    gravity: 1,
-    scalingRatio: Math.max(1, Math.log10(nodeCount) * 5),
-    strongGravityMode: true,
-    slowDown: 1 + nodeCount / 500,
-    edgeWeightInfluence: 1.0,
+    iterations: adaptiveIterations,
+    barnesHutOptimize: nodeCount > 50,   // Use Barnes-Hut earlier
+    barnesHutTheta: 0.5,                  // Balance speed vs accuracy
+    gravity: 1.0,                          // Moderate pull to center
+    scalingRatio: adaptiveScaling,         // Repulsion strength
+    edgeWeightInfluence: 1.0,             // Normal weight influence
+    slowDown: Math.max(1, nodeCount / 200), // Prevent overshooting
+    linLogMode: false,                     // Linear by default
+    strongGravityMode: false,              // Normal gravity
+    outboundAttractionDistribution: false, // Normal attraction
   };
   
   const finalSettings = { ...defaultSettings, ...settings };
   
-  console.log(`Running ForceAtlas2: ${nodeCount} nodes, ${graph.size} edges`);
-  console.log(`  Settings: gravity=${finalSettings.gravity.toFixed(2)}, scalingRatio=${finalSettings.scalingRatio.toFixed(2)}, edgeWeight=${finalSettings.edgeWeightInfluence.toFixed(2)}`);
-  console.log(`  Iterations: ${finalSettings.iterations}, barnesHut=${finalSettings.barnesHutOptimize}`);
+  console.log(`[FA2] Computing layout: ${nodeCount} nodes, ${edgeCount} edges`);
+  console.log(`[FA2] Settings: gravity=${finalSettings.gravity.toFixed(2)}, scaling=${finalSettings.scalingRatio.toFixed(2)}, linLog=${finalSettings.linLogMode}`);
+  console.log(`[FA2] Iterations: ${finalSettings.iterations}, barnesHut=${finalSettings.barnesHutOptimize}`);
   const startTime = performance.now();
   
-  // ForceAtlas2 expects iterations at top level, layout settings nested in 'settings'
+  // ForceAtlas2 library call
   forceAtlas2.assign(graph, {
     iterations: finalSettings.iterations,
     settings: {
@@ -180,11 +201,13 @@ function computeLayout(
       strongGravityMode: finalSettings.strongGravityMode,
       slowDown: finalSettings.slowDown,
       edgeWeightInfluence: finalSettings.edgeWeightInfluence,
+      linLogMode: finalSettings.linLogMode,
+      outboundAttractionDistribution: finalSettings.outboundAttractionDistribution,
     },
   });
   
   const elapsed = performance.now() - startTime;
-  console.log(`Layout computed in ${elapsed.toFixed(0)}ms`);
+  console.log(`[FA2] Layout computed in ${elapsed.toFixed(0)}ms`);
 }
 
 // =============================================================================
@@ -228,29 +251,28 @@ export function NetworkGraphScalable() {
     
     const startTime = performance.now();
     
-    // Get fresh forceSettings from store to avoid stale closures
+    // Get fresh forceSettings from store
     const forceSettings = useGalleryStore.getState().forceSettings;
     
-    console.log(`[NetworkGraphScalable] MOUNT - Building: ${filteredImages.length} images, ${edges.length} edges`);
-    console.log(`[NetworkGraphScalable] forceSettings from store: gravity=${forceSettings.gravity.toFixed(3)}, scaling=${forceSettings.scaling.toFixed(1)}, edgeWeight=${forceSettings.edgeWeightInfluence.toFixed(2)}`);
+    console.log(`[FA2] Building graph: ${filteredImages.length} images, ${edges.length} edges`);
     
     // Build graph
     const graph = buildGraph(filteredImages, edges, dimensions.width, dimensions.height, colorMode);
     graphRef.current = graph;
     
-    console.log(`[NetworkGraphScalable] Graph: ${graph.order} nodes, ${graph.size} edges`);
+    console.log(`[FA2] Graph built: ${graph.order} nodes, ${graph.size} edges`);
     
-    // Compute layout with store's force settings
-    // ForceAtlas2 defaults: gravity ~1, scalingRatio ~2
-    // Our sliders: gravity 0.01-0.3, scaling 0.3-3
-    // Scale appropriately: gravity * 50 → range 0.5-15, scaling * 10 → range 3-30
+    // Map store settings to ForceAtlas2 parameters
+    // gravity slider 0.1-1.0 → FA2 gravity 0.5-5 (moderate range)
+    // scaling slider 0.1-10 → FA2 scalingRatio 1-50 (wide range for visual impact)
     computeLayout(graph, {
-      gravity: forceSettings.gravity * 50,
-      scalingRatio: forceSettings.scaling * 10,
+      gravity: forceSettings.gravity * 5,
+      scalingRatio: forceSettings.scaling * 5,
       edgeWeightInfluence: forceSettings.edgeWeightInfluence,
+      linLogMode: forceSettings.linLogMode,
+      strongGravityMode: forceSettings.strongGravityMode,
+      outboundAttractionDistribution: forceSettings.outboundAttractionDistribution,
     });
-    
-    console.log(`[NetworkGraphScalable] Applied FA2: gravity=${(forceSettings.gravity * 50).toFixed(1)}, scalingRatio=${(forceSettings.scaling * 10).toFixed(1)}`);
     
     // Normalize positions to fit viewport
     normalizePositions(graph, dimensions.width, dimensions.height);

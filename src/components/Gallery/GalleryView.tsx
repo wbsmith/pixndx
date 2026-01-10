@@ -1,11 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Cpu, Zap, Server, ImageIcon } from 'lucide-react';
+import { Zap, Server, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { GridLayout } from '../Layouts/GridLayout';
 import { NetworkGraph } from '../Layouts/NetworkGraph';
 import { NetworkGraphScalable } from '../Layouts/NetworkGraphScalable';
-import { NetworkGraphSigma } from '../Layouts/NetworkGraphSigma';
 import { ColorWheel } from '../Layouts/ColorWheel';
 import { MoodSpectrum } from '../Layouts/MoodSpectrum';
 import { ClusterView } from '../Layouts/ClusterView';
@@ -63,57 +62,29 @@ function LoadingSkeleton({ progress }: { progress: LoadProgress | null }) {
 // GRAPH RENDERING MODE
 // =============================================================================
 
-type GraphMode = 'auto' | 'd3' | 'graphology' | 'webgl';
+type GraphMode = 'd3' | 'forceAtlas2';
 
 interface GraphModeConfig {
   mode: GraphMode;
   label: string;
   description: string;
-  icon: typeof Cpu;
-  minNodes: number;
-  maxNodes: number;
+  icon: typeof Zap;
 }
 
 const GRAPH_MODES: GraphModeConfig[] = [
   {
-    mode: 'auto',
-    label: 'Auto',
-    description: 'Automatically select based on node count',
-    icon: Zap,
-    minNodes: 0,
-    maxNodes: Infinity,
-  },
-  {
     mode: 'd3',
-    label: 'D3',
-    description: 'Classic D3 force simulation (best < 500 nodes)',
-    icon: Cpu,
-    minNodes: 0,
-    maxNodes: 500,
-  },
-  {
-    mode: 'graphology',
-    label: 'ForceAtlas2',
-    description: 'Graphology + D3 render (500-5000 nodes)',
-    icon: Server,
-    minNodes: 200,
-    maxNodes: 5000,
-  },
-  {
-    mode: 'webgl',
-    label: 'WebGL',
-    description: 'Sigma.js GPU rendering (5000+ nodes)',
+    label: 'D3 Force',
+    description: 'Animated force simulation - interactive, best for < 500 nodes',
     icon: Zap,
-    minNodes: 2000,
-    maxNodes: Infinity,
+  },
+  {
+    mode: 'forceAtlas2',
+    label: 'ForceAtlas2',
+    description: 'Gephi-style layout - better clusters, handles large graphs',
+    icon: Server,
   },
 ];
-
-// Thresholds for automatic mode selection
-const AUTO_THRESHOLDS = {
-  useGraphology: 300,
-  useWebGL: 5000,
-};
 
 // =============================================================================
 // COMPONENT
@@ -121,34 +92,15 @@ const AUTO_THRESHOLDS = {
 
 export function GalleryView() {
   const { layout, filteredImages, graphVersion, loading, loadProgress } = useGalleryStore();
-  const [graphMode, setGraphMode] = useState<GraphMode>('auto');
+  const [graphMode, setGraphMode] = useState<GraphMode>('d3');
   
-  // Determine effective graph mode based on node count
-  const effectiveMode = useMemo(() => {
-    const nodeCount = filteredImages.length;
-    
-    if (graphMode !== 'auto') {
-      return graphMode;
-    }
-    
-    if (nodeCount >= AUTO_THRESHOLDS.useWebGL) {
-      return 'webgl';
-    } else if (nodeCount >= AUTO_THRESHOLDS.useGraphology) {
-      return 'graphology';
-    } else {
-      return 'd3';
-    }
-  }, [graphMode, filteredImages.length]);
-  
-  // Render the appropriate network graph
+  // Render the appropriate network graph based on user selection
   const renderNetworkGraph = () => {
     // Use graphVersion as key to force re-mount when edges change
-    const graphKey = `${effectiveMode}-${graphVersion}`;
+    const graphKey = `${graphMode}-${graphVersion}`;
     
-    switch (effectiveMode) {
-      case 'webgl':
-        return <NetworkGraphSigma key={graphKey} />;
-      case 'graphology':
+    switch (graphMode) {
+      case 'forceAtlas2':
         return <NetworkGraphScalable key={graphKey} />;
       case 'd3':
       default:
@@ -201,7 +153,6 @@ export function GalleryView() {
       {layout.type === 'network' && (
         <GraphModeSelector
           mode={graphMode}
-          effectiveMode={effectiveMode}
           nodeCount={filteredImages.length}
           onChange={setGraphMode}
         />
@@ -216,21 +167,20 @@ export function GalleryView() {
 
 interface GraphModeSelectorProps {
   mode: GraphMode;
-  effectiveMode: GraphMode;
   nodeCount: number;
   onChange: (mode: GraphMode) => void;
 }
 
-function GraphModeSelector({ mode, effectiveMode, nodeCount, onChange }: GraphModeSelectorProps) {
+function GraphModeSelector({ mode, nodeCount, onChange }: GraphModeSelectorProps) {
   const [expanded, setExpanded] = useState(false);
   
-  const currentConfig = GRAPH_MODES.find(m => m.mode === (mode === 'auto' ? effectiveMode : mode));
+  const currentConfig = GRAPH_MODES.find(m => m.mode === mode);
   
   return (
     <div className="absolute top-4 left-4 z-20">
       <motion.div
         initial={false}
-        animate={{ width: expanded ? 280 : 'auto' }}
+        animate={{ width: expanded ? 300 : 'auto' }}
         className="glass rounded-lg overflow-hidden"
       >
         {/* Collapsed view */}
@@ -242,11 +192,8 @@ function GraphModeSelector({ mode, effectiveMode, nodeCount, onChange }: GraphMo
             <>
               <currentConfig.icon size={14} className="text-stellar-cyan" />
               <span className="text-nebula-300">
-                Renderer: <span className="text-white">{currentConfig.label}</span>
+                Layout: <span className="text-white">{currentConfig.label}</span>
               </span>
-              {mode === 'auto' && (
-                <span className="text-nebula-500">(auto)</span>
-              )}
             </>
           )}
         </button>
@@ -263,10 +210,6 @@ function GraphModeSelector({ mode, effectiveMode, nodeCount, onChange }: GraphMo
               <div className="p-2 space-y-1">
                 {GRAPH_MODES.map((config) => {
                   const isActive = mode === config.mode;
-                  const isRecommended = 
-                    config.mode !== 'auto' &&
-                    nodeCount >= config.minNodes && 
-                    nodeCount <= config.maxNodes;
                   
                   return (
                     <button
@@ -286,14 +229,7 @@ function GraphModeSelector({ mode, effectiveMode, nodeCount, onChange }: GraphMo
                     >
                       <config.icon size={14} />
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{config.label}</span>
-                          {isRecommended && config.mode !== 'auto' && (
-                            <span className="px-1.5 py-0.5 bg-green-900/50 text-green-400 rounded text-[10px]">
-                              recommended
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-medium">{config.label}</span>
                         <div className="text-nebula-500 text-[10px]">
                           {config.description}
                         </div>
@@ -304,7 +240,7 @@ function GraphModeSelector({ mode, effectiveMode, nodeCount, onChange }: GraphMo
               </div>
               
               <div className="px-3 py-2 border-t border-nebula-700 text-[10px] text-nebula-500">
-                Current: {nodeCount} nodes
+                {nodeCount} nodes
               </div>
             </motion.div>
           )}

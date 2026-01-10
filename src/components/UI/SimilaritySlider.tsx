@@ -198,7 +198,7 @@ export function SimilaritySlider() {
     setHasChanges(true);
   };
   
-  const handleForceChange = (key: keyof ForceSettings, value: number) => {
+  const handleForceChange = (key: keyof ForceSettings, value: number | boolean) => {
     setForceSettings({ ...forceSettings, [key]: value });
     setHasChanges(true);
   };
@@ -498,6 +498,48 @@ export function SimilaritySlider() {
             <span>Ignore weights</span>
             <span>Strong clustering</span>
           </div>
+        </div>
+        
+        {/* Advanced FA2 toggles */}
+        <div className="pt-3 mt-3 border-t border-nebula-700 space-y-2">
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div>
+              <span className="text-[10px] text-nebula-400 group-hover:text-nebula-300">LinLog Mode</span>
+              <p className="text-[9px] text-nebula-600">Makes clusters more distinct</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={forceSettings.linLogMode}
+              onChange={(e) => handleForceChange('linLogMode', e.target.checked)}
+              className="w-4 h-4 rounded bg-nebula-800 border-nebula-600 text-stellar-cyan focus:ring-stellar-cyan/50"
+            />
+          </label>
+          
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div>
+              <span className="text-[10px] text-nebula-400 group-hover:text-nebula-300">Strong Gravity</span>
+              <p className="text-[9px] text-nebula-600">Pulls isolated nodes to center</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={forceSettings.strongGravityMode}
+              onChange={(e) => handleForceChange('strongGravityMode', e.target.checked)}
+              className="w-4 h-4 rounded bg-nebula-800 border-nebula-600 text-stellar-cyan focus:ring-stellar-cyan/50"
+            />
+          </label>
+          
+          <label className="flex items-center justify-between cursor-pointer group">
+            <div>
+              <span className="text-[10px] text-nebula-400 group-hover:text-nebula-300">Hub Attraction</span>
+              <p className="text-[9px] text-nebula-600">Hubs attract neighbors less</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={forceSettings.outboundAttractionDistribution}
+              onChange={(e) => handleForceChange('outboundAttractionDistribution', e.target.checked)}
+              className="w-4 h-4 rounded bg-nebula-800 border-nebula-600 text-stellar-cyan focus:ring-stellar-cyan/50"
+            />
+          </label>
         </div>
       </div>
       

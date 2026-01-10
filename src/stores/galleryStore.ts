@@ -15,15 +15,24 @@ import { useRatingStore } from '@/stores/ratingStore';
 // =============================================================================
 
 export interface ForceSettings {
-  gravity: number;        // 0.01 - 0.3, pull toward center
-  scaling: number;        // 0.3 - 3.0, node spacing multiplier
-  edgeWeightInfluence: number;  // 0 - 2.0, how much edge weight affects clustering
+  // Basic parameters (work for both D3 and ForceAtlas2)
+  gravity: number;              // Pull toward center (0.01 - 1.0)
+  scaling: number;              // Node spacing / repulsion (0.1 - 10.0)
+  edgeWeightInfluence: number;  // How much edge weight affects layout (0 - 5.0)
+  
+  // ForceAtlas2-specific (Gephi-like controls)
+  linLogMode: boolean;          // Logarithmic attraction - makes clusters more distinct
+  strongGravityMode: boolean;   // Stronger pull for isolated nodes
+  outboundAttractionDistribution: boolean;  // Hubs attract less (degree-normalized)
 }
 
 export const DEFAULT_FORCE_SETTINGS: ForceSettings = {
-  gravity: 0.05,
-  scaling: 1.0,
-  edgeWeightInfluence: 1.0,
+  gravity: 0.5,                 // Moderate center pull
+  scaling: 1.0,                 // Default spacing
+  edgeWeightInfluence: 1.0,     // Normal weight influence
+  linLogMode: false,            // Linear mode by default
+  strongGravityMode: false,     // Normal gravity
+  outboundAttractionDistribution: false,  // Normal attraction
 };
 
 // Node coloring modes for network graph
@@ -401,6 +410,12 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     }
     
     set({ filteredImages: filtered, edges: [] });
+    
+    // If in network mode, recompute edges for the new filtered set
+    // This prevents "no edges found" when changing search while viewing graph
+    if (get().layout.type === 'network') {
+      get().recomputeEdges();
+    }
   },
   
   /**
