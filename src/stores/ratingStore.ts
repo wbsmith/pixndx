@@ -103,25 +103,32 @@ export const useRatingStore = create<RatingStore>((set, get) => ({
         console.log(`[RatingStore] Created rating ${rating} for image ${imageId}`);
       }
       
-      // Update the Image model's aggregate rating
-      // Note: In a production system, this might be done via a Lambda trigger
-      // For now, we'll update it directly
+      // Re-fetch to catch any concurrent ratings from other users
+      // Note: DynamoDB GSIs are eventually consistent, so we may not see our
+      // own rating immediately. Only update if server has MORE ratings than
+      // our optimistic count (meaning other users rated concurrently).
       const { data: allRatings } = await amplifyClient.models.ImageRating.list({
         filter: { imageId: { eq: imageId } },
       });
-      
+
       if (allRatings && allRatings.length > 0) {
-        const totalRating = allRatings.reduce((sum, r) => sum + r.rating, 0);
-        const avgRating = totalRating / allRatings.length;
-        
-        // Update the ratings map with the actual server data
-        const finalRatings = new Map(get().ratings);
-        finalRatings.set(imageId, { 
-          avg: avgRating, 
-          count: allRatings.length, 
-          userRating: rating 
-        });
-        set({ ratings: finalRatings });
+        const optimisticState = get().ratings.get(imageId);
+        const optimisticCount = optimisticState?.count || 0;
+
+        // Only update from server if it has MORE ratings (concurrent users)
+        // Don't downgrade count due to GSI eventual consistency
+        if (allRatings.length > optimisticCount) {
+          const totalRating = allRatings.reduce((sum, r) => sum + r.rating, 0);
+          const avgRating = totalRating / allRatings.length;
+
+          const finalRatings = new Map(get().ratings);
+          finalRatings.set(imageId, {
+            avg: avgRating,
+            count: allRatings.length,
+            userRating: rating
+          });
+          set({ ratings: finalRatings });
+        }
       }
       
     } catch (error) {
