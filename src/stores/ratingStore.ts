@@ -145,71 +145,80 @@ export const useRatingStore = create<RatingStore>((set, get) => ({
 
   fetchRatingsForImages: async (_imageIds: string[]) => {
     if (IS_LOCAL_DEV) return;
-    
+
     set({ isLoading: true, error: null });
-    
+
     try {
       const amplifyClient = getClient();
       if (!amplifyClient) throw new Error('Amplify client not initialized');
-      
+
+      // Get current user to identify their ratings
+      const { userId } = await getCurrentUser();
+
       // Fetch ALL ratings in a single paginated query (much more efficient!)
       const allRatings: Array<{ imageId: string; rating: number; owner?: string | null }> = [];
       let nextToken: string | null | undefined = undefined;
-      
+
       console.log('[RatingStore] Fetching all ratings from database...');
-      
+
       // Fetch first page
       let response = await amplifyClient.models.ImageRating.list({
         limit: 1000,
       });
-      
+
       if (response.data) {
         allRatings.push(...response.data);
       }
       nextToken = response.nextToken;
-      
+
       // Fetch remaining pages
       while (nextToken) {
         response = await amplifyClient.models.ImageRating.list({
           limit: 1000,
           nextToken,
         });
-        
+
         if (response.data) {
           allRatings.push(...response.data);
         }
         nextToken = response.nextToken;
       }
-      
+
       console.log(`[RatingStore] Fetched ${allRatings.length} total ratings`);
-      
-      // Group ratings by imageId and calculate averages
-      const ratingsByImage = new Map<string, number[]>();
-      
+
+      // Group ratings by imageId, tracking the current user's rating separately
+      const ratingsByImage = new Map<string, { ratings: number[]; userRating?: number }>();
+
       for (const rating of allRatings) {
         if (!rating.imageId) continue;
-        
-        const existing = ratingsByImage.get(rating.imageId) || [];
-        existing.push(rating.rating);
+
+        const existing = ratingsByImage.get(rating.imageId) || { ratings: [] };
+        existing.ratings.push(rating.rating);
+
+        // Track if this is the current user's rating
+        if (rating.owner === userId) {
+          existing.userRating = rating.rating;
+        }
+
         ratingsByImage.set(rating.imageId, existing);
       }
-      
+
       // Convert to our rating data format
       const updatedRatings = new Map<string, RatingData>();
-      
-      for (const [imageId, ratings] of ratingsByImage) {
-        const totalRating = ratings.reduce((sum, r) => sum + r, 0);
-        const avgRating = totalRating / ratings.length;
-        
+
+      for (const [imageId, data] of ratingsByImage) {
+        const totalRating = data.ratings.reduce((sum, r) => sum + r, 0);
+        const avgRating = totalRating / data.ratings.length;
+
         updatedRatings.set(imageId, {
           avg: avgRating,
-          count: ratings.length,
-          userRating: undefined, // We'll update this when user rates
+          count: data.ratings.length,
+          userRating: data.userRating,
         });
       }
-      
-      console.log(`[RatingStore] Processed ratings for ${updatedRatings.size} images`);
-      
+
+      console.log(`[RatingStore] Processed ratings for ${updatedRatings.size} images (user has rated ${[...updatedRatings.values()].filter(r => r.userRating).length})`);
+
       set({ ratings: updatedRatings, isLoading: false });
     } catch (error) {
       console.error('[RatingStore] Failed to fetch ratings:', error);
