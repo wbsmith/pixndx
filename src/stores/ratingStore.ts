@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { generateClient } from 'aws-amplify/data';
+import { getCurrentUser } from 'aws-amplify/auth';
 import type { Schema } from '../../amplify/data/resource';
 import { IS_LOCAL_DEV } from '@/config';
 
@@ -75,12 +76,16 @@ export const useRatingStore = create<RatingStore>((set, get) => ({
       const amplifyClient = getClient();
       if (!amplifyClient) throw new Error('Amplify client not initialized');
       
+      // Get the current user's identity
+      const { userId } = await getCurrentUser();
+
       // Check if user already has a rating for this image
       const { data: existingRatings } = await amplifyClient.models.ImageRating.list({
         filter: { imageId: { eq: imageId } },
       });
-      
-      const userRating = existingRatings?.find(r => r.owner);
+
+      // Find the current user's rating specifically (not just any rating with an owner)
+      const userRating = existingRatings?.find(r => r.owner === userId);
       
       if (userRating) {
         // Update existing rating
