@@ -24,14 +24,15 @@ export function ImageModal() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
   
-  // Signed URL for production - track which image it belongs to
-  const [urlData, setUrlData] = useState<{ imageId: string; url: string } | null>(null);
-  
+  // Cache of signed URLs - persists across image navigation to prevent re-decode
+  const urlCacheRef = useRef<Map<string, string>>(new Map());
+  const [urlReady, setUrlReady] = useState<string | null>(null);
+
   // Image dimensions for 1:1 zoom calculation
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
-  
-  // Only use URL if it matches current image (prevents stale image flash)
-  const signedUrl = (urlData && urlData.imageId === selectedImage?.id) ? urlData.url : null;
+
+  // Get URL from cache if available, otherwise wait for async fetch
+  const signedUrl = selectedImage?.id ? (urlCacheRef.current.get(selectedImage.id) || urlReady) : null;
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -70,13 +71,30 @@ export function ImageModal() {
   // Load signed URL and image dimensions when image changes
   useEffect(() => {
     if (!selectedImage) return;
-    
+
     let mounted = true;
     const imageId = selectedImage.id;
-    
+
+    // Check cache first - if we have the URL, use it immediately
+    const cachedUrl = urlCacheRef.current.get(imageId);
+    if (cachedUrl) {
+      setUrlReady(cachedUrl);
+      // Still load dimensions if needed
+      const img = new Image();
+      img.onload = () => {
+        if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.src = cachedUrl;
+      return () => { mounted = false; };
+    }
+
+    // Clear ready state while loading new image
+    setUrlReady(null);
+
     // In local dev, use URL directly
     if (IS_LOCAL_DEV) {
-      setUrlData({ imageId, url: selectedImage.urls.full });
+      urlCacheRef.current.set(imageId, selectedImage.urls.full);
+      setUrlReady(selectedImage.urls.full);
       const img = new Image();
       img.onload = () => {
         if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
@@ -84,19 +102,20 @@ export function ImageModal() {
       img.src = selectedImage.urls.full;
       return () => { mounted = false; };
     }
-    
+
     // In production, get signed URL first
     getSignedImageUrl(selectedImage.urls.full, 'full').then((url) => {
       if (!mounted) return;
-      setUrlData({ imageId, url });
-      
+      urlCacheRef.current.set(imageId, url);
+      setUrlReady(url);
+
       const img = new Image();
       img.onload = () => {
         if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
       };
       img.src = url;
     });
-    
+
     return () => { mounted = false; };
   }, [selectedImage?.id]);
   
