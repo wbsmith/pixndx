@@ -175,12 +175,13 @@ function AppContent() {
                 Quick Filters
               </h3>
               <div className="space-y-2">
-                <QuickFilter label="Warm colors" query="warm golden orange" />
-                <QuickFilter label="Cool colors" query="blue cool cyan" />
-                <QuickFilter label="Nature" query="nature forest ocean" />
-                <QuickFilter label="Urban" query="city urban skyline" />
-                <QuickFilter label="Peaceful" query="peaceful calm serene" />
-                <QuickFilter label="Dramatic" query="dramatic powerful" />
+                <QuickFilter label="Sunsets" query="sunset" />
+                <QuickFilter label="Bridges" query="bridge" />
+                <QuickFilter label="Flowers" query="flower" />
+                <QuickFilter label="City" query="city" />
+                <QuickFilter label="Hummingbirds" query="hummingbird" />
+                <QuickFilter label="Peaceful" query="peaceful" />
+                <QuickFilter label="Dramatic" query="dramatic" />
                 <QuickFilter label="Top Rated" query="__top_rated__" />
               </div>
             </div>
