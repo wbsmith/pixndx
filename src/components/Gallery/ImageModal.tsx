@@ -7,6 +7,9 @@ import { IS_LOCAL_DEV } from '@/config';
 import { ImageRating } from '@/components/UI/ImageRating';
 import { useImageRating } from '@/stores/ratingStore';
 
+// Module-level cache survives React StrictMode remounts
+const imageUrlCache = new Map<string, string>();
+
 export function ImageModal() {
   const { 
     modalOpen, 
@@ -24,15 +27,16 @@ export function ImageModal() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
   
-  // Cache of signed URLs - persists across image navigation to prevent re-decode
-  const urlCacheRef = useRef<Map<string, string>>(new Map());
-  const [urlReady, setUrlReady] = useState<string | null>(null);
+  // Track which image the current urlReady belongs to
+  const [urlState, setUrlState] = useState<{ imageId: string; url: string } | null>(null);
 
   // Image dimensions for 1:1 zoom calculation
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
-  // Get URL from cache if available, otherwise wait for async fetch
-  const signedUrl = selectedImage?.id ? (urlCacheRef.current.get(selectedImage.id) || urlReady) : null;
+  // Get URL: first check module-level cache, then check state (only if it matches current image)
+  const signedUrl = selectedImage?.id
+    ? (imageUrlCache.get(selectedImage.id) || (urlState?.imageId === selectedImage.id ? urlState.url : null))
+    : null;
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -75,10 +79,11 @@ export function ImageModal() {
     let mounted = true;
     const imageId = selectedImage.id;
 
-    // Check cache first - if we have the URL, use it immediately
-    const cachedUrl = urlCacheRef.current.get(imageId);
+    // Check module-level cache first - if we have the URL, use it immediately
+    const cachedUrl = imageUrlCache.get(imageId);
     if (cachedUrl) {
-      setUrlReady(cachedUrl);
+      // URL is already in cache, just update state to match (triggers re-render with cached URL)
+      setUrlState({ imageId, url: cachedUrl });
       // Still load dimensions if needed
       const img = new Image();
       img.onload = () => {
@@ -88,26 +93,27 @@ export function ImageModal() {
       return () => { mounted = false; };
     }
 
-    // Clear ready state while loading new image
-    setUrlReady(null);
+    // Not in cache - clear state so we show spinner (not stale image)
+    setUrlState(null);
 
     // In local dev, use URL directly
     if (IS_LOCAL_DEV) {
-      urlCacheRef.current.set(imageId, selectedImage.urls.full);
-      setUrlReady(selectedImage.urls.full);
+      const url = selectedImage.urls.full;
+      imageUrlCache.set(imageId, url);
+      setUrlState({ imageId, url });
       const img = new Image();
       img.onload = () => {
         if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
       };
-      img.src = selectedImage.urls.full;
+      img.src = url;
       return () => { mounted = false; };
     }
 
     // In production, get signed URL first
     getSignedImageUrl(selectedImage.urls.full, 'full').then((url) => {
       if (!mounted) return;
-      urlCacheRef.current.set(imageId, url);
-      setUrlReady(url);
+      imageUrlCache.set(imageId, url);
+      setUrlState({ imageId, url });
 
       const img = new Image();
       img.onload = () => {
