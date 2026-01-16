@@ -26,7 +26,6 @@ export function ImageModal() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   
   // Track which image the current urlReady belongs to
   const [urlState, setUrlState] = useState<{ imageId: string; url: string } | null>(null);
@@ -150,17 +149,13 @@ export function ImageModal() {
     }
   }, [isFullscreen]);
   
-  // Handle mouse position for edge detection and zoom targeting
+  // Handle mouse position for edge detection
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const container = imageContainerRef.current;
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Track mouse position for zoom-to-cursor
-    setMousePos({ x, y });
 
     if (isDragging) {
       setPosition({
