@@ -26,6 +26,7 @@ export function ImageModal() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   
   // Track which image the current urlReady belongs to
   const [urlState, setUrlState] = useState<{ imageId: string; url: string } | null>(null);
@@ -149,8 +150,18 @@ export function ImageModal() {
     }
   }, [isFullscreen]);
   
-  // Handle mouse position for edge detection
+  // Handle mouse position for edge detection and zoom targeting
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const container = imageContainerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Track mouse position for zoom-to-cursor
+    setMousePos({ x, y });
+
     if (isDragging) {
       setPosition({
         x: e.clientX - dragStart.x,
@@ -158,52 +169,87 @@ export function ImageModal() {
       });
       return;
     }
-    
+
     // Detect if mouse is near left or right edge
-    const container = imageContainerRef.current;
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const edgeThreshold = 80;
-      
-      if (x < edgeThreshold) {
-        setMouseNearEdge('left');
-      } else if (x > rect.width - edgeThreshold) {
-        setMouseNearEdge('right');
-      } else {
-        setMouseNearEdge(null);
-      }
+    const edgeThreshold = 80;
+
+    if (x < edgeThreshold) {
+      setMouseNearEdge('left');
+    } else if (x > rect.width - edgeThreshold) {
+      setMouseNearEdge('right');
+    } else {
+      setMouseNearEdge(null);
     }
   }, [isDragging, dragStart]);
   
   // Handle wheel zoom - using native event for passive: false support
+  // Zooms towards cursor position
   useEffect(() => {
     const container = imageContainerRef.current;
     if (!container || !modalOpen) return;
-    
+
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+
+      // Center of the container
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
       const max = maxZoom();
+
       setScale(prev => {
         const newScale = Math.min(Math.max(prev * delta, 1), max);
+
         // Reset position if zooming back to 1
         if (newScale <= 1) {
           setPosition({ x: 0, y: 0 });
+          return newScale;
         }
+
+        // Calculate new position to keep cursor point stationary
+        // The point under cursor relative to center (accounting for current pan)
+        const pointX = (cursorX - centerX - position.x) / prev;
+        const pointY = (cursorY - centerY - position.y) / prev;
+
+        // New position so that same point stays under cursor
+        const newX = cursorX - centerX - pointX * newScale;
+        const newY = cursorY - centerY - pointY * newScale;
+
+        setPosition({ x: newX, y: newY });
         return newScale;
       });
     };
-    
+
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [modalOpen, maxZoom]);
+  }, [modalOpen, maxZoom, position]);
   
-  // Handle double-click to toggle zoom
-  const handleDoubleClick = useCallback(() => {
+  // Handle double-click to toggle zoom - zooms towards cursor
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    const container = imageContainerRef.current;
+    if (!container) return;
+
     if (scale === 1) {
-      // Zoom to 2x or max, whichever is smaller
-      setScale(Math.min(2, maxZoom()));
+      const rect = container.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      const newScale = Math.min(2, maxZoom());
+
+      // Calculate position to zoom towards cursor
+      const pointX = (cursorX - centerX) / scale;
+      const pointY = (cursorY - centerY) / scale;
+      const newX = cursorX - centerX - pointX * newScale;
+      const newY = cursorY - centerY - pointY * newScale;
+
+      setScale(newScale);
+      setPosition({ x: newX, y: newY });
     } else {
       setScale(1);
       setPosition({ x: 0, y: 0 });
