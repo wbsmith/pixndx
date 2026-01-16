@@ -44,6 +44,7 @@ export const handler: Schema['generateImageCookies']['functionHandler'] = async 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // Generate signed cookies for all images under the CDN domain
+    // Using a custom policy to support wildcards
     const signedCookies = getSignedCookies({
       url: `https://${CLOUDFRONT_DOMAIN}/*`,
       keyPairId: KEY_PAIR_ID,
@@ -51,13 +52,11 @@ export const handler: Schema['generateImageCookies']['functionHandler'] = async 
       dateLessThan: expiresAt.toISOString(),
     });
 
-    // Return cookies with metadata for the frontend to set them
+    console.log('Generated cookie keys:', Object.keys(signedCookies));
+
+    // Return all cookies the SDK generates (could be Policy or Expires based)
     return {
-      cookies: {
-        'CloudFront-Policy': signedCookies['CloudFront-Policy'],
-        'CloudFront-Signature': signedCookies['CloudFront-Signature'],
-        'CloudFront-Key-Pair-Id': signedCookies['CloudFront-Key-Pair-Id'],
-      },
+      cookies: signedCookies,
       cookieOptions: {
         domain: COOKIE_DOMAIN,
         path: '/',

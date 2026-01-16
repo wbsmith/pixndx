@@ -141,22 +141,29 @@ export async function refreshImageCookies(): Promise<boolean> {
     const { cookies, cookieOptions } = result.data;
 
     // Parse cookies if it's a JSON string (GraphQL json type may return string)
-    const cookieEntries: Record<string, string> =
-      typeof cookies === 'string' ? JSON.parse(cookies) : cookies;
+    let cookieEntries: Record<string, string>;
+    if (typeof cookies === 'string') {
+      cookieEntries = JSON.parse(cookies);
+    } else if (cookies && typeof cookies === 'object') {
+      cookieEntries = cookies as Record<string, string>;
+    } else {
+      console.error('[Amplify] Unexpected cookies format:', typeof cookies, cookies);
+      return false;
+    }
 
-    console.log('[Amplify] Setting cookies:', Object.keys(cookieEntries));
+    console.log('[Amplify] Cookie entries:', cookieEntries);
+    console.log('[Amplify] Cookie options:', cookieOptions);
+
+    // Clear any existing CloudFront cookies first
+    clearImageCookies();
 
     // Set each CloudFront cookie on the parent domain
     for (const [name, value] of Object.entries(cookieEntries)) {
-      const cookieString = [
-        `${name}=${value}`,
-        `Domain=${cookieOptions.domain}`,
-        `Path=${cookieOptions.path}`,
-        cookieOptions.secure ? 'Secure' : '',
-        `SameSite=${cookieOptions.sameSite}`,
-        `Expires=${new Date(cookieOptions.expires).toUTCString()}`,
-      ].filter(Boolean).join('; ');
+      // CloudFront cookie values may contain special chars, so we set them carefully
+      const expires = new Date(cookieOptions.expires).toUTCString();
+      const cookieString = `${name}=${value}; Domain=${cookieOptions.domain}; Path=${cookieOptions.path}; Expires=${expires}; SameSite=${cookieOptions.sameSite}${cookieOptions.secure ? '; Secure' : ''}`;
 
+      console.log('[Amplify] Setting cookie:', name, 'length:', value.length);
       document.cookie = cookieString;
     }
 
@@ -172,7 +179,8 @@ export async function refreshImageCookies(): Promise<boolean> {
  * Clear CloudFront signed cookies (call on logout)
  */
 export function clearImageCookies(): void {
-  const cookieNames = ['CloudFront-Policy', 'CloudFront-Signature', 'CloudFront-Key-Pair-Id'];
+  // Clear both canned policy (Expires) and custom policy (Policy) cookies
+  const cookieNames = ['CloudFront-Policy', 'CloudFront-Signature', 'CloudFront-Key-Pair-Id', 'CloudFront-Expires'];
   const domain = '.picgraf.com';
 
   for (const name of cookieNames) {
