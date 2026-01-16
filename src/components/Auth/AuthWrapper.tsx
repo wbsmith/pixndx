@@ -1,4 +1,5 @@
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState, createContext, useContext, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Authenticator, ThemeProvider, Theme } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import '@aws-amplify/ui-react/styles.css';
@@ -402,6 +403,19 @@ export function useIsAuthenticated(): boolean {
 export function UserMenu() {
   const { user, signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+
+  // Update dropdown position when opening
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8, // 8px gap (mt-2)
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [isOpen]);
 
   if (!user) return null;
 
@@ -409,10 +423,11 @@ export function UserMenu() {
   const initials = email.charAt(0).toUpperCase();
 
   return (
-    <div className="relative z-[100]">
+    <div className="relative">
       <button
+        ref={buttonRef}
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-nebula-800 transition-colors relative z-[101]"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-nebula-800 transition-colors"
       >
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-stellar-cyan to-stellar-violet flex items-center justify-center text-cosmos-void font-bold text-sm">
           {initials}
@@ -422,16 +437,19 @@ export function UserMenu() {
         </span>
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <>
-          {/* Backdrop - blocks all clicks */}
+          {/* Backdrop - blocks all clicks, rendered at document root */}
           <div
-            className="fixed inset-0 z-[102] bg-transparent"
+            className="fixed inset-0 z-[9998] bg-transparent"
             onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
           />
 
-          {/* Dropdown menu */}
-          <div className="absolute right-0 mt-2 w-56 glass rounded-xl py-2 z-[103] border border-nebula-700/50">
+          {/* Dropdown menu - rendered at document root */}
+          <div
+            className="fixed w-56 glass rounded-xl py-2 z-[9999] border border-nebula-700/50"
+            style={{ top: dropdownPosition.top, right: dropdownPosition.right }}
+          >
             <div className="px-4 py-3 border-b border-nebula-700/50">
               <p className="text-sm text-white font-medium truncate">{email}</p>
               <p className="text-xs text-nebula-400 mt-0.5">Signed in</p>
@@ -448,7 +466,8 @@ export function UserMenu() {
               Sign out
             </button>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
