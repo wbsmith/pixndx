@@ -44,12 +44,24 @@ export const handler: Schema['generateImageCookies']['functionHandler'] = async 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     // Generate signed cookies for all images under the CDN domain
-    // Using a custom policy to support wildcards
+    // Using a CUSTOM policy (not canned) to support wildcard paths
+    // Canned policies (dateLessThan) don't support wildcards - the * is literal
+    const customPolicy = JSON.stringify({
+      Statement: [{
+        Resource: `https://${CLOUDFRONT_DOMAIN}/*`,
+        Condition: {
+          DateLessThan: {
+            'AWS:EpochTime': Math.floor(expiresAt.getTime() / 1000),
+          },
+        },
+      }],
+    });
+
     const signedCookies = getSignedCookies({
       url: `https://${CLOUDFRONT_DOMAIN}/*`,
       keyPairId: KEY_PAIR_ID,
       privateKey: privateKey,
-      dateLessThan: expiresAt.toISOString(),
+      policy: customPolicy,  // Custom policy enables wildcard support
     });
 
     console.log('Generated cookie keys:', Object.keys(signedCookies));
