@@ -7,7 +7,6 @@ import { NetworkGraph } from '../Layouts/NetworkGraph';
 import { NetworkGraphScalable } from '../Layouts/NetworkGraphScalable';
 import { ColorWheel } from '../Layouts/ColorWheel';
 import { MoodSpectrum } from '../Layouts/MoodSpectrum';
-import { ClusterView } from '../Layouts/ClusterView';
 import type { LoadProgress } from '@/lib/dataLoader';
 
 // =============================================================================
@@ -124,8 +123,6 @@ export function GalleryView() {
         return <ColorWheel key="colorWheel" />;
       case 'moodSpectrum':
         return <MoodSpectrum key="moodSpectrum" />;
-      case 'cluster':
-        return <ClusterView key="cluster" />;
       default:
         return <GridLayout key="grid-default" />;
     }

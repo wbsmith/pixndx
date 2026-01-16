@@ -138,8 +138,7 @@ export type LayoutType =
   | 'network'
   | 'colorWheel'
   | 'moodSpectrum'
-  | 'timeline'
-  | 'cluster';
+  | 'timeline';
 
 export interface LayoutConfig {
   type: LayoutType;
