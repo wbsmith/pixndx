@@ -264,13 +264,13 @@ const privateKeySecret = new secretsmanager.Secret(
   }
 );
 
-// Response headers policy with Cache-Control for browser caching
+// Response headers policy with Cache-Control and CORS for browser caching
 const imageResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(
   backend.storage.resources.bucket.stack,
   'ImageResponseHeadersPolicy',
   {
     responseHeadersPolicyName: 'picgraf-image-cache-headers',
-    comment: 'Cache headers for picgraf images',
+    comment: 'Cache and CORS headers for picgraf images',
     customHeadersBehavior: {
       customHeaders: [
         {
@@ -279,6 +279,15 @@ const imageResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(
           override: true,
         },
       ],
+    },
+    // CORS configuration for cross-origin image requests with credentials
+    corsBehavior: {
+      accessControlAllowOrigins: ['https://www.picgraf.com', 'https://picgraf.com'],
+      accessControlAllowMethods: ['GET', 'HEAD'],
+      accessControlAllowHeaders: ['*'],
+      accessControlAllowCredentials: true,
+      accessControlMaxAge: cdk.Duration.days(1),
+      originOverride: true,
     },
   }
 );
