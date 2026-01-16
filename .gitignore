@@ -57,3 +57,6 @@ amplify/team-provider-info.json
 
 # Generated data (regenerate with scripts)
 src/data/localImages.ts
+
+# CloudFront signing keys (private key must never be committed)
+amplify/keys/cloudfront-private-key.pem

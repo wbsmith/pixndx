@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { analyzeColor, getDominantColor } from '@/lib/similarity/vectors';
+import { ThumbnailImage } from '@/components/Gallery/ThumbnailImage';
 // Types imported from gallery store
 
 // Map mood keywords to a spectrum value (0 = calm, 1 = energetic)
@@ -174,7 +175,7 @@ export function MoodSpectrum() {
                     
                     {/* Image */}
                     <div className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-white/20">
-                      <img
+                      <ThumbnailImage
                         src={image.urls.small}
                         alt={image.main_subject}
                         className="w-full h-full object-cover"

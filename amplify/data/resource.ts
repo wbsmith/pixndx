@@ -1,6 +1,7 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { searchImages } from '../functions/searchImages/resource';
 import { computeSimilarity } from '../functions/computeSimilarity/resource';
+import { generateImageCookies } from '../functions/generateImageCookies/resource';
 
 /**
  * GraphQL Schema for PixNdx Gallery
@@ -180,6 +181,30 @@ const schema = a.schema({
     })
     .returns(a.ref('SearchResult').array())
     .handler(a.handler.function(searchImages))
+    .authorization((allow) => [
+      allow.authenticated(),
+    ]),
+
+  // Cookie options for frontend to use when setting cookies
+  CookieOptions: a.customType({
+    domain: a.string().required(),
+    path: a.string().required(),
+    secure: a.boolean().required(),
+    sameSite: a.string().required(),
+    expires: a.string().required(),
+  }),
+
+  // Response from generateImageCookies mutation
+  ImageCookiesResponse: a.customType({
+    cookies: a.json().required(), // { CloudFront-Policy, CloudFront-Signature, CloudFront-Key-Pair-Id }
+    cookieOptions: a.ref('CookieOptions').required(),
+  }),
+
+  // Generate CloudFront signed cookies for image access
+  generateImageCookies: a
+    .mutation()
+    .returns(a.ref('ImageCookiesResponse'))
+    .handler(a.handler.function(generateImageCookies))
     .authorization((allow) => [
       allow.authenticated(),
     ]),

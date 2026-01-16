@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { analyzeColor, getDominantColor, getColorPalette } from '@/lib/similarity/vectors';
+import { ThumbnailImage } from '@/components/Gallery/ThumbnailImage';
 import type {} from '@/types/gallery';
 
 export function ColorWheel() {
@@ -123,7 +124,7 @@ export function ColorWheel() {
                     ['--tw-ring-color' as string]: dominantColor,
                   }}
                 >
-                  <img
+                  <ThumbnailImage
                     src={image.urls.small}
                     alt={image.main_subject}
                     className="w-full h-full object-cover"

@@ -1,10 +1,11 @@
 /**
  * Amplify Configuration
- * 
+ *
  * This module handles Amplify configuration and provides utilities
  * for checking if Amplify is properly configured.
  */
 
+import { useState, useEffect } from 'react';
 import { IS_LOCAL_DEV, config } from '@/config';
 
 let amplifyConfigured = false;
@@ -92,7 +93,10 @@ export function startSessionRefresh(): void {
       const { fetchAuthSession } = await import('aws-amplify/auth');
       await fetchAuthSession({ forceRefresh: true });
       console.log('[Amplify] Proactive session refresh completed');
-      
+
+      // Refresh CloudFront signed cookies
+      await refreshImageCookies();
+
       // Clear the signed URL cache on session refresh to ensure fresh URLs
       signedUrlCache.clear();
     } catch (error) {
@@ -111,6 +115,66 @@ export function stopSessionRefresh(): void {
     clearInterval(sessionRefreshInterval);
     sessionRefreshInterval = null;
   }
+}
+
+/**
+ * Fetch and set CloudFront signed cookies for image access.
+ * These cookies allow authenticated access to CDN-served images.
+ * Call this after login and on session refresh.
+ */
+export async function refreshImageCookies(): Promise<boolean> {
+  if (IS_LOCAL_DEV || !amplifyConfigured) {
+    return false;
+  }
+
+  try {
+    const { generateClient } = await import('aws-amplify/data');
+    const client = generateClient<import('../../amplify/data/resource').Schema>();
+
+    const result = await client.mutations.generateImageCookies();
+
+    if (result.errors || !result.data) {
+      console.error('[Amplify] Failed to generate image cookies:', result.errors);
+      return false;
+    }
+
+    const { cookies, cookieOptions } = result.data;
+
+    // Set each CloudFront cookie on the parent domain
+    const cookieEntries = cookies as Record<string, string>;
+    for (const [name, value] of Object.entries(cookieEntries)) {
+      const cookieString = [
+        `${name}=${value}`,
+        `Domain=${cookieOptions.domain}`,
+        `Path=${cookieOptions.path}`,
+        cookieOptions.secure ? 'Secure' : '',
+        `SameSite=${cookieOptions.sameSite}`,
+        `Expires=${new Date(cookieOptions.expires).toUTCString()}`,
+      ].filter(Boolean).join('; ');
+
+      document.cookie = cookieString;
+    }
+
+    console.log('[Amplify] Image access cookies set successfully');
+    return true;
+  } catch (error) {
+    console.error('[Amplify] Failed to refresh image cookies:', error);
+    return false;
+  }
+}
+
+/**
+ * Clear CloudFront signed cookies (call on logout)
+ */
+export function clearImageCookies(): void {
+  const cookieNames = ['CloudFront-Policy', 'CloudFront-Signature', 'CloudFront-Key-Pair-Id'];
+  const domain = '.picgraf.com';
+
+  for (const name of cookieNames) {
+    document.cookie = `${name}=; Domain=${domain}; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  }
+
+  console.log('[Amplify] Image access cookies cleared');
 }
 
 /**
@@ -218,7 +282,7 @@ export async function getSignedImageUrl(
     return s3Url; // Fallback to direct URL
   }
   
-  // If CDN is configured, use it directly (no signing needed)
+  // If CDN is configured, use it directly (signed cookies handle authentication)
   if (config.cdn.enabled && config.cdn.imageUrl) {
     return `${config.cdn.imageUrl}/images/${size}/${encodeURIComponent(key)}`;
   }
@@ -290,7 +354,46 @@ export async function getSignedImageUrls(
       urlMap.set(img.id, signedUrl);
     })
   );
-  
+
   return urlMap;
+}
+
+/**
+ * React hook for getting an image URL with proper authentication
+ * Handles CDN URLs with cookies or signed URLs depending on configuration
+ */
+export function useImageUrl(
+  s3Url: string | undefined,
+  size: 'small' | 'medium' | 'full' = 'small'
+): string | null {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!s3Url) {
+      setImageUrl(null);
+      return;
+    }
+
+    let mounted = true;
+
+    // In local dev, use URL directly
+    if (IS_LOCAL_DEV) {
+      setImageUrl(s3Url);
+      return;
+    }
+
+    // Get the transformed URL (CDN or signed)
+    getSignedImageUrl(s3Url, size).then((url) => {
+      if (mounted) {
+        setImageUrl(url);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [s3Url, size]);
+
+  return imageUrl;
 }
 

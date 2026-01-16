@@ -2,6 +2,8 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import * as d3 from 'd3';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
 import { getDominantColor } from '@/lib/similarity/vectors';
+import { getSignedImageUrl } from '@/lib/amplify';
+import { IS_LOCAL_DEV, config } from '@/config';
 
 interface ForceGraphProps {
   images: ImageMetadata[];
@@ -43,7 +45,35 @@ export function ForceGraph({
 }: ForceGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
+  const signedUrlsRef = useRef<Map<string, string>>(new Map());
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Pre-fetch signed URLs for all images
+  useEffect(() => {
+    const fetchUrls = async () => {
+      // Get URL for an image (CDN or signed)
+      const getImageUrl = async (img: ImageMetadata): Promise<string> => {
+        if (IS_LOCAL_DEV) {
+          return img.urls.small;
+        }
+        if (config.cdn.enabled && config.cdn.imageUrl) {
+          // Use CDN URL directly (cookies handle auth)
+          const key = img.urls.small.split('/').pop() || img.filename;
+          return `${config.cdn.imageUrl}/images/small/${encodeURIComponent(key)}`;
+        }
+        return getSignedImageUrl(img.urls.small, 'small');
+      };
+
+      await Promise.all(
+        images.map(async (img) => {
+          const url = await getImageUrl(img);
+          signedUrlsRef.current.set(img.id, url);
+        })
+      );
+    };
+
+    fetchUrls();
+  }, [images]);
   
   // Create/update the force simulation
   const initializeSimulation = useCallback(() => {
@@ -172,7 +202,7 @@ export function ForceGraph({
     
     // Node image
     node.append('image')
-      .attr('xlink:href', (d) => d.image.urls.small)
+      .attr('xlink:href', (d) => signedUrlsRef.current.get(d.id) || d.image.urls.small)
       .attr('x', -nodeRadius)
       .attr('y', -nodeRadius)
       .attr('width', nodeRadius * 2)

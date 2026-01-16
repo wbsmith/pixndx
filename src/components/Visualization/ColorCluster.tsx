@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useGalleryStore } from '@/stores/galleryStore';
 import { groupByColorFamily, getDominantColor } from '@/lib/similarity/vectors';
+import { ThumbnailImage } from '@/components/Gallery/ThumbnailImage';
 import type { ImageMetadata, ColorFamily } from '@/types/gallery';
 
 interface ColorClusterProps {
@@ -190,7 +191,7 @@ function RadialColorCluster({
                         ['--tw-ring-color' as string]: dominantColor,
                       }}
                     >
-                      <img
+                      <ThumbnailImage
                         src={image.urls.small}
                         alt={image.main_subject}
                         className="w-full h-full object-cover"
@@ -239,7 +240,7 @@ function RadialColorCluster({
                   className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-nebula-600 cursor-pointer hover:ring-nebula-400"
                   onClick={() => onImageClick(image)}
                 >
-                  <img
+                  <ThumbnailImage
                     src={image.urls.small}
                     alt={image.main_subject}
                     className="w-full h-full object-cover"
@@ -318,7 +319,7 @@ function GridColorCluster({ clusters, onImageClick }: GridColorClusterProps) {
                 style={{ ['--tw-ring-color' as string]: cluster.info.color }}
                 onClick={() => onImageClick(image)}
               >
-                <img
+                <ThumbnailImage
                   src={image.urls.small}
                   alt={image.main_subject}
                   className="w-full h-full object-cover"
@@ -371,7 +372,7 @@ function TreemapColorCluster({ clusters, onImageClick }: GridColorClusterProps) 
                       className="rounded overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => onImageClick(image)}
                     >
-                      <img
+                      <ThumbnailImage
                         src={image.urls.small}
                         alt={image.main_subject}
                         className="w-full h-full object-cover"

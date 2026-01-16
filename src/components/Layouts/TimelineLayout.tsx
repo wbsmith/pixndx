@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
+import { ThumbnailImage } from '@/components/Gallery/ThumbnailImage';
 import type { ImageMetadata } from '@/types/gallery';
 
 interface TimelineGroup {
@@ -216,7 +217,7 @@ export function TimelineLayout() {
                         onClick={() => openModal(image)}
                       >
                         <div className="w-16 h-16 rounded-lg overflow-hidden ring-2 ring-nebula-700 hover:ring-stellar-cyan transition-all">
-                          <img
+                          <ThumbnailImage
                             src={image.urls.small}
                             alt={image.main_subject}
                             className="w-full h-full object-cover"
@@ -274,7 +275,7 @@ export function TimelineLayout() {
                       className="w-16 h-16 rounded-lg overflow-hidden ring-2 ring-nebula-800 cursor-pointer hover:ring-nebula-600 transition-all"
                       onClick={() => openModal(image)}
                     >
-                      <img
+                      <ThumbnailImage
                         src={image.urls.small}
                         alt={image.main_subject}
                         className="w-full h-full object-cover"

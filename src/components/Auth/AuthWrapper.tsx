@@ -4,7 +4,7 @@ import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME, APP_TAGLINE } from '../../config';
 import { ImageIcon, Lock } from 'lucide-react';
-import { startSessionRefresh, stopSessionRefresh } from '@/lib/amplify';
+import { startSessionRefresh, stopSessionRefresh, refreshImageCookies, clearImageCookies } from '@/lib/amplify';
 
 // =============================================================================
 // THEME
@@ -333,15 +333,18 @@ interface AuthenticatedAppProps {
 }
 
 function AuthenticatedApp({ children, signOut, user }: AuthenticatedAppProps) {
-  // Start proactive session refresh when authenticated
+  // Start proactive session refresh and fetch image cookies when authenticated
   useEffect(() => {
     if (user) {
       startSessionRefresh();
+      // Fetch CloudFront signed cookies for image access
+      refreshImageCookies().catch(console.error);
     }
-    
-    // Stop refresh on unmount (logout)
+
+    // Stop refresh and clear cookies on unmount (logout)
     return () => {
       stopSessionRefresh();
+      clearImageCookies();
     };
   }, [user]);
   

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useGalleryStore } from '@/stores/galleryStore';
+import { ThumbnailImage } from '@/components/Gallery/ThumbnailImage';
 import type { ImageMetadata } from '@/types/gallery';
 
 // These exports may not exist until clustering is run - provide fallbacks
@@ -288,7 +289,7 @@ export function ClusterView() {
                           boxShadow: isHovered ? `0 0 20px ${cluster.color}40` : 'none',
                         }}
                       >
-                        <img
+                        <ThumbnailImage
                           src={image.urls.small}
                           alt={image.main_subject}
                           className="w-full h-full object-cover"

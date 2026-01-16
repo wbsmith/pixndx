@@ -5,11 +5,18 @@ import { storage } from './storage/resource';
 import { searchImages } from './functions/searchImages/resource';
 import { ingestImage } from './functions/ingestImage/resource';
 import { computeSimilarity } from './functions/computeSimilarity/resource';
+import { generateImageCookies } from './functions/generateImageCookies/resource';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import * as cdk from 'aws-cdk-lib';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+
+// Custom domain for CloudFront (allows cookie sharing with app domain)
+const CDN_DOMAIN = 'cdn.picgraf.com';
+const COOKIE_DOMAIN = '.picgraf.com'; // Parent domain for cookie sharing
 
 /**
  * PixGraf Gallery Backend
@@ -30,6 +37,7 @@ export const backend = defineBackend({
   searchImages,
   ingestImage,
   computeSimilarity,
+  generateImageCookies,
 });
 
 // Configure additional permissions
@@ -213,18 +221,111 @@ s3Bucket.addToResourcePolicy(
   })
 );
 
-// Create CloudFront distribution
+// ============================================================
+// CloudFront Signed Cookies Setup
+// Requires authentication to access images
+// ============================================================
+
+// Public key for CloudFront signed cookies
+const cfPublicKey = new cloudfront.PublicKey(
+  backend.storage.resources.bucket.stack,
+  'ImageSigningPublicKey',
+  {
+    encodedKey: `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwNgeS0XDx7TW7NhC+A0v
+k+MehW6memdFfzxDTW/uxBDtb5Y7du5OQGuygabH9slOIYd/FvMIiG8JixJvNDZC
+pvOTHKws6HmOAYM4p0kHuQFzPxjc8vn3g0tQML1dvZAX0V/CW6cBzK+BFGbGC+/A
+4kwfchiggSApjm32WaxHWX9dpVxGzRf8PqUH+vxY8sRLGtZfnOprmUOuEAYTbYGc
+tt8iu4WGHogEmWyDVK9nwwEF5iDC2L+D2n0TXy0MQT6bS2g6zGhi/EwzvbBfTDJu
+1RN+Fwh0UBv1AVWkxfQ/2XdOUbJCpLiiuVvd7QZpmeB8RloxOXALhXPTvDKuh7bG
+hQIDAQAB
+-----END PUBLIC KEY-----`,
+    comment: 'Public key for picgraf image cookie signing',
+  }
+);
+
+// Key group for signed cookies
+const imageKeyGroup = new cloudfront.KeyGroup(
+  backend.storage.resources.bucket.stack,
+  'ImageSigningKeyGroup',
+  {
+    items: [cfPublicKey],
+    comment: 'Key group for picgraf image cookie signing',
+  }
+);
+
+// Store private key in Secrets Manager for Lambda to use
+const privateKeySecret = new secretsmanager.Secret(
+  backend.storage.resources.bucket.stack,
+  'CloudFrontPrivateKey',
+  {
+    secretName: 'picgraf/cloudfront-private-key',
+    description: 'Private key for signing CloudFront cookies',
+  }
+);
+
+// Response headers policy with Cache-Control for browser caching
+const imageResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(
+  backend.storage.resources.bucket.stack,
+  'ImageResponseHeadersPolicy',
+  {
+    responseHeadersPolicyName: 'picgraf-image-cache-headers',
+    comment: 'Cache headers for picgraf images',
+    customHeadersBehavior: {
+      customHeaders: [
+        {
+          header: 'Cache-Control',
+          value: 'public, max-age=31536000, immutable',
+          override: true,
+        },
+      ],
+    },
+  }
+);
+
+// Grant Lambda access to read the private key
+privateKeySecret.grantRead(backend.generateImageCookies.resources.lambda);
+
+// Pass configuration to the Lambda
+backend.generateImageCookies.resources.lambda.addEnvironment(
+  'CLOUDFRONT_PRIVATE_KEY_SECRET_ARN',
+  privateKeySecret.secretArn
+);
+backend.generateImageCookies.resources.lambda.addEnvironment(
+  'COOKIE_DOMAIN',
+  COOKIE_DOMAIN
+);
+
+// ACM Certificate for custom domain (must be in us-east-1 for CloudFront)
+// Note: This requires DNS validation - add the CNAME record AWS provides
+const cdnCertificate = new acm.Certificate(
+  backend.storage.resources.bucket.stack,
+  'CdnCertificate',
+  {
+    domainName: CDN_DOMAIN,
+    validation: acm.CertificateValidation.fromDns(),
+  }
+);
+
+// Create CloudFront distribution with signed cookie authentication
 const imageDistribution = new cloudfront.Distribution(
   backend.storage.resources.bucket.stack,
   'ImageCDN',
   {
-    comment: 'picgraf Image CDN',
+    comment: 'picgraf Image CDN (signed cookies required)',
+    // Custom domain configuration
+    domainNames: [CDN_DOMAIN],
+    certificate: cdnCertificate,
     defaultBehavior: {
       origin: new origins.S3Origin(s3Bucket, {
         originAccessIdentity,
         originPath: '', // Serve from bucket root
       }),
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      // Require signed cookies for access
+      trustedKeyGroups: [imageKeyGroup],
+      // Add Cache-Control headers to responses
+      responseHeadersPolicy: imageResponseHeadersPolicy,
       cachePolicy: new cloudfront.CachePolicy(
         backend.storage.resources.bucket.stack,
         'ImageCachePolicy',
@@ -234,16 +335,14 @@ const imageDistribution = new cloudfront.Distribution(
           defaultTtl: cdk.Duration.days(7),
           maxTtl: cdk.Duration.days(365),
           minTtl: cdk.Duration.hours(1),
-          // Cache based on query strings (for cache busting if needed)
           queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
-          // Don't cache based on headers (improves cache hit ratio)
           headerBehavior: cloudfront.CacheHeaderBehavior.none(),
+          // Don't cache based on cookies (signed cookies are for auth, not cache key)
           cookieBehavior: cloudfront.CacheCookieBehavior.none(),
           enableAcceptEncodingGzip: true,
           enableAcceptEncodingBrotli: true,
         }
       ),
-      // Allow GET and HEAD only for images
       allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
       cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
       compress: true,
@@ -251,21 +350,44 @@ const imageDistribution = new cloudfront.Distribution(
     // Enable HTTP/2 and HTTP/3 for better performance
     httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
     // Price class - use all edge locations for best global performance
-    // Change to PriceClass.PRICE_CLASS_100 for US/Europe only (cheaper)
     priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
-    // Enable logging (optional - uncomment if you want access logs)
-    // logBucket: new s3.Bucket(stack, 'CDNLogBucket'),
-    // logFilePrefix: 'cdn-logs/',
   }
 );
 
-// Output the CloudFront distribution URL
+// Output the CloudFront URLs
 new cdk.CfnOutput(backend.storage.resources.bucket.stack, 'ImageCDNUrl', {
+  value: `https://${CDN_DOMAIN}`,
+  description: 'CloudFront CDN URL for images (custom domain)',
+});
+
+new cdk.CfnOutput(backend.storage.resources.bucket.stack, 'ImageCDNDistributionUrl', {
   value: `https://${imageDistribution.distributionDomainName}`,
-  description: 'CloudFront CDN URL for images',
+  description: 'CloudFront CDN URL (distribution domain)',
 });
 
 new cdk.CfnOutput(backend.storage.resources.bucket.stack, 'ImageCDNDistributionId', {
   value: imageDistribution.distributionId,
   description: 'CloudFront Distribution ID (for cache invalidation)',
 });
+
+// Output the public key ID for cookie signing
+new cdk.CfnOutput(backend.storage.resources.bucket.stack, 'CloudFrontPublicKeyId', {
+  value: cfPublicKey.publicKeyId,
+  description: 'CloudFront Public Key ID for signed cookies',
+});
+
+// Output certificate validation info
+new cdk.CfnOutput(backend.storage.resources.bucket.stack, 'CertificateArn', {
+  value: cdnCertificate.certificateArn,
+  description: 'ACM Certificate ARN (check AWS Console for DNS validation records)',
+});
+
+// Pass CloudFront configuration to the cookie generation Lambda
+backend.generateImageCookies.resources.lambda.addEnvironment(
+  'CLOUDFRONT_DOMAIN',
+  CDN_DOMAIN  // Use custom domain for cookie signing
+);
+backend.generateImageCookies.resources.lambda.addEnvironment(
+  'CLOUDFRONT_KEY_PAIR_ID',
+  cfPublicKey.publicKeyId
+);
