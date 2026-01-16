@@ -284,7 +284,7 @@ const imageResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(
     corsBehavior: {
       accessControlAllowOrigins: ['https://www.picgraf.com', 'https://picgraf.com'],
       accessControlAllowMethods: ['GET', 'HEAD'],
-      accessControlAllowHeaders: ['*'],
+      accessControlAllowHeaders: ['Accept', 'Accept-Language', 'Content-Language', 'Content-Type'],
       accessControlAllowCredentials: true,
       accessControlMaxAge: cdk.Duration.days(1),
       originOverride: true,
