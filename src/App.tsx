@@ -5,6 +5,7 @@ import { useGalleryStore } from './stores/galleryStore';
 import { useRatingStore } from './stores/ratingStore';
 import { SearchBar } from './components/Search/SearchBar';
 import { LayoutSelector } from './components/UI/LayoutSelector';
+import { SimilaritySlider } from './components/UI/SimilaritySlider';
 import { GalleryView } from './components/Gallery/GalleryView';
 import { ImageModal } from './components/Gallery/ImageModal';
 import { AdminModeToggle, CurationToolbar } from './components/Admin';
@@ -19,15 +20,16 @@ const AuthWrapper = lazy(() => import('./components/Auth/AuthWrapper').then(mod 
 const UserMenu = lazy(() => import('./components/Auth/AuthWrapper').then(mod => ({ default: mod.UserMenu })));
 
 function AppContent() {
-  const { 
-    sidebarOpen, 
-    toggleSidebar, 
-    filteredImages, 
+  const {
+    sidebarOpen,
+    toggleSidebar,
+    filteredImages,
     images,
     searchQuery,
     loading,
     loadProgress,
     ready,
+    layout,
     initializeData,
     applyDefaultSort,
   } = useGalleryStore();
@@ -159,6 +161,16 @@ function AppContent() {
               </h3>
               <LayoutSelector />
             </div>
+
+            {/* Similarity controls - only for Network layout */}
+            {layout.type === 'network' && (
+              <div>
+                <h3 className="text-xs text-nebula-400 uppercase tracking-wider mb-3">
+                  Network Controls
+                </h3>
+                <SimilaritySlider />
+              </div>
+            )}
 
             {/* Quick filters */}
             <div>
