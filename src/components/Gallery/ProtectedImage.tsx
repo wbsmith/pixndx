@@ -154,6 +154,7 @@ export function ProtectedImage({
           onLoad={handleLoad}
           onError={handleError}
           draggable={!disableDrag}
+          crossOrigin="use-credentials"
           // Prevent iOS long-press save
           style={{
             WebkitTouchCallout: 'none',

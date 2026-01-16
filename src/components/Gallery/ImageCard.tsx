@@ -76,6 +76,7 @@ export const ImageCard = memo(function ImageCard({
             }`}
             loading="lazy"
             onLoad={() => setImageLoaded(true)}
+            crossOrigin="use-credentials"
           />
         )}
         

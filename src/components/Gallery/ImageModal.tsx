@@ -436,6 +436,7 @@ export function ImageModal() {
                         height: 'auto',
                       }}
                       draggable={false}
+                      crossOrigin="use-credentials"
                     />
                   ) : (
                     <div className="flex items-center justify-center">

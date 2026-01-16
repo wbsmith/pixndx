@@ -37,6 +37,7 @@ export function ThumbnailImage({
       className={`${className} ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}
       loading={loading}
       onLoad={() => setLoaded(true)}
+      crossOrigin="use-credentials"
     />
   );
 }
