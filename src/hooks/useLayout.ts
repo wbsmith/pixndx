@@ -52,14 +52,6 @@ const LAYOUT_INFO: Record<LayoutType, LayoutInfo> = {
     requiresSimilarity: false,
     supportsFiltering: true,
   },
-  cluster: {
-    type: 'cluster',
-    label: 'Clusters',
-    description: 'Images grouped by visual or semantic similarity',
-    icon: 'layers',
-    requiresSimilarity: true,
-    supportsFiltering: true,
-  },
 };
 
 interface UseLayoutReturn {
@@ -141,8 +133,6 @@ export function useLayoutComputation(layoutType: LayoutType) {
         return computeColorWheelLayout(filteredImages.length);
       case 'moodSpectrum':
         return computeMoodSpectrumLayout(filteredImages.length);
-      case 'cluster':
-        return computeClusterLayout(filteredImages.length, edges.length);
       case 'timeline':
         return computeTimelineLayout(filteredImages.length);
       default:
@@ -195,16 +185,6 @@ function computeMoodSpectrumLayout(imageCount: number) {
     width: Math.max(800, imageCount * 60),
     estimatedOverlap: imageCount > 20 ? 'high' : 'low',
     complexity: 'low',
-  };
-}
-
-function computeClusterLayout(imageCount: number, _edgeCount: number) {
-  const suggestedClusters = Math.max(2, Math.min(8, Math.floor(Math.sqrt(imageCount))));
-  return {
-    type: 'cluster' as const,
-    suggestedClusters,
-    averageClusterSize: Math.ceil(imageCount / suggestedClusters),
-    complexity: imageCount > 50 ? 'high' : 'medium',
   };
 }
 
