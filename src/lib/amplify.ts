@@ -140,8 +140,13 @@ export async function refreshImageCookies(): Promise<boolean> {
 
     const { cookies, cookieOptions } = result.data;
 
+    // Parse cookies if it's a JSON string (GraphQL json type may return string)
+    const cookieEntries: Record<string, string> =
+      typeof cookies === 'string' ? JSON.parse(cookies) : cookies;
+
+    console.log('[Amplify] Setting cookies:', Object.keys(cookieEntries));
+
     // Set each CloudFront cookie on the parent domain
-    const cookieEntries = cookies as Record<string, string>;
     for (const [name, value] of Object.entries(cookieEntries)) {
       const cookieString = [
         `${name}=${value}`,
