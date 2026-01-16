@@ -162,11 +162,11 @@ function AppContent() {
               <LayoutSelector />
             </div>
 
-            {/* Similarity controls - only for Network layout */}
+            {/* Similarity controls - only for Graph layout */}
             {layout.type === 'network' && (
               <div>
                 <h3 className="text-xs text-nebula-400 uppercase tracking-wider mb-3">
-                  Network Controls
+                  Graph Controls
                 </h3>
                 <SimilaritySlider />
               </div>

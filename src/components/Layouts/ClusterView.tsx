@@ -184,8 +184,8 @@ export function ClusterView() {
         </div>
         
         <div className="text-xs text-nebula-400">
-          {totalClusters} clusters • {filteredImages.length} images
-          {unclusteredCount > 0 && ` • ${unclusteredCount} unclustered`}
+          {totalClusters} groups • {filteredImages.length} images
+          {unclusteredCount > 0 && ` • ${unclusteredCount} ungrouped`}
         </div>
       </div>
       
