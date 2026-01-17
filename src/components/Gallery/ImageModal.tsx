@@ -10,6 +10,22 @@ import { useImageRating } from '@/stores/ratingStore';
 // Module-level cache survives React StrictMode remounts
 const imageUrlCache = new Map<string, string>();
 
+// Format shutter speed as fraction (e.g., "1/200") or with "s" suffix for >= 1 second
+function formatShutterSpeed(exposureTime: number | string): string {
+  const time = typeof exposureTime === 'string' ? parseFloat(exposureTime) : exposureTime;
+
+  if (isNaN(time) || time <= 0) return '';
+
+  // For exposures >= 1 second, show as decimal with "s"
+  if (time >= 1) {
+    return Number.isInteger(time) ? `${time}s` : `${time.toFixed(1)}s`;
+  }
+
+  // For exposures < 1 second, show as fraction
+  const denominator = Math.round(1 / time);
+  return `1/${denominator}`;
+}
+
 export function ImageModal() {
   const { 
     modalOpen, 
@@ -601,36 +617,27 @@ export function ImageModal() {
                   {selectedImage.exif && (
                     <div className="mb-4 pt-4 border-t border-nebula-800">
                       <h4 className="text-xs text-nebula-400 uppercase tracking-wider mb-2">Camera Info</h4>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="space-y-2 text-xs">
                         {selectedImage.exif.Model && (
                           <div className="flex items-center gap-2 text-nebula-300">
                             <Camera size={12} />
                             <span>{selectedImage.exif.Model}</span>
                           </div>
                         )}
-                        {selectedImage.exif.FNumber && (
-                          <div className="flex items-center gap-2 text-nebula-300">
-                            <Aperture size={12} />
-                            <span>f/{selectedImage.exif.FNumber}</span>
-                          </div>
-                        )}
-                        {selectedImage.exif.ISO && (
-                          <div className="text-nebula-300">
-                            ISO {selectedImage.exif.ISO}
-                          </div>
-                        )}
-                        {selectedImage.exif.FocalLength && (
-                          <div className="text-nebula-300">
-                            Focal {selectedImage.exif.FocalLength}
-                          </div>
-                        )}
-                        {selectedImage.exif.ExposureTime && (
-                          <div className="text-nebula-300">
-                            {selectedImage.exif.ExposureTime}s
-                          </div>
-                        )}
+                        {/* Exposure parameters: shutter, focal, aperture, ISO */}
+                        <div className="flex items-center gap-2 text-nebula-300">
+                          <Aperture size={12} />
+                          <span>
+                            {[
+                              selectedImage.exif.ExposureTime && formatShutterSpeed(selectedImage.exif.ExposureTime),
+                              selectedImage.exif.FocalLength && `${selectedImage.exif.FocalLength}mm`,
+                              selectedImage.exif.FNumber && `f/${selectedImage.exif.FNumber}`,
+                              selectedImage.exif.ISO && `ISO ${selectedImage.exif.ISO}`,
+                            ].filter(Boolean).join(', ')}
+                          </span>
+                        </div>
                         {selectedImage.exif.DateTimeOriginal && (
-                          <div className="text-nebula-300 col-span-2">
+                          <div className="text-nebula-300">
                             {selectedImage.exif.DateTimeOriginal}
                           </div>
                         )}
