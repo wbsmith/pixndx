@@ -6,6 +6,8 @@ import { searchImages } from './functions/searchImages/resource';
 import { ingestImage } from './functions/ingestImage/resource';
 import { computeSimilarity } from './functions/computeSimilarity/resource';
 import { generateImageCookies } from './functions/generateImageCookies/resource';
+import { processImage } from './functions/processImage/resource';
+import { deleteImage } from './functions/deleteImage/resource';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import * as cdk from 'aws-cdk-lib';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
@@ -38,6 +40,8 @@ export const backend = defineBackend({
   ingestImage,
   computeSimilarity,
   generateImageCookies,
+  processImage,
+  deleteImage,
 });
 
 // Configure additional permissions
@@ -80,6 +84,21 @@ s3Bucket.grantReadWrite(backend.ingestImage.resources.lambda);
 
 // Grant read access to similarity function
 s3Bucket.grantRead(backend.computeSimilarity.resources.lambda);
+
+// Grant read/write access to processImage function
+backend.processImage.resources.lambda.addEnvironment(
+  'STORAGE_BUCKET_NAME',
+  s3Bucket.bucketName
+);
+s3Bucket.grantReadWrite(backend.processImage.resources.lambda);
+
+// Grant read/write/delete access to deleteImage function
+backend.deleteImage.resources.lambda.addEnvironment(
+  'STORAGE_BUCKET_NAME',
+  s3Bucket.bucketName
+);
+s3Bucket.grantReadWrite(backend.deleteImage.resources.lambda);
+s3Bucket.grantDelete(backend.deleteImage.resources.lambda);
 
 // ============================================================
 // WAF (Web Application Firewall) Configuration

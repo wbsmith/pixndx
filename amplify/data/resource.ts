@@ -2,6 +2,8 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { searchImages } from '../functions/searchImages/resource';
 import { computeSimilarity } from '../functions/computeSimilarity/resource';
 import { generateImageCookies } from '../functions/generateImageCookies/resource';
+import { processImage } from '../functions/processImage/resource';
+import { deleteImage } from '../functions/deleteImage/resource';
 
 /**
  * GraphQL Schema for PixNdx Gallery
@@ -185,6 +187,22 @@ const schema = a.schema({
       allow.authenticated(),
     ]),
 
+  // Process image result type
+  ProcessImageResult: a.customType({
+    success: a.boolean().required(),
+    imageId: a.string().required(),
+    message: a.string().required(),
+    queuedAt: a.string().required(),
+  }),
+
+  // Delete image result type
+  DeleteImageResult: a.customType({
+    success: a.boolean().required(),
+    imageId: a.string().required(),
+    deletedFiles: a.string().array().required(),
+    message: a.string().required(),
+  }),
+
   // Cookie options for frontend to use when setting cookies
   CookieOptions: a.customType({
     domain: a.string().required(),
@@ -207,6 +225,27 @@ const schema = a.schema({
     .handler(a.handler.function(generateImageCookies))
     .authorization((allow) => [
       allow.authenticated(),
+    ]),
+
+  // Process uploaded image (Admins only)
+  // Queues image for GPU processing (resize, CLIP, Gemma metadata)
+  processImage: a
+    .mutation()
+    .arguments({ sourceKey: a.string().required() })
+    .returns(a.ref('ProcessImageResult'))
+    .handler(a.handler.function(processImage))
+    .authorization((allow) => [
+      allow.groups(['Admins']),
+    ]),
+
+  // Delete image and all associated files (Admins only)
+  deleteImage: a
+    .mutation()
+    .arguments({ imageId: a.string().required() })
+    .returns(a.ref('DeleteImageResult'))
+    .handler(a.handler.function(deleteImage))
+    .authorization((allow) => [
+      allow.groups(['Admins']),
     ]),
 });
 

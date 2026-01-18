@@ -43,6 +43,16 @@ export const storage = defineStorage({
     'uploads/{entity_id}/*': [
       allow.entity('identity').to(['read', 'write', 'delete']),
     ],
+
+    // Admin uploads - for image processing pipeline
+    'uploads/admin/*': [
+      allow.groups(['Admins']).to(['read', 'write', 'delete']),
+    ],
+
+    // Processing queue - Lambda writes here for GPU instance to process
+    'processing-queue/*': [
+      allow.groups(['Admins']).to(['read', 'write', 'delete']),
+    ],
     
     // Private galleries
     'private/{entity_id}/*': [

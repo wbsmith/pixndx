@@ -8,8 +8,10 @@ import { LayoutSelector } from './components/UI/LayoutSelector';
 import { SimilaritySlider } from './components/UI/SimilaritySlider';
 import { GalleryView } from './components/Gallery/GalleryView';
 import { ImageModal } from './components/Gallery/ImageModal';
-import { AdminModeToggle, CurationToolbar } from './components/Admin';
+import { AdminModeToggle, CurationToolbar, ImageUpload } from './components/Admin';
+import { useCurationStore } from './stores/curationStore';
 import { APP_NAME, IS_LOCAL_DEV } from './config';
+import { useIsAdmin } from './hooks/useIsAdmin';
 import { configureAmplify } from './lib/amplify';
 
 // Use config for local dev detection
@@ -33,8 +35,10 @@ function AppContent() {
     initializeData,
     applyDefaultSort,
   } = useGalleryStore();
-  
+
   const { fetchRatingsForImages } = useRatingStore();
+  const { isAdmin } = useIsAdmin();
+  const { isAdminMode } = useCurationStore();
   const initCompleteRef = useRef(false);
   
   // Load data progressively on mount
@@ -118,8 +122,8 @@ function AppContent() {
             )}
           </div>
           
-          {/* Admin mode toggle - for local curation */}
-          {isLocalDev && <AdminModeToggle />}
+          {/* Admin mode toggle - for admins (Cognito Admins group or local dev) */}
+          {isAdmin && <AdminModeToggle />}
           
           {/* User menu with sign out - only in production */}
           {!isLocalDev && UserMenu && <UserMenu />}
@@ -189,6 +193,16 @@ function AppContent() {
               </div>
             </div>
             
+            {/* Admin: Image Upload - only in admin mode */}
+            {isAdmin && isAdminMode && (
+              <div>
+                <h3 className="text-xs text-nebula-400 uppercase tracking-wider mb-3">
+                  Upload Images
+                </h3>
+                <ImageUpload />
+              </div>
+            )}
+
             {/* Stats */}
             <div className="pt-4 border-t border-nebula-800/50">
               <h3 className="text-xs text-nebula-400 uppercase tracking-wider mb-3">
