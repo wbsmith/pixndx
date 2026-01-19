@@ -15,6 +15,10 @@ import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 
 // Custom domain for CloudFront (allows cookie sharing with app domain)
 const CDN_DOMAIN = 'cdn.picgraf.com';
@@ -419,3 +423,195 @@ backend.generateImageCookies.resources.lambda.addEnvironment(
   'CLOUDFRONT_KEY_PAIR_ID',
   cfPublicKey.publicKeyId
 );
+
+// ============================================================
+// GPU Image Processing Infrastructure
+// On-demand spot instances for privacy-first AI processing
+// ============================================================
+
+// Get the stack for GPU resources (use storage stack for consistency)
+const gpuStack = backend.storage.resources.bucket.stack;
+
+// S3 bucket for AI models (Gemma 3, CLIP, etc.)
+const modelsBucket = new s3.Bucket(gpuStack, 'ModelsBucket', {
+  bucketName: `picgraf-models-${cdk.Aws.ACCOUNT_ID}`,
+  encryption: s3.BucketEncryption.S3_MANAGED,
+  blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+  removalPolicy: cdk.RemovalPolicy.RETAIN, // Keep models on stack deletion
+});
+
+// SQS queue for image processing jobs
+const imageProcessingQueue = new sqs.Queue(gpuStack, 'ImageProcessingQueue', {
+  queueName: 'picgraf-image-processing',
+  visibilityTimeout: cdk.Duration.minutes(15), // Long timeout for GPU processing
+  retentionPeriod: cdk.Duration.days(7),
+  deadLetterQueue: {
+    queue: new sqs.Queue(gpuStack, 'ImageProcessingDLQ', {
+      queueName: 'picgraf-image-processing-dlq',
+      retentionPeriod: cdk.Duration.days(14),
+    }),
+    maxReceiveCount: 3, // Move to DLQ after 3 failures
+  },
+});
+
+// Use default VPC for simplicity (GPU instances need internet for Ollama)
+const vpc = ec2.Vpc.fromLookup(gpuStack, 'DefaultVPC', {
+  isDefault: true,
+});
+
+// Security group for GPU instances
+const gpuSecurityGroup = new ec2.SecurityGroup(gpuStack, 'GpuSecurityGroup', {
+  vpc,
+  description: 'Security group for picgraf GPU processing instances',
+  allowAllOutbound: true, // Needs outbound for S3, SQS, Ollama registry
+});
+
+// IAM role for GPU instances
+const gpuInstanceRole = new iam.Role(gpuStack, 'GpuInstanceRole', {
+  assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+  description: 'Role for picgraf GPU processing instances',
+  managedPolicies: [
+    // SSM for debugging/management
+    iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
+  ],
+});
+
+// Grant GPU instance access to S3 buckets
+s3Bucket.grantReadWrite(gpuInstanceRole); // Image storage bucket
+modelsBucket.grantRead(gpuInstanceRole);  // Models bucket (read-only)
+
+// Grant GPU instance access to SQS queue
+imageProcessingQueue.grantConsumeMessages(gpuInstanceRole);
+
+// User data script for GPU instance
+// Note: Processing script is downloaded from S3 at boot for easy updates
+const userData = ec2.UserData.forLinux();
+userData.addCommands(
+  '#!/bin/bash',
+  'set -ex',
+  'exec > >(tee /var/log/user-data.log) 2>&1',
+  '',
+  '# Install Ollama',
+  'curl -fsSL https://ollama.com/install.sh | sh',
+  'systemctl enable ollama',
+  'systemctl start ollama',
+  'sleep 10',
+  '',
+  '# Pull Gemma 3 27B model (this takes ~10 min)',
+  'ollama pull gemma3:27b',
+  '',
+  '# Install Python dependencies',
+  'apt-get update',
+  'apt-get install -y python3-pip',
+  'pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121',
+  'pip3 install transformers pillow boto3 sentence-transformers',
+  '',
+  '# Create working directory',
+  'mkdir -p /opt/picgraf',
+  '',
+  `# Download processing script from S3`,
+  `aws s3 cp s3://${modelsBucket.bucketName}/scripts/process_images.py /opt/picgraf/process_images.py || echo "Script not found in S3, using placeholder"`,
+  '',
+  '# Create systemd service',
+  `cat > /etc/systemd/system/picgraf-processor.service << 'SERVICEEOF'`,
+  '[Unit]',
+  'Description=PicGraf Image Processor',
+  'After=network.target ollama.service',
+  '',
+  '[Service]',
+  'Type=simple',
+  'WorkingDirectory=/opt/picgraf',
+  `Environment=STORAGE_BUCKET=${s3Bucket.bucketName}`,
+  `Environment=SQS_QUEUE_URL=${imageProcessingQueue.queueUrl}`,
+  `Environment=AWS_REGION=${cdk.Aws.REGION}`,
+  `Environment=MODELS_BUCKET=${modelsBucket.bucketName}`,
+  'ExecStart=/usr/bin/python3 /opt/picgraf/process_images.py',
+  'Restart=on-failure',
+  'RestartSec=10',
+  '',
+  '[Install]',
+  'WantedBy=multi-user.target',
+  'SERVICEEOF',
+  '',
+  'systemctl daemon-reload',
+  'systemctl enable picgraf-processor',
+  'systemctl start picgraf-processor',
+);
+
+// Launch template for GPU instances
+const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', {
+  launchTemplateName: 'picgraf-gpu-processor',
+  instanceType: ec2.InstanceType.of(ec2.InstanceClass.G5, ec2.InstanceSize.XLARGE),
+  machineImage: ec2.MachineImage.lookup({
+    name: 'Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04) *',
+    owners: ['amazon'],
+  }),
+  role: gpuInstanceRole,
+  securityGroup: gpuSecurityGroup,
+  userData,
+  blockDevices: [
+    {
+      deviceName: '/dev/sda1',
+      volume: ec2.BlockDeviceVolume.ebs(100, { // 100GB for models + processing
+        volumeType: ec2.EbsDeviceVolumeType.GP3,
+        encrypted: true,
+      }),
+    },
+  ],
+  spotOptions: {
+    requestType: ec2.SpotRequestType.ONE_TIME,
+    maxPrice: 1.50, // Max $1.50/hr (spot is usually ~$0.40)
+  },
+});
+
+// Auto Scaling Group (scale to zero when idle)
+const gpuAsg = new autoscaling.AutoScalingGroup(gpuStack, 'GpuAutoScalingGroup', {
+  autoScalingGroupName: 'picgraf-gpu-processors',
+  vpc,
+  launchTemplate: gpuLaunchTemplate,
+  minCapacity: 0,  // Scale to zero when no work
+  maxCapacity: 1,  // Single instance for now
+  desiredCapacity: 0,  // Start with no instances
+  healthCheck: autoscaling.HealthCheck.ec2({
+    grace: cdk.Duration.minutes(10), // Allow time for model download
+  }),
+  updatePolicy: autoscaling.UpdatePolicy.rollingUpdate(),
+});
+
+// Pass GPU infrastructure config to processImage Lambda
+backend.processImage.resources.lambda.addEnvironment(
+  'SQS_QUEUE_URL',
+  imageProcessingQueue.queueUrl
+);
+backend.processImage.resources.lambda.addEnvironment(
+  'ASG_NAME',
+  gpuAsg.autoScalingGroupName
+);
+
+// Grant Lambda permission to send to SQS and manage ASG
+imageProcessingQueue.grantSendMessages(backend.processImage.resources.lambda);
+backend.processImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: [
+      'autoscaling:DescribeAutoScalingGroups',
+      'autoscaling:SetDesiredCapacity',
+    ],
+    resources: ['*'], // ASG ARNs are complex, use * with condition
+  })
+);
+
+// Outputs
+new cdk.CfnOutput(gpuStack, 'ModelsBucketName', {
+  value: modelsBucket.bucketName,
+  description: 'S3 bucket for AI models',
+});
+
+new cdk.CfnOutput(gpuStack, 'ImageProcessingQueueUrl', {
+  value: imageProcessingQueue.queueUrl,
+  description: 'SQS queue URL for image processing jobs',
+});
+
+new cdk.CfnOutput(gpuStack, 'GpuAsgName', {
+  value: gpuAsg.autoScalingGroupName,
+  description: 'Auto Scaling Group name for GPU instances',
+});
