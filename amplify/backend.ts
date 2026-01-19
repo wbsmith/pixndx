@@ -553,8 +553,9 @@ userData.addCommands(
 
 // Use Ubuntu 22.04 as base - install CUDA/Ollama via user data
 // This avoids MachineImage.lookup() which requires account/region context
+// Note: Canonical uses ebs-gp2 in their SSM parameter paths
 const gpuAmi = ec2.MachineImage.fromSsmParameter(
-  '/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp3/ami-id',
+  '/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id',
   { os: ec2.OperatingSystemType.LINUX }
 );
 
