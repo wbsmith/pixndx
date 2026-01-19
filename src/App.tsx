@@ -67,9 +67,6 @@ function AppContent() {
   
   return (
     <div className="h-screen w-screen bg-gradient-cosmos flex flex-col overflow-hidden">
-      {/* Noise overlay */}
-      <div className="noise-overlay" />
-      
       {/* Header */}
       <header className="relative z-10 px-6 py-4 flex items-center justify-between border-b border-nebula-800/50">
         <div className="flex items-center gap-4">
