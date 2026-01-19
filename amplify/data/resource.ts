@@ -238,8 +238,8 @@ const schema = a.schema({
       allow.groups(['Admins']),
     ]),
 
-  // Delete image and all associated files (Admins only)
-  deleteImage: a
+  // Delete image and all associated files from S3 (Admins only)
+  deleteImageFiles: a
     .mutation()
     .arguments({ imageId: a.string().required() })
     .returns(a.ref('DeleteImageResult'))
