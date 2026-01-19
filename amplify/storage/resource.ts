@@ -38,6 +38,12 @@ export const storage = defineStorage({
     'embeddings/*': [
       allow.authenticated.to(['read', 'write']),
     ],
+
+    // Manifest - gallery image list (updated by GPU processor)
+    'manifest/*': [
+      allow.guest.to(['read']),
+      allow.authenticated.to(['read']),
+    ],
     
     // User uploads - each user has their own folder
     'uploads/{entity_id}/*': [

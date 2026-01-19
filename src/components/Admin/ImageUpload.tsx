@@ -5,7 +5,7 @@ import { uploadData } from 'aws-amplify/storage';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../../amplify/data/resource';
 
-type UploadStatus = 'pending' | 'uploading' | 'processing' | 'complete' | 'error';
+type UploadStatus = 'pending' | 'uploading' | 'queuing' | 'queued' | 'error';
 
 interface FileUpload {
   id: string;
@@ -16,7 +16,14 @@ interface FileUpload {
   error?: string;
 }
 
-const client = generateClient<Schema>();
+// Lazy client initialization - only create after Amplify is configured
+let _client: ReturnType<typeof generateClient<Schema>> | null = null;
+function getClient() {
+  if (!_client) {
+    _client = generateClient<Schema>();
+  }
+  return _client;
+}
 
 export function ImageUpload() {
   const [uploads, setUploads] = useState<FileUpload[]>([]);
@@ -50,16 +57,17 @@ export function ImageUpload() {
         },
       }).result;
 
-      // Stage 2: Trigger processing
-      updateUpload(id, { status: 'processing', progress: 100 });
+      // Stage 2: Queue for GPU processing
+      updateUpload(id, { status: 'queuing', progress: 100 });
 
-      const result = await client.mutations.processImage({ sourceKey: key });
+      const result = await getClient().mutations.processImage({ sourceKey: key });
 
       if (result.errors) {
         throw new Error(result.errors.map(e => e.message).join(', '));
       }
 
-      updateUpload(id, { status: 'complete' });
+      // Note: 'queued' means sent to GPU queue, actual processing is async
+      updateUpload(id, { status: 'queued' });
     } catch (error) {
       console.error('Upload failed:', error);
       updateUpload(id, {
@@ -116,12 +124,12 @@ export function ImageUpload() {
 
   const clearCompleted = useCallback(() => {
     setUploads(prev => {
-      prev.filter(u => u.status === 'complete').forEach(u => URL.revokeObjectURL(u.preview));
-      return prev.filter(u => u.status !== 'complete');
+      prev.filter(u => u.status === 'queued').forEach(u => URL.revokeObjectURL(u.preview));
+      return prev.filter(u => u.status !== 'queued');
     });
   }, []);
 
-  const hasCompleted = uploads.some(u => u.status === 'complete');
+  const hasCompleted = uploads.some(u => u.status === 'queued');
 
   return (
     <div className="space-y-4">
@@ -218,9 +226,9 @@ function UploadItem({ upload, onRemove }: UploadItemProps) {
           alt={file.name}
           className="w-full h-full object-cover"
         />
-        {status === 'complete' && (
-          <div className="absolute inset-0 bg-stellar-green/30 flex items-center justify-center">
-            <Check size={16} className="text-stellar-green" />
+        {status === 'queued' && (
+          <div className="absolute inset-0 bg-stellar-violet/30 flex items-center justify-center">
+            <Check size={16} className="text-stellar-violet" />
           </div>
         )}
         {status === 'error' && (
@@ -242,7 +250,7 @@ function UploadItem({ upload, onRemove }: UploadItemProps) {
       </div>
 
       {/* Remove button */}
-      {(status === 'complete' || status === 'error') && (
+      {(status === 'queued' || status === 'error') && (
         <button
           onClick={onRemove}
           className="p-1 text-nebula-500 hover:text-nebula-300"
@@ -270,15 +278,15 @@ function StatusIndicator({ status, progress }: { status: UploadStatus; progress:
           <span className="text-xs text-nebula-400">{progress}%</span>
         </div>
       );
-    case 'processing':
+    case 'queuing':
       return (
         <div className="flex items-center gap-1 text-stellar-violet">
           <Loader2 size={12} className="animate-spin" />
-          <span className="text-xs">Processing...</span>
+          <span className="text-xs">Queuing...</span>
         </div>
       );
-    case 'complete':
-      return <span className="text-xs text-stellar-green">Complete</span>;
+    case 'queued':
+      return <span className="text-xs text-stellar-violet">Queued for GPU</span>;
     case 'error':
       return <span className="text-xs text-red-400">Failed</span>;
   }

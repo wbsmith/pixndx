@@ -1,11 +1,13 @@
 /**
  * Progressive Data Loader
- * 
- * Loads image data from JSON file (works in both dev and production).
- * The JSON file contains S3 URLs for production.
+ *
+ * Loads image data from multiple sources:
+ * 1. Local JSON file (dev mode or static build)
+ * 2. S3/CDN manifest (production, updated by GPU processor)
  */
 
 import type { ImageMetadata } from '@/types/gallery';
+import { config, IS_LOCAL_DEV } from '@/config';
 
 export interface LoadProgress {
   loaded: number;
@@ -18,42 +20,68 @@ let cachedImages: ImageMetadata[] | null = null;
 let loadPromise: Promise<ImageMetadata[]> | null = null;
 
 /**
- * Load all images from JSON file.
+ * Fetch manifest from a URL with error handling.
+ */
+async function fetchManifest(url: string, source: string): Promise<ImageMetadata[] | null> {
+  try {
+    const response = await fetch(url, { credentials: 'include' }); // include cookies for CDN auth
+    console.log(`[dataLoader] ${source} fetch: ${response.status}`);
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.images && Array.isArray(data.images)) {
+        return data.images;
+      }
+    }
+  } catch (e) {
+    console.warn(`[dataLoader] ${source} fetch failed:`, e);
+  }
+  return null;
+}
+
+/**
+ * Load all images from available sources.
  */
 async function loadAllImages(): Promise<ImageMetadata[]> {
   if (cachedImages) return cachedImages;
-  
+
   if (!loadPromise) {
     loadPromise = (async () => {
-      try {
-        // Fetch JSON (works in both dev and production)
-        const response = await fetch('/localImages.json');
-        console.log(`[dataLoader] JSON fetch status: ${response.status} ${response.statusText}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.images && Array.isArray(data.images)) {
-            cachedImages = data.images;
-            console.log(`✅ Loaded ${cachedImages!.length} images from JSON`);
-            return cachedImages!;
-          } else {
-            console.warn('[dataLoader] JSON missing "images" array');
-          }
-        } else {
-          console.warn(`[dataLoader] JSON fetch returned ${response.status}`);
+      // Try CDN manifest first in production (most up-to-date)
+      if (!IS_LOCAL_DEV && config.cdn.enabled && config.cdn.imageUrl) {
+        const cdnManifestUrl = `${config.cdn.imageUrl}/manifest/localImages.json`;
+        const cdnImages = await fetchManifest(cdnManifestUrl, 'CDN manifest');
+        if (cdnImages && cdnImages.length > 0) {
+          cachedImages = cdnImages;
+          console.log(`✅ Loaded ${cachedImages.length} images from CDN manifest`);
+          return cachedImages;
         }
-      } catch (e) {
-        console.warn('[dataLoader] JSON fetch failed:', e);
       }
-      
-      // Fallback to empty
-      console.warn('[dataLoader] No data loaded, returning empty array');
+
+      // Fall back to static local JSON
+      const localImages = await fetchManifest('/localImages.json', 'local JSON');
+      if (localImages && localImages.length > 0) {
+        cachedImages = localImages;
+        console.log(`✅ Loaded ${cachedImages.length} images from local JSON`);
+        return cachedImages;
+      }
+
+      // No data found
+      console.warn('[dataLoader] No data loaded from any source');
       cachedImages = [];
       return cachedImages;
     })();
   }
-  
+
   return loadPromise;
+}
+
+/**
+ * Force reload images from source (bypass cache).
+ */
+export function invalidateCache(): void {
+  cachedImages = null;
+  loadPromise = null;
 }
 
 /**
