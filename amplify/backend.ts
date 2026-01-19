@@ -454,9 +454,18 @@ const imageProcessingQueue = new sqs.Queue(gpuStack, 'ImageProcessingQueue', {
   },
 });
 
-// Use default VPC for simplicity (GPU instances need internet for Ollama)
-const vpc = ec2.Vpc.fromLookup(gpuStack, 'DefaultVPC', {
-  isDefault: true,
+// Create a simple VPC for GPU instances (can't use fromLookup in Amplify)
+const vpc = new ec2.Vpc(gpuStack, 'GpuVpc', {
+  vpcName: 'picgraf-gpu-vpc',
+  maxAzs: 2,
+  natGateways: 0,  // No NAT to save costs - use public subnets
+  subnetConfiguration: [
+    {
+      name: 'public',
+      subnetType: ec2.SubnetType.PUBLIC,
+      cidrMask: 24,
+    },
+  ],
 });
 
 // Security group for GPU instances
@@ -484,12 +493,17 @@ modelsBucket.grantRead(gpuInstanceRole);  // Models bucket (read-only)
 imageProcessingQueue.grantConsumeMessages(gpuInstanceRole);
 
 // User data script for GPU instance
-// Note: Processing script is downloaded from S3 at boot for easy updates
+// Installs NVIDIA drivers, CUDA, Ollama, and processing dependencies
 const userData = ec2.UserData.forLinux();
 userData.addCommands(
   '#!/bin/bash',
   'set -ex',
   'exec > >(tee /var/log/user-data.log) 2>&1',
+  '',
+  '# Install NVIDIA drivers and CUDA',
+  'apt-get update',
+  'apt-get install -y linux-headers-$(uname -r)',
+  'apt-get install -y nvidia-driver-535 nvidia-cuda-toolkit',
   '',
   '# Install Ollama',
   'curl -fsSL https://ollama.com/install.sh | sh',
@@ -501,19 +515,18 @@ userData.addCommands(
   'ollama pull gemma3:27b',
   '',
   '# Install Python dependencies',
-  'apt-get update',
-  'apt-get install -y python3-pip',
+  'apt-get install -y python3-pip python3-venv',
   'pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121',
-  'pip3 install transformers pillow boto3 sentence-transformers',
+  'pip3 install transformers pillow boto3 sentence-transformers numpy',
   '',
   '# Create working directory',
   'mkdir -p /opt/picgraf',
   '',
-  `# Download processing script from S3`,
-  `aws s3 cp s3://${modelsBucket.bucketName}/scripts/process_images.py /opt/picgraf/process_images.py || echo "Script not found in S3, using placeholder"`,
+  '# Download processing script from S3',
+  `aws s3 cp s3://${modelsBucket.bucketName}/scripts/process_images.py /opt/picgraf/process_images.py || echo "Script not found in S3 yet"`,
   '',
   '# Create systemd service',
-  `cat > /etc/systemd/system/picgraf-processor.service << 'SERVICEEOF'`,
+  'cat > /etc/systemd/system/picgraf-processor.service << SERVICEEOF',
   '[Unit]',
   'Description=PicGraf Image Processor',
   'After=network.target ollama.service',
@@ -538,17 +551,22 @@ userData.addCommands(
   'systemctl start picgraf-processor',
 );
 
+// Use Ubuntu 22.04 as base - install CUDA/Ollama via user data
+// This avoids MachineImage.lookup() which requires account/region context
+const gpuAmi = ec2.MachineImage.fromSsmParameter(
+  '/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp3/ami-id',
+  { os: ec2.OperatingSystemType.LINUX }
+);
+
 // Launch template for GPU instances
 const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', {
   launchTemplateName: 'picgraf-gpu-processor',
   instanceType: ec2.InstanceType.of(ec2.InstanceClass.G5, ec2.InstanceSize.XLARGE),
-  machineImage: ec2.MachineImage.lookup({
-    name: 'Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04) *',
-    owners: ['amazon'],
-  }),
+  machineImage: gpuAmi,
   role: gpuInstanceRole,
   securityGroup: gpuSecurityGroup,
   userData,
+  associatePublicIpAddress: true,  // Need public IP for internet access
   blockDevices: [
     {
       deviceName: '/dev/sda1',

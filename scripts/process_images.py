@@ -6,8 +6,9 @@ Polls SQS queue for image processing jobs, then:
 1. Resizes images to small (200px), medium (1024px), full
 2. Generates CLIP embeddings
 3. Generates metadata with Gemma 3 via Ollama
-4. Uploads results to S3
-5. Auto-terminates after 10 min idle
+4. Recomputes similarity neighbors for all images
+5. Uploads results to S3
+6. Auto-terminates after 10 min idle
 
 Environment variables:
 - STORAGE_BUCKET: S3 bucket for images
@@ -23,8 +24,11 @@ import sys
 import time
 import requests
 from io import BytesIO
+from typing import Dict, List, Any, Tuple, Optional
+from dataclasses import dataclass
 from PIL import Image
 from sentence_transformers import SentenceTransformer
+import numpy as np
 
 # Configuration
 STORAGE_BUCKET = os.environ.get('STORAGE_BUCKET')
