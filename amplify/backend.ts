@@ -513,6 +513,22 @@ modelsBucket.grantRead(gpuInstanceRole);
 // Grant GPU instance access to SQS queue
 imageProcessingQueue.grantConsumeMessages(gpuInstanceRole);
 
+// Grant GPU instance access to DynamoDB Image table
+// The GPU writes image metadata directly to DynamoDB after processing
+gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
+  actions: [
+    'dynamodb:PutItem',
+    'dynamodb:UpdateItem',
+    'dynamodb:GetItem',
+    'dynamodb:Query',
+    'dynamodb:Scan',
+  ],
+  resources: [
+    `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/*-Image-*`,
+    `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/*-Image-*/index/*`,
+  ],
+}));
+
 // Grant GPU instance permission to attach the EBS volume
 gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
   actions: [
@@ -669,6 +685,7 @@ userData.addCommands(
   `Environment=SQS_QUEUE_URL=${imageProcessingQueue.queueUrl}`,
   `Environment=AWS_REGION=${cdk.Aws.REGION}`,
   `Environment=MODELS_BUCKET=${modelsBucket.bucketName}`,
+  'Environment=DYNAMODB_TABLE_PATTERN=Image',
   'Environment=OLLAMA_MODELS=$MOUNT_POINT/ollama',
   'Environment=HF_HOME=$MOUNT_POINT/huggingface',
   'ExecStart=/usr/bin/python3 $MOUNT_POINT/scripts/process_images.py',

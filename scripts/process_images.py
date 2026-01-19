@@ -339,79 +339,82 @@ def update_existing_metadata(image_id: str, new_neighbors: List[Dict]):
 
 
 # =============================================================================
-# MANIFEST MANAGEMENT
+# DYNAMODB STORAGE
 # =============================================================================
 
-MANIFEST_KEY = 'manifest/localImages.json'
+DYNAMODB_TABLE_PATTERN = os.environ.get('DYNAMODB_TABLE_PATTERN', 'Image')
+_dynamodb_table_name: Optional[str] = None
+dynamodb = boto3.client('dynamodb', region_name=AWS_REGION)
+dynamodb_resource = boto3.resource('dynamodb', region_name=AWS_REGION)
 
 
-def transform_to_gallery_format(metadata: Dict) -> Dict:
-    """Transform internal metadata format to gallery-expected format."""
-    # Extract first color as dominant
-    colors = metadata.get('main_colors', {})
-    dominant_color = list(colors.values())[0] if colors else '#808080'
+def get_image_table_name() -> str:
+    """Discover the DynamoDB Image table name (cached)."""
+    global _dynamodb_table_name
+    if _dynamodb_table_name:
+        return _dynamodb_table_name
 
-    # Build the gallery format
-    return {
-        'id': metadata['id'],
-        'filename': metadata['filename'],
-        'urlSmall': f"https://{STORAGE_BUCKET}.s3.amazonaws.com/{metadata['urls']['small']}",
-        'urlMedium': f"https://{STORAGE_BUCKET}.s3.amazonaws.com/{metadata['urls']['medium']}",
-        'urlFull': f"https://{STORAGE_BUCKET}.s3.amazonaws.com/{metadata['urls']['full']}",
-        'description': metadata.get('description', ''),
-        'mood': metadata.get('mood', 'neutral'),
-        'mainSubject': metadata.get('main_subject', ''),
-        'tags': metadata.get('tags', {}),
-        'mainColors': metadata.get('main_colors', {}),
-        'dominantColorHex': dominant_color,
-        'exif': metadata.get('exif', {}),
-        'clipNeighbors': metadata.get('clipNeighbors', []),
-        'avgRating': 0,
-        'ratingCount': 0,
-    }
+    # List tables and find one matching the pattern
+    paginator = dynamodb.get_paginator('list_tables')
+    for page in paginator.paginate():
+        for table_name in page['TableNames']:
+            if DYNAMODB_TABLE_PATTERN in table_name and 'Image' in table_name:
+                # Prefer tables that look like Amplify-generated ones
+                if '-Image-' in table_name:
+                    _dynamodb_table_name = table_name
+                    print(f"  Found DynamoDB table: {table_name}")
+                    return table_name
+
+    raise RuntimeError(f"Could not find DynamoDB table matching pattern '{DYNAMODB_TABLE_PATTERN}'")
 
 
-def update_manifest(metadata: Dict):
-    """Update the gallery manifest with a new image."""
-    print("  Updating manifest...")
+def write_to_dynamodb(metadata: Dict):
+    """Write image metadata to DynamoDB."""
+    print("  Writing to DynamoDB...")
 
     try:
-        # Try to download existing manifest
-        try:
-            response = s3.get_object(Bucket=STORAGE_BUCKET, Key=MANIFEST_KEY)
-            manifest = json.loads(response['Body'].read())
-        except s3.exceptions.NoSuchKey:
-            manifest = {'images': []}
-        except Exception:
-            manifest = {'images': []}
+        table_name = get_image_table_name()
+        table = dynamodb_resource.Table(table_name)
 
-        # Transform to gallery format
-        gallery_entry = transform_to_gallery_format(metadata)
+        # Extract first color as dominant
+        colors = metadata.get('main_colors', {})
+        dominant_color = list(colors.values())[0] if colors else '#808080'
 
-        # Check if image already exists (update) or is new (append)
-        existing_idx = next(
-            (i for i, img in enumerate(manifest['images']) if img['id'] == metadata['id']),
-            None
-        )
+        # Build DynamoDB item (matches Amplify schema)
+        item = {
+            'id': metadata['id'],
+            'filename': metadata['filename'],
+            'urlSmall': metadata['urls']['small'],
+            'urlMedium': metadata['urls']['medium'],
+            'urlFull': metadata['urls']['full'],
+            'description': metadata.get('description', ''),
+            'mood': metadata.get('mood', 'neutral'),
+            'mainSubject': metadata.get('main_subject', ''),
+            'tags': metadata.get('tags', {}),
+            'mainColors': metadata.get('main_colors', {}),
+            'dominantColorHex': dominant_color,
+            'exif': metadata.get('exif', {}),
+            'clipNeighbors': metadata.get('clipNeighbors', []),
+            'avgRating': 0,
+            'ratingCount': 0,
+            'createdAt': metadata.get('createdAt', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())),
+            'updatedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            # Amplify requires these for authorization
+            '__typename': 'Image',
+        }
 
-        if existing_idx is not None:
-            manifest['images'][existing_idx] = gallery_entry
-            print(f"  Updated existing entry in manifest")
-        else:
-            manifest['images'].append(gallery_entry)
-            print(f"  Added new entry to manifest (total: {len(manifest['images'])})")
+        # Remove None values (DynamoDB doesn't like them)
+        item = {k: v for k, v in item.items() if v is not None}
 
-        # Upload updated manifest
-        s3.put_object(
-            Bucket=STORAGE_BUCKET,
-            Key=MANIFEST_KEY,
-            Body=json.dumps(manifest, indent=2),
-            ContentType='application/json'
-        )
-        print(f"  Manifest updated: {MANIFEST_KEY}")
+        table.put_item(Item=item)
+        print(f"  Saved to DynamoDB: {metadata['id']}")
 
     except Exception as e:
-        print(f"  Warning: Failed to update manifest: {e}")
+        print(f"  Error writing to DynamoDB: {e}")
+        import traceback
+        traceback.print_exc()
+        # Re-raise so the message goes to DLQ if this keeps failing
+        raise
 
 
 # =============================================================================
@@ -532,8 +535,8 @@ def process_image(message_body: str) -> bool:
         # Delete from processing queue
         s3.delete_object(Bucket=STORAGE_BUCKET, Key=source_key)
 
-        # Update the manifest file for the gallery
-        update_manifest(metadata)
+        # Write to DynamoDB for the gallery
+        write_to_dynamodb(metadata)
 
         # Clean up temp file
         os.remove(temp_path)

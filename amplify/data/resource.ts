@@ -45,7 +45,11 @@ const schema = a.schema({
       // Vector embeddings for similarity search (stored as JSON arrays)
       clipEmbedding: a.json(),             // number[] - CLIP image embedding
       descriptionEmbedding: a.json(),      // number[] - Text embedding
-      
+
+      // Precomputed similarity neighbors for graph visualization
+      // Array of { id, clipWeight, compositeWeight }
+      clipNeighbors: a.json(),             // ClipNeighbor[]
+
       // Computed fields for filtering
       dominantColorHex: a.string(),        // First color from mainColors
       warmth: a.float(),                   // Computed color warmth 0-1
@@ -256,7 +260,8 @@ export const data = defineData({
   authorizationModes: {
     // Default to user pool authentication (requires login)
     defaultAuthorizationMode: 'userPool',
-    // Keep API key for admin operations if needed
+    // IAM auth for backend services (GPU instance, Lambda)
+    // GPU instance writes directly to DynamoDB, not through AppSync
     apiKeyAuthorizationMode: {
       expiresInDays: 365,
     },

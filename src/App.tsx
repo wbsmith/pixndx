@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Menu, X, ImageIcon } from 'lucide-react';
 import { useGalleryStore } from './stores/galleryStore';
 import { useRatingStore } from './stores/ratingStore';
+import { subscribeToNewImages } from './lib/dataLoader';
 import { SearchBar } from './components/Search/SearchBar';
 import { LayoutSelector } from './components/UI/LayoutSelector';
 import { SimilaritySlider } from './components/UI/SimilaritySlider';
@@ -33,6 +34,7 @@ function AppContent() {
     ready,
     layout,
     initializeData,
+    addImages,
     applyDefaultSort,
   } = useGalleryStore();
 
@@ -40,12 +42,12 @@ function AppContent() {
   const { isAdmin } = useIsAdmin();
   const { isAdminMode } = useCurationStore();
   const initCompleteRef = useRef(false);
-  
+
   // Load data progressively on mount
   useEffect(() => {
     initializeData();
   }, []);
-  
+
   // After images loaded: fetch ratings (prod) or mark ready (dev)
   useEffect(() => {
     // Wait until images are fully loaded
@@ -53,7 +55,7 @@ function AppContent() {
     // Only run once
     if (initCompleteRef.current) return;
     initCompleteRef.current = true;
-    
+
     if (IS_LOCAL_DEV) {
       // Local dev: no ratings, mark ready immediately
       applyDefaultSort();
@@ -64,6 +66,24 @@ function AppContent() {
       });
     }
   }, [images.length, loading, fetchRatingsForImages, applyDefaultSort]);
+
+  // Subscribe to new images (real-time updates from GPU processing)
+  useEffect(() => {
+    if (IS_LOCAL_DEV) return;
+
+    let unsubscribe: (() => void) | null = null;
+
+    subscribeToNewImages((newImage) => {
+      console.log('New image received:', newImage.id);
+      addImages([newImage]);
+    }).then((unsub) => {
+      unsubscribe = unsub;
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [addImages]);
   
   return (
     <div className="h-screen w-screen bg-gradient-cosmos flex flex-col overflow-hidden">
