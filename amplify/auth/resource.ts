@@ -21,13 +21,16 @@ export const auth = defineAuth({
         `Welcome to picgraf!\n\nYour verification code is: ${createCode()}\n\nThis code expires in 24 hours.`,
     },
   },
-  
+
+  // User groups for authorization
+  groups: ['Admins'],
+
   // No extra user attributes - just email
   // Email is automatically used as the username
-  
+
   // Account recovery options
   accountRecovery: 'EMAIL_ONLY',
-  
+
   // Multi-factor authentication (optional)
   multifactor: {
     mode: 'OPTIONAL',
