@@ -54,25 +54,25 @@ async function fetchFromAppSync(): Promise<ImageMetadata[] | null> {
 
     // Fetch all images (paginated)
     const images: ImageMetadata[] = [];
-    let nextToken: string | null | undefined = undefined;
+    let nextToken: string | undefined = undefined;
 
-    while (true) {
-      const response = await client.models.Image.list({
+    do {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response: any = await client.models.Image.list({
         limit: 1000,
-        ...(nextToken ? { nextToken } : {}),
+        nextToken,
       });
 
       if (response.data) {
         for (const record of response.data) {
           if (record) {
-            images.push(transformDbRecord(record as unknown as Record<string, unknown>));
+            images.push(transformDbRecord(record as Record<string, unknown>));
           }
         }
       }
 
-      nextToken = response.nextToken;
-      if (!nextToken) break;
-    }
+      nextToken = response.nextToken ?? undefined;
+    } while (nextToken);
 
     console.log(`✅ Loaded ${images.length} images from DynamoDB`);
     return images;
