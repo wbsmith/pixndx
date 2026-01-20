@@ -18,6 +18,7 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as efs from 'aws-cdk-lib/aws-efs';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 
 // Custom domain for CloudFront (allows cookie sharing with app domain)
@@ -430,13 +431,13 @@ backend.generateImageCookies.resources.lambda.addEnvironment(
 // ============================================================
 // GPU Image Processing Infrastructure
 // On-demand spot instances for privacy-first AI processing
-// Uses persistent EBS volume for model storage (fast restarts)
+// Uses EFS for cross-AZ model storage (zero-boot-delay, any AZ)
 // ============================================================
 
 // Get the stack for GPU resources (use storage stack for consistency)
 const gpuStack = backend.storage.resources.bucket.stack;
 
-// S3 bucket for scripts and configs (not models - those go on EBS)
+// S3 bucket for scripts and configs (not models - those go on EFS)
 const modelsBucket = new s3.Bucket(gpuStack, 'ModelsBucket', {
   bucketName: `picgraf-models-${cdk.Aws.ACCOUNT_ID}`,
   encryption: s3.BucketEncryption.S3_MANAGED,
@@ -458,10 +459,10 @@ const imageProcessingQueue = new sqs.Queue(gpuStack, 'ImageProcessingQueue', {
   },
 });
 
-// Create VPC with single AZ for EBS volume compatibility
+// Create VPC with multiple AZs for flexibility (EFS spans AZs)
 const vpc = new ec2.Vpc(gpuStack, 'GpuVpc', {
   vpcName: 'picgraf-gpu-vpc',
-  maxAzs: 1,  // Single AZ - EBS volumes are AZ-specific
+  maxAzs: 3,  // Multiple AZs - EFS is cross-AZ
   natGateways: 0,
   subnetConfiguration: [
     {
@@ -472,30 +473,44 @@ const vpc = new ec2.Vpc(gpuStack, 'GpuVpc', {
   ],
 });
 
-// Get the single AZ we're using
-const gpuAvailabilityZone = vpc.availabilityZones[0];
-
-// Persistent EBS volume for AI models (survives instance termination)
-// Contains: Ollama models (~20GB), HuggingFace cache (~5GB), scripts
-const modelsVolume = new ec2.Volume(gpuStack, 'ModelsVolume', {
-  volumeName: 'picgraf-ai-models',
-  availabilityZone: gpuAvailabilityZone,
-  size: cdk.Size.gibibytes(100),
-  volumeType: ec2.EbsDeviceVolumeType.GP3,
-  encrypted: true,
-  removalPolicy: cdk.RemovalPolicy.RETAIN, // Keep models on stack deletion!
-});
-
-// Tag the volume so instances can find it
-cdk.Tags.of(modelsVolume).add('Name', 'picgraf-ai-models');
-cdk.Tags.of(modelsVolume).add('Purpose', 'ai-models');
-
 // Security group for GPU instances
 const gpuSecurityGroup = new ec2.SecurityGroup(gpuStack, 'GpuSecurityGroup', {
   vpc,
   description: 'Security group for picgraf GPU processing instances',
   allowAllOutbound: true,
 });
+
+// Security group for EFS mount targets
+const efsSecurityGroup = new ec2.SecurityGroup(gpuStack, 'EfsSecurityGroup', {
+  vpc,
+  description: 'Security group for picgraf EFS model storage',
+  allowAllOutbound: false,
+});
+
+// Allow NFS traffic from GPU instances to EFS
+efsSecurityGroup.addIngressRule(
+  gpuSecurityGroup,
+  ec2.Port.tcp(2049),
+  'Allow NFS from GPU instances'
+);
+
+// Persistent EFS filesystem for AI models (cross-AZ, survives instance termination)
+// Contains: Ollama models (~20GB), HuggingFace cache (~5GB), scripts
+const modelsFileSystem = new efs.FileSystem(gpuStack, 'ModelsFileSystem', {
+  fileSystemName: 'picgraf-ai-models',
+  vpc,
+  securityGroup: efsSecurityGroup,
+  performanceMode: efs.PerformanceMode.GENERAL_PURPOSE,
+  throughputMode: efs.ThroughputMode.BURSTING,
+  encrypted: true,
+  removalPolicy: cdk.RemovalPolicy.RETAIN, // Keep models on stack deletion!
+  lifecyclePolicy: efs.LifecyclePolicy.AFTER_30_DAYS, // Move infrequently accessed files to IA storage
+  outOfInfrequentAccessPolicy: efs.OutOfInfrequentAccessPolicy.AFTER_1_ACCESS, // Move back on access
+});
+
+// Tag the filesystem
+cdk.Tags.of(modelsFileSystem).add('Name', 'picgraf-ai-models');
+cdk.Tags.of(modelsFileSystem).add('Purpose', 'ai-models');
 
 // IAM role for GPU instances
 const gpuInstanceRole = new iam.Role(gpuStack, 'GpuInstanceRole', {
@@ -529,18 +544,17 @@ gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
   ],
 }));
 
-// Grant GPU instance permission to attach the EBS volume
+// Grant GPU instance access to EFS (via security group, but also need elasticfilesystem permissions)
 gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
   actions: [
-    'ec2:AttachVolume',
-    'ec2:DetachVolume',
-    'ec2:DescribeVolumes',
-    'ec2:DescribeInstances',
+    'elasticfilesystem:ClientMount',
+    'elasticfilesystem:ClientWrite',
+    'elasticfilesystem:DescribeMountTargets',
   ],
-  resources: ['*'], // Volume and instance ARNs are dynamic
+  resources: [modelsFileSystem.fileSystemArn],
 }));
 
-// User data script with persistent model storage
+// User data script with persistent EFS model storage
 const userData = ec2.UserData.forLinux();
 userData.addCommands(
   '#!/bin/bash',
@@ -548,46 +562,23 @@ userData.addCommands(
   'exec > >(tee /var/log/user-data.log) 2>&1',
   '',
   '# ============================================================',
-  '# PHASE 1: Attach persistent EBS volume for models',
+  '# PHASE 1: Mount EFS filesystem for models',
   '# ============================================================',
   '',
-  'INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)',
   'REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)',
-  `VOLUME_ID="${modelsVolume.volumeId}"`,
+  `EFS_ID="${modelsFileSystem.fileSystemId}"`,
   'MOUNT_POINT="/mnt/models"',
   '',
-  '# Wait for volume to be available',
-  'echo "Waiting for volume $VOLUME_ID to be available..."',
-  'aws ec2 wait volume-available --volume-ids $VOLUME_ID --region $REGION || true',
+  '# Install EFS utilities',
+  'apt-get update',
+  'apt-get install -y nfs-common',
   '',
-  '# Attach the volume',
-  'echo "Attaching volume $VOLUME_ID to instance $INSTANCE_ID..."',
-  'aws ec2 attach-volume --volume-id $VOLUME_ID --instance-id $INSTANCE_ID --device /dev/xvdf --region $REGION || echo "Volume may already be attached"',
-  '',
-  '# Wait for attachment',
-  'sleep 10',
-  'while [ ! -e /dev/xvdf ] && [ ! -e /dev/nvme1n1 ]; do',
-  '  echo "Waiting for device to appear..."',
-  '  sleep 5',
-  'done',
-  '',
-  '# Determine actual device name (varies by instance type)',
-  'if [ -e /dev/nvme1n1 ]; then',
-  '  DEVICE=/dev/nvme1n1',
-  'else',
-  '  DEVICE=/dev/xvdf',
-  'fi',
-  '',
-  '# Check if volume needs formatting (first boot)',
-  'if ! blkid $DEVICE; then',
-  '  echo "Formatting new volume..."',
-  '  mkfs.ext4 $DEVICE',
-  'fi',
-  '',
-  '# Mount the volume',
+  '# Create mount point and mount EFS',
   'mkdir -p $MOUNT_POINT',
-  'mount $DEVICE $MOUNT_POINT',
-  'echo "$DEVICE $MOUNT_POINT ext4 defaults,nofail 0 2" >> /etc/fstab',
+  'mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport $EFS_ID.efs.$REGION.amazonaws.com:/ $MOUNT_POINT',
+  '',
+  '# Add to fstab for persistence across reboots',
+  'echo "$EFS_ID.efs.$REGION.amazonaws.com:/ $MOUNT_POINT nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport,_netdev 0 0" >> /etc/fstab',
   '',
   '# Create directory structure',
   'mkdir -p $MOUNT_POINT/ollama',
@@ -602,14 +593,13 @@ userData.addCommands(
   '# PHASE 2: Install system dependencies (if not cached)',
   '# ============================================================',
   '',
-  '# Check if this is first boot (no marker file)',
+  '# Check if this is first boot (no marker file on EFS)',
   'FIRST_BOOT_MARKER="$MOUNT_POINT/.initialized"',
   '',
   'if [ ! -f "$FIRST_BOOT_MARKER" ]; then',
   '  echo "First boot detected - installing all dependencies..."',
   '  ',
   '  # Install NVIDIA drivers',
-  '  apt-get update',
   '  apt-get install -y linux-headers-$(uname -r) build-essential',
   '  apt-get install -y nvidia-driver-535 nvidia-cuda-toolkit',
   '  ',
@@ -622,16 +612,16 @@ userData.addCommands(
   '  pip3 install transformers pillow boto3 sentence-transformers numpy requests',
   '  ',
   'else',
-  '  echo "Subsequent boot - using cached dependencies"',
+  '  echo "Subsequent boot - using cached models from EFS"',
   '  # Just ensure Ollama is installed (in case of OS update)',
   '  which ollama || curl -fsSL https://ollama.com/install.sh | sh',
   'fi',
   '',
   '# ============================================================',
-  '# PHASE 3: Configure Ollama with persistent storage',
+  '# PHASE 3: Configure Ollama with EFS storage',
   '# ============================================================',
   '',
-  '# Configure Ollama to use mounted volume',
+  '# Configure Ollama to use EFS mount',
   'mkdir -p /etc/systemd/system/ollama.service.d',
   'cat > /etc/systemd/system/ollama.service.d/override.conf << EOF',
   '[Service]',
@@ -661,7 +651,7 @@ userData.addCommands(
   '  date > $FIRST_BOOT_MARKER',
   '  echo "First boot initialization complete!"',
   'else',
-  '  echo "Models already cached on volume"',
+  '  echo "Models already cached on EFS"',
   'fi',
   '',
   '# ============================================================',
@@ -721,7 +711,7 @@ const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', 
   blockDevices: [
     {
       deviceName: '/dev/sda1',
-      volume: ec2.BlockDeviceVolume.ebs(50, { // 50GB root (models on separate EBS)
+      volume: ec2.BlockDeviceVolume.ebs(50, { // 50GB root (models on EFS)
         volumeType: ec2.EbsDeviceVolumeType.GP3,
         encrypted: true,
       }),
@@ -733,12 +723,12 @@ const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', 
   },
 });
 
-// Auto Scaling Group - restricted to single AZ with the EBS volume
+// Auto Scaling Group - can use any AZ (EFS spans all AZs)
 const gpuAsg = new autoscaling.AutoScalingGroup(gpuStack, 'GpuAutoScalingGroup', {
   autoScalingGroupName: 'picgraf-gpu-processors',
   vpc,
   vpcSubnets: {
-    availabilityZones: [gpuAvailabilityZone], // Must match EBS volume AZ
+    subnetType: ec2.SubnetType.PUBLIC, // Use any public subnet (any AZ)
   },
   launchTemplate: gpuLaunchTemplate,
   minCapacity: 0,
@@ -788,12 +778,12 @@ new cdk.CfnOutput(gpuStack, 'GpuAsgName', {
   description: 'Auto Scaling Group name for GPU instances',
 });
 
-new cdk.CfnOutput(gpuStack, 'ModelsVolumeId', {
-  value: modelsVolume.volumeId,
-  description: 'Persistent EBS volume for AI models (100GB)',
+new cdk.CfnOutput(gpuStack, 'ModelsFileSystemId', {
+  value: modelsFileSystem.fileSystemId,
+  description: 'EFS filesystem for AI models (cross-AZ)',
 });
 
-new cdk.CfnOutput(gpuStack, 'GpuAvailabilityZone', {
-  value: gpuAvailabilityZone,
-  description: 'Availability Zone for GPU instances and EBS volume',
+new cdk.CfnOutput(gpuStack, 'GpuVpcAzs', {
+  value: vpc.availabilityZones.join(', '),
+  description: 'Availability Zones for GPU instances (any AZ can be used)',
 });
