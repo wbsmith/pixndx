@@ -13,6 +13,7 @@
 import type { ImageMetadata, ClipNeighbor } from '@/types/gallery';
 import type { Schema } from '../../amplify/data/resource';
 import { IS_LOCAL_DEV } from '@/config';
+import { waitForAmplify, refreshImageCookies } from './amplify';
 
 // CDN manifest URL (served via CloudFront, same domain as images)
 const CDN_MANIFEST_URL = 'https://cdn.picgraf.com/manifest/images.json';
@@ -88,6 +89,13 @@ async function loadAllImages(): Promise<ImageMetadata[]> {
     loadPromise = (async () => {
       // In production, try CDN manifest first (fast, cached)
       if (!IS_LOCAL_DEV) {
+        // Ensure Amplify is configured and signed cookies are set before fetching from CDN
+        console.log('[dataLoader] Waiting for Amplify and CDN cookies...');
+        const amplifyReady = await waitForAmplify();
+        if (amplifyReady) {
+          await refreshImageCookies();
+        }
+
         const cdnImages = await fetchManifest(CDN_MANIFEST_URL, 'CDN manifest');
         if (cdnImages && cdnImages.length > 0) {
           cachedImages = cdnImages;
