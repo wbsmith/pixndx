@@ -74,6 +74,7 @@ interface GalleryStore {
   initializeData: () => Promise<void>;  // Load data progressively
   setImages: (images: ImageMetadata[]) => void;
   addImages: (images: ImageMetadata[]) => void;  // Append more images
+  removeImages: (imageIds: string[]) => void;  // Remove images by ID
   setSelectedImage: (image: ImageMetadata | null) => void;
   setHoveredImage: (image: ImageMetadata | null) => void;
   setLayout: (layout: LayoutConfig) => void;
@@ -308,7 +309,17 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     const filtered = searchQuery ? get().filteredImages : allImages;
     set({ images: allImages, filteredImages: filtered });
   },
-  
+
+  removeImages: (imageIds) => {
+    const { images, filteredImages, selectedImage } = get();
+    const idsToRemove = new Set(imageIds);
+    const newImages = images.filter(img => !idsToRemove.has(img.id));
+    const newFiltered = filteredImages.filter(img => !idsToRemove.has(img.id));
+    // Clear selection if the selected image was removed
+    const newSelected = selectedImage && idsToRemove.has(selectedImage.id) ? null : selectedImage;
+    set({ images: newImages, filteredImages: newFiltered, selectedImage: newSelected });
+  },
+
   setSelectedImage: (image) => set({ selectedImage: image }),
   
   setHoveredImage: (image) => set({ hoveredImage: image }),

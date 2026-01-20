@@ -105,6 +105,12 @@ interface CurationStore {
   prevDuplicateGroup: () => void;
   getCurrentDuplicateGroup: () => DuplicateGroup | null;
   
+  // Get IDs by status
+  getIdsByStatus: (status: CurationStatus) => string[];
+
+  // Remove decisions (after deletion)
+  removeDecisions: (imageIds: string[]) => void;
+
   // Statistics
   getStats: () => {
     total: number;
@@ -395,7 +401,21 @@ export const useCurationStore = create<CurationStore>()(
       
       canUndo: () => get().undoStack.length > 0,
       canRedo: () => get().redoStack.length > 0,
-      
+
+      // Get IDs by status
+      getIdsByStatus: (status: CurationStatus) => {
+        const decisions = Object.values(get().decisions);
+        return decisions.filter(d => d.status === status).map(d => d.imageId);
+      },
+
+      // Remove decisions (after deletion)
+      removeDecisions: (imageIds: string[]) => {
+        const state = get();
+        const newDecisions = { ...state.decisions };
+        imageIds.forEach(id => delete newDecisions[id]);
+        set({ decisions: newDecisions });
+      },
+
       // Duplicates
       loadDuplicates: (groups: DuplicateGroup[]) => {
         set({ duplicateGroups: groups, currentDuplicateIndex: 0 });

@@ -102,8 +102,32 @@ backend.deleteImage.resources.lambda.addEnvironment(
   'STORAGE_BUCKET_NAME',
   s3Bucket.bucketName
 );
+backend.deleteImage.resources.lambda.addEnvironment(
+  'DYNAMODB_TABLE_PATTERN',
+  'Image'
+);
 s3Bucket.grantReadWrite(backend.deleteImage.resources.lambda);
 s3Bucket.grantDelete(backend.deleteImage.resources.lambda);
+
+// Grant deleteImage Lambda permission to delete from DynamoDB Image table
+backend.deleteImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: [
+      'dynamodb:DeleteItem',
+      'dynamodb:GetItem',
+    ],
+    resources: [
+      `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/*-Image-*`,
+    ],
+  })
+);
+// Grant permission to list tables (to find the Image table by pattern)
+backend.deleteImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: ['dynamodb:ListTables'],
+    resources: ['*'],
+  })
+);
 
 // ============================================================
 // WAF (Web Application Firewall) Configuration
@@ -699,10 +723,9 @@ const gpuAmi = ec2.MachineImage.fromSsmParameter(
   { os: ec2.OperatingSystemType.LINUX }
 );
 
-// Launch template for GPU instances
+// Launch template for GPU instances (no spot options - controlled by ASG mixed policy)
 const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', {
   launchTemplateName: 'picgraf-gpu-processor',
-  instanceType: ec2.InstanceType.of(ec2.InstanceClass.G5, ec2.InstanceSize.XLARGE),
   machineImage: gpuAmi,
   role: gpuInstanceRole,
   securityGroup: gpuSecurityGroup,
@@ -717,20 +740,30 @@ const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', 
       }),
     },
   ],
-  spotOptions: {
-    requestType: ec2.SpotRequestType.ONE_TIME,
-    maxPrice: 1.50,
-  },
 });
 
-// Auto Scaling Group - can use any AZ (EFS spans all AZs)
+// Auto Scaling Group with mixed instances policy (spot preferred, on-demand fallback)
 const gpuAsg = new autoscaling.AutoScalingGroup(gpuStack, 'GpuAutoScalingGroup', {
   autoScalingGroupName: 'picgraf-gpu-processors',
   vpc,
   vpcSubnets: {
     subnetType: ec2.SubnetType.PUBLIC, // Use any public subnet (any AZ)
   },
-  launchTemplate: gpuLaunchTemplate,
+  mixedInstancesPolicy: {
+    instancesDistribution: {
+      onDemandBaseCapacity: 0,           // No guaranteed on-demand
+      onDemandPercentageAboveBaseCapacity: 0, // 100% spot when available
+      spotAllocationStrategy: autoscaling.SpotAllocationStrategy.PRICE_CAPACITY_OPTIMIZED,
+      spotMaxPrice: '1.50',              // Max spot price
+    },
+    launchTemplate: gpuLaunchTemplate,
+    launchTemplateOverrides: [
+      // Try multiple instance types for better spot availability
+      { instanceType: ec2.InstanceType.of(ec2.InstanceClass.G5, ec2.InstanceSize.XLARGE) },
+      { instanceType: ec2.InstanceType.of(ec2.InstanceClass.G5, ec2.InstanceSize.XLARGE2) },
+      { instanceType: ec2.InstanceType.of(ec2.InstanceClass.G4DN, ec2.InstanceSize.XLARGE) },
+    ],
+  },
   minCapacity: 0,
   maxCapacity: 1,
   desiredCapacity: 0,

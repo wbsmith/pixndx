@@ -1,6 +1,6 @@
 /**
  * Curation Toolbar
- * 
+ *
  * Fixed bottom toolbar that appears in admin mode.
  * Provides batch operations, undo/redo, and export functions.
  */
@@ -22,8 +22,12 @@ import {
   Copy,
   FileJson,
   Terminal,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useCurationStore } from '@/stores/curationStore';
+import { useGalleryStore } from '@/stores/galleryStore';
+import { IS_LOCAL_DEV } from '@/config';
 
 export function CurationToolbar() {
   const {
@@ -37,17 +41,95 @@ export function CurationToolbar() {
     canRedo,
     clearSelection,
     getStats,
+    getIdsByStatus,
+    removeDecisions,
     exportAsJSON,
     exportAsShellScript,
   } = useCurationStore();
-  
+
+  const { removeImages } = useGalleryStore();
+
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showStats, setShowStats] = useState(false);
-  
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 });
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   if (!isAdminMode) return null;
-  
+
   const selectedCount = selectedIds.size;
   const stats = getStats();
+  const deleteMarkedCount = stats.delete;
+
+  // Apply deletions via GraphQL mutation
+  const handleApplyDeletions = async () => {
+    if (IS_LOCAL_DEV) {
+      setDeleteError('Deletion API not available in local dev mode');
+      return;
+    }
+
+    const idsToDelete = getIdsByStatus('delete');
+    if (idsToDelete.length === 0) {
+      setDeleteError('No images marked for deletion');
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    setDeleteProgress({ current: 0, total: idsToDelete.length });
+
+    try {
+      // Dynamically import Amplify client
+      const { generateClient } = await import('aws-amplify/api');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = generateClient() as any;
+
+      const deletedIds: string[] = [];
+      const errors: string[] = [];
+
+      for (let i = 0; i < idsToDelete.length; i++) {
+        const imageId = idsToDelete[i];
+        setDeleteProgress({ current: i + 1, total: idsToDelete.length });
+
+        try {
+          const result = await client.graphql({
+            query: `mutation DeleteImageFiles($imageId: String!) {
+              deleteImageFiles(imageId: $imageId) {
+                success
+                imageId
+                deletedFiles
+                message
+              }
+            }`,
+            variables: { imageId },
+          });
+          const data = result.data?.deleteImageFiles;
+          if (data?.success) {
+            deletedIds.push(imageId);
+            console.log(`Deleted: ${imageId}`, data.deletedFiles);
+          } else {
+            errors.push(`${imageId}: ${data?.message || 'Unknown error'}`);
+          }
+        } catch (err) {
+          errors.push(`${imageId}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+
+      // Remove deleted images from gallery and curation stores
+      if (deletedIds.length > 0) {
+        removeImages(deletedIds);
+        removeDecisions(deletedIds);
+      }
+
+      if (errors.length > 0) {
+        setDeleteError(`Deleted ${deletedIds.length}/${idsToDelete.length}. Errors: ${errors.join(', ')}`);
+      }
+    } catch (err) {
+      setDeleteError(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   
   const handleExportJSON = () => {
     const json = exportAsJSON();
@@ -142,10 +224,61 @@ export function CurationToolbar() {
               <Copy size={18} className="text-nebula-400" />
               <span className="text-sm text-white">Copy Script to Clipboard</span>
             </button>
+            {deleteMarkedCount > 0 && !IS_LOCAL_DEV && (
+              <>
+                <div className="border-t border-nebula-700" />
+                <button
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    handleApplyDeletions();
+                  }}
+                  disabled={isDeleting}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-red-900/30 transition-colors text-red-400"
+                >
+                  {isDeleting ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={18} />
+                  )}
+                  <span className="text-sm">
+                    {isDeleting
+                      ? `Deleting ${deleteProgress.current}/${deleteProgress.total}...`
+                      : `Apply Deletions (${deleteMarkedCount})`}
+                  </span>
+                </button>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
-      
+
+      {/* Delete error notification */}
+      <AnimatePresence>
+        {deleteError && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:w-96
+                       bg-red-900/95 backdrop-blur border border-red-700
+                       rounded-lg p-4 shadow-xl z-40"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-red-200">{deleteError}</p>
+                <button
+                  onClick={() => setDeleteError(null)}
+                  className="mt-2 text-xs text-red-400 hover:text-red-300"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Main toolbar */}
       <motion.div
         initial={{ y: 100 }}
