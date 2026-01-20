@@ -384,6 +384,66 @@ def get_image_table_name() -> str:
     raise RuntimeError(f"Could not find DynamoDB table matching pattern '{DYNAMODB_TABLE_PATTERN}'")
 
 
+def update_cdn_manifest(metadata: Dict):
+    """Update the CDN manifest with the new image (incremental update)."""
+    print("  Updating CDN manifest...")
+    manifest_key = 'manifest/images.json'
+
+    try:
+        # Try to load existing manifest
+        try:
+            response = s3.get_object(Bucket=STORAGE_BUCKET, Key=manifest_key)
+            manifest = json.loads(response['Body'].read())
+            images = manifest.get('images', [])
+        except Exception:
+            # Manifest doesn't exist yet or error reading, start fresh
+            images = []
+
+        # Transform metadata to manifest format (matches frontend ImageMetadata)
+        new_entry = {
+            'id': metadata['id'],
+            'filename': metadata['filename'],
+            'urls': metadata['urls'],
+            'description': metadata.get('description', ''),
+            'mood': metadata.get('mood', 'neutral'),
+            'main_subject': metadata.get('main_subject', ''),
+            'tags': metadata.get('tags', {}),
+            'main_colors': metadata.get('main_colors', {}),
+            'exif': metadata.get('exif', {}),
+            'clipNeighbors': metadata.get('clipNeighbors', []),
+            'avgRating': metadata.get('avgRating', 0),
+            'ratingCount': metadata.get('ratingCount', 0),
+        }
+
+        # Check if image already exists (update) or is new (append)
+        existing_idx = next((i for i, img in enumerate(images) if img['id'] == metadata['id']), None)
+        if existing_idx is not None:
+            images[existing_idx] = new_entry
+        else:
+            images.append(new_entry)
+
+        # Write updated manifest
+        manifest = {
+            'version': '2.0',
+            'generatedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'count': len(images),
+            'images': images,
+        }
+
+        s3.put_object(
+            Bucket=STORAGE_BUCKET,
+            Key=manifest_key,
+            Body=json.dumps(manifest),
+            ContentType='application/json',
+            CacheControl='public, max-age=60',  # Short cache for near-real-time updates
+        )
+        print(f"  Updated CDN manifest: {len(images)} images")
+
+    except Exception as e:
+        print(f"  Warning: Could not update CDN manifest: {e}")
+        # Don't fail the whole process if manifest update fails
+
+
 def write_to_dynamodb(metadata: Dict):
     """Write image metadata to DynamoDB."""
     print("  Writing to DynamoDB...")
@@ -553,6 +613,9 @@ def process_image(message_body: str) -> bool:
 
         # Write to DynamoDB for the gallery
         write_to_dynamodb(metadata)
+
+        # Update CDN manifest for fast initial load
+        update_cdn_manifest(metadata)
 
         # Clean up temp file
         os.remove(temp_path)
