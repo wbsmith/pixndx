@@ -7,6 +7,7 @@
  */
 
 import type { ImageMetadata, ClipNeighbor } from '@/types/gallery';
+import type { Schema } from '../../amplify/data/resource';
 import { IS_LOCAL_DEV } from '@/config';
 
 export interface LoadProgress {
@@ -49,8 +50,6 @@ function transformDbRecord(record: Record<string, unknown>): ImageMetadata {
 async function fetchFromAppSync(): Promise<ImageMetadata[] | null> {
   try {
     const { generateClient } = await import('aws-amplify/data');
-    type Schema = (await import('../../amplify/data/resource')).Schema;
-
     const client = generateClient<Schema>();
 
     // Fetch all images (paginated)
@@ -211,8 +210,6 @@ export async function subscribeToNewImages(
 
   try {
     const { generateClient } = await import('aws-amplify/data');
-    type Schema = (await import('../../amplify/data/resource')).Schema;
-
     const client = generateClient<Schema>();
 
     const subscription = client.models.Image.onCreate().subscribe({
