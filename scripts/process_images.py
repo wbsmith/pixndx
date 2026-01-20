@@ -320,7 +320,8 @@ def compute_incremental_neighbors(
 
 
 def update_existing_metadata(image_id: str, new_neighbors: List[Dict]):
-    """Update an existing image's metadata with new neighbors."""
+    """Update an existing image's metadata with new neighbors in S3 and DynamoDB."""
+    # Update S3 metadata file
     key = f'metadata/{image_id}.json'
     try:
         response = s3.get_object(Bucket=STORAGE_BUCKET, Key=key)
@@ -332,9 +333,24 @@ def update_existing_metadata(image_id: str, new_neighbors: List[Dict]):
             Body=json.dumps(metadata, indent=2),
             ContentType='application/json'
         )
+    except Exception as e:
+        print(f"  Warning: Could not update S3 metadata for {image_id}: {e}")
+
+    # Update DynamoDB record
+    try:
+        table_name = get_image_table_name()
+        table = dynamodb_resource.Table(table_name)
+        table.update_item(
+            Key={'id': image_id},
+            UpdateExpression='SET clipNeighbors = :neighbors, updatedAt = :updated',
+            ExpressionAttributeValues={
+                ':neighbors': new_neighbors,
+                ':updated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            }
+        )
         return True
     except Exception as e:
-        print(f"  Warning: Could not update {image_id}: {e}")
+        print(f"  Warning: Could not update DynamoDB for {image_id}: {e}")
         return False
 
 
