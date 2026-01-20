@@ -52,45 +52,7 @@ function transformDbRecord(record: Record<string, unknown>): ImageMetadata {
 }
 
 /**
- * Fetch images from DynamoDB via AppSync.
- */
-async function fetchFromAppSync(): Promise<ImageMetadata[] | null> {
-  try {
-    const { generateClient } = await import('aws-amplify/data');
-    const client = generateClient<Schema>();
-
-    // Fetch all images (paginated)
-    const images: ImageMetadata[] = [];
-    let nextToken: string | undefined = undefined;
-
-    do {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response: any = await client.models.Image.list({
-        limit: 1000,
-        nextToken,
-      });
-
-      if (response.data) {
-        for (const record of response.data) {
-          if (record) {
-            images.push(transformDbRecord(record as Record<string, unknown>));
-          }
-        }
-      }
-
-      nextToken = response.nextToken ?? undefined;
-    } while (nextToken);
-
-    console.log(`✅ Loaded ${images.length} images from DynamoDB`);
-    return images;
-  } catch (e) {
-    console.warn('[dataLoader] AppSync fetch failed:', e);
-    return null;
-  }
-}
-
-/**
- * Fetch manifest from a URL (fallback for local dev or if AppSync fails).
+ * Fetch manifest from a URL.
  */
 async function fetchManifest(url: string, source: string): Promise<ImageMetadata[] | null> {
   try {
