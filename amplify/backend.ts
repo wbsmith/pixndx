@@ -629,9 +629,8 @@ userData.addCommands(
   'if [ ! -f "$FIRST_BOOT_MARKER" ]; then',
   '  echo "First boot detected - installing all dependencies..."',
   '  ',
-  '  # Install NVIDIA drivers',
-  '  apt-get install -y linux-headers-$(uname -r) build-essential',
-  '  apt-get install -y nvidia-driver-535 nvidia-cuda-toolkit',
+  '  # NVIDIA drivers pre-installed in Deep Learning AMI - just verify',
+  '  nvidia-smi || echo "Warning: NVIDIA driver not working"',
   '  ',
   '  # Install Ollama',
   '  curl -fsSL https://ollama.com/install.sh | sh',
@@ -740,11 +739,10 @@ userData.addCommands(
   'echo "GPU instance ready for processing!"',
 );
 
-// Use Ubuntu 22.04 as base
-const gpuAmi = ec2.MachineImage.fromSsmParameter(
-  '/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id',
-  { os: ec2.OperatingSystemType.LINUX }
-);
+// Use AWS Deep Learning AMI with NVIDIA drivers pre-installed
+const gpuAmi = ec2.MachineImage.genericLinux({
+  'us-east-1': 'ami-0e7a4fb2dba9df814', // Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)
+});
 
 // Launch template for GPU instances (no spot options - controlled by ASG mixed policy)
 const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', {
