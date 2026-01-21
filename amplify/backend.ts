@@ -117,7 +117,7 @@ backend.deleteImage.resources.lambda.addToRolePolicy(
       'dynamodb:GetItem',
     ],
     resources: [
-      `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/*-Image-*`,
+      `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/Image-*`,
     ],
   })
 );
@@ -569,8 +569,8 @@ gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
     'dynamodb:Scan',
   ],
   resources: [
-    `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/*-Image-*`,
-    `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/*-Image-*/index/*`,
+    `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/Image-*`,
+    `arn:aws:dynamodb:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:table/Image-*/index/*`,
   ],
 }));
 
