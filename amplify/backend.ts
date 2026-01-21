@@ -755,7 +755,7 @@ const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', 
   blockDevices: [
     {
       deviceName: '/dev/sda1',
-      volume: ec2.BlockDeviceVolume.ebs(50, { // 50GB root (models on EFS)
+      volume: ec2.BlockDeviceVolume.ebs(100, { // 100GB root (Deep Learning AMI needs 75GB+)
         volumeType: ec2.EbsDeviceVolumeType.GP3,
         encrypted: true,
       }),
