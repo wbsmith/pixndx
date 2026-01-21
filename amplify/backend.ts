@@ -556,6 +556,12 @@ imageProcessingQueue.grantConsumeMessages(gpuInstanceRole);
 // The GPU writes image metadata directly to DynamoDB after processing
 gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
   actions: [
+    'dynamodb:ListTables',
+  ],
+  resources: ['*'],
+}));
+gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
+  actions: [
     'dynamodb:PutItem',
     'dynamodb:UpdateItem',
     'dynamodb:GetItem',
