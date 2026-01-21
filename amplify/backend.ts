@@ -636,7 +636,7 @@ userData.addCommands(
   '  # Install Python dependencies',
   '  apt-get install -y python3-pip python3-venv awscli',
   '  pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121',
-  '  pip3 install transformers pillow boto3 sentence-transformers numpy requests',
+  '  pip3 install transformers==4.44.2 pillow boto3 sentence-transformers==3.0.1 numpy requests',
   '  ',
   'else',
   '  echo "Subsequent boot - using cached models from EFS"',
