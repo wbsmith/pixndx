@@ -739,9 +739,9 @@ userData.addCommands(
   'echo "GPU instance ready for processing!"',
 );
 
-// Use AWS Deep Learning AMI with NVIDIA drivers pre-installed
+// Custom AMI with NVIDIA drivers, ollama, CLIP, sentence-transformers pre-installed
 const gpuAmi = ec2.MachineImage.genericLinux({
-  'us-east-1': 'ami-0e7a4fb2dba9df814', // Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)
+  'us-east-1': 'ami-0ad92c1e96dd6be60', // picgraf-gpu-processor-v1
 });
 
 // Launch template for GPU instances (no spot options - controlled by ASG mixed policy)
