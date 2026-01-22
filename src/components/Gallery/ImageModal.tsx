@@ -88,39 +88,25 @@ export function ImageModal() {
     return () => window.removeEventListener('resize', updateContainerDimensions);
   }, [isFullscreen, modalOpen]);
   
-  // Load signed URL and image dimensions when image changes
-  // IMPORTANT: Load image via new Image() FIRST, wait for it to cache, THEN set URL state
-  // This prevents double-download (the <img> tag will use the cached version)
+  // Get signed URL and dimensions when image changes
   useEffect(() => {
     if (!selectedImage) return;
 
     let mounted = true;
     const imageId = selectedImage.id;
 
-    // Helper to preload image and get dimensions
-    const preloadImage = (url: string) => {
-      const img = new Image();
-      img.crossOrigin = 'use-credentials';
-      img.onload = () => {
-        if (!mounted) return;
-        setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-        // NOW set URL state - image is cached, <img> tag won't re-download
-        setUrlState({ imageId, url });
-      };
-      img.onerror = () => {
-        if (!mounted) return;
-        // Still show the image even if preload fails
-        setUrlState({ imageId, url });
-      };
-      img.src = url;
-    };
+    // Get dimensions from EXIF metadata (no image load needed)
+    const exifWidth = selectedImage.exif?.ImageWidth;
+    const exifHeight = selectedImage.exif?.ImageHeight;
+    if (exifWidth && exifHeight) {
+      setImageDimensions({ width: exifWidth, height: exifHeight });
+    }
 
     // Check module-level cache first
     const cachedUrl = imageUrlCache.get(imageId);
     if (cachedUrl) {
-      // URL cached - preload to get dimensions, then render
-      preloadImage(cachedUrl);
-      return () => { mounted = false; };
+      setUrlState({ imageId, url: cachedUrl });
+      return;
     }
 
     // Not in cache - clear state so we show spinner
@@ -130,19 +116,28 @@ export function ImageModal() {
     if (IS_LOCAL_DEV) {
       const url = selectedImage.urls.full;
       imageUrlCache.set(imageId, url);
-      preloadImage(url);
-      return () => { mounted = false; };
+      setUrlState({ imageId, url });
+      return;
     }
 
-    // In production, get signed URL first, then preload
+    // In production, get signed URL
     getSignedImageUrl(selectedImage.urls.full, 'full').then((url) => {
       if (!mounted) return;
       imageUrlCache.set(imageId, url);
-      preloadImage(url);
+      setUrlState({ imageId, url });
     });
 
     return () => { mounted = false; };
-  }, [selectedImage?.id]);
+  }, [selectedImage?.id, selectedImage?.exif]);
+
+  // Fallback: get dimensions from img onLoad if EXIF missing
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    // Only update if we don't already have dimensions from EXIF
+    if (imageDimensions.width === 0) {
+      setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+    }
+  }, [imageDimensions.width]);
   
   // Reset zoom/position when image changes
   useEffect(() => {
@@ -497,6 +492,7 @@ export function ImageModal() {
                       }}
                       draggable={false}
                       crossOrigin="use-credentials"
+                      onLoad={handleImageLoad}
                     />
                   ) : (
                     <div className="flex items-center justify-center">
