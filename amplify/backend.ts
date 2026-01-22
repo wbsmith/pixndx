@@ -584,16 +584,14 @@ gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
   resources: [modelsFileSystem.fileSystemArn],
 }));
 
-// Grant GPU instance access to AppSync (for listing API keys and getting API details)
+// Grant GPU instance access to AppSync (for listing APIs/keys and making mutations)
 gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
   actions: [
+    'appsync:ListGraphqlApis',
     'appsync:ListApiKeys',
     'appsync:GetGraphqlApi',
   ],
-  resources: [
-    backend.data.resources.cfnResources.cfnGraphqlApi.attrArn,
-    `${backend.data.resources.cfnResources.cfnGraphqlApi.attrArn}/*`,
-  ],
+  resources: ['*'], // Needs to list all APIs to find the right one
 }));
 
 // User data script with persistent EFS model storage
@@ -725,10 +723,20 @@ userData.addCommands(
   '# Always download latest script from S3',
   `aws s3 cp s3://${modelsBucket.bucketName}/scripts/process_images.py $MOUNT_POINT/scripts/process_images.py --region $REGION || echo "Script not found in S3"`,
   '',
-  '# Fetch AppSync API key',
-  `APPSYNC_API_ID="${backend.data.resources.cfnResources.cfnGraphqlApi.attrApiId}"`,
-  'APPSYNC_API_KEY=$(aws appsync list-api-keys --api-id $APPSYNC_API_ID --region $REGION --query "apiKeys[0].id" --output text 2>/dev/null || echo "")',
-  'echo "AppSync API Key: $APPSYNC_API_KEY"',
+  '# Discover AppSync API (find the one with "amplify" in the name)',
+  'echo "Discovering AppSync API..."',
+  'APPSYNC_API_ID=$(aws appsync list-graphql-apis --region $REGION --query "graphqlApis[?contains(name, \'amplify\')].apiId | [0]" --output text 2>/dev/null || echo "")',
+  'if [ -n "$APPSYNC_API_ID" ] && [ "$APPSYNC_API_ID" != "None" ]; then',
+  '  APPSYNC_ENDPOINT=$(aws appsync get-graphql-api --api-id $APPSYNC_API_ID --region $REGION --query "graphqlApi.uris.GRAPHQL" --output text 2>/dev/null || echo "")',
+  '  APPSYNC_API_KEY=$(aws appsync list-api-keys --api-id $APPSYNC_API_ID --region $REGION --query "apiKeys[0].id" --output text 2>/dev/null || echo "")',
+  '  echo "Found AppSync API: $APPSYNC_API_ID"',
+  '  echo "Endpoint: $APPSYNC_ENDPOINT"',
+  '  echo "API Key: $APPSYNC_API_KEY"',
+  'else',
+  '  echo "Warning: Could not find AppSync API"',
+  '  APPSYNC_ENDPOINT=""',
+  '  APPSYNC_API_KEY=""',
+  'fi',
   '',
   '# Create systemd service for image processor',
   'cat > /etc/systemd/system/picgraf-processor.service << SERVICEEOF',
@@ -745,7 +753,7 @@ userData.addCommands(
   `Environment=AWS_REGION=${cdk.Aws.REGION}`,
   `Environment=MODELS_BUCKET=${modelsBucket.bucketName}`,
   'Environment=DYNAMODB_TABLE_PATTERN=Image',
-  `Environment=APPSYNC_ENDPOINT=${backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl}`,
+  'Environment=APPSYNC_ENDPOINT=$APPSYNC_ENDPOINT',
   'Environment=APPSYNC_API_KEY=$APPSYNC_API_KEY',
   'Environment=OLLAMA_MODELS=$MOUNT_POINT/ollama',
   'Environment=HF_HOME=$MOUNT_POINT/huggingface',
