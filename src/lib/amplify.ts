@@ -201,16 +201,23 @@ export function extractS3Key(url: string): string | null {
   try {
     // Handle full S3 URLs
     const s3Pattern = /\.s3\.[^/]+\.amazonaws\.com\/images\/(?:small|medium|full)\/(.+)$/;
-    const match = url.match(s3Pattern);
-    if (match) {
-      return decodeURIComponent(match[1]);
+    const s3Match = url.match(s3Pattern);
+    if (s3Match) {
+      return decodeURIComponent(s3Match[1]);
     }
-    
+
+    // Handle CDN URLs (e.g., https://cdn.picgraf.com/images/full/photo.jpg)
+    const cdnPattern = /cdn\.picgraf\.com\/images\/(?:small|medium|full)\/(.+)$/;
+    const cdnMatch = url.match(cdnPattern);
+    if (cdnMatch) {
+      return decodeURIComponent(cdnMatch[1]);
+    }
+
     // If it's already a key (no protocol), return as-is
     if (!url.startsWith('http')) {
       return url;
     }
-    
+
     return null;
   } catch {
     return null;

@@ -36,7 +36,7 @@ STORAGE_BUCKET = os.environ.get('STORAGE_BUCKET')
 SQS_QUEUE_URL = os.environ.get('SQS_QUEUE_URL')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma2:9b')  # 9B fits alongside CLIP
+OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma3:27b-it-qat')  # Vision model, 4-bit QAT
 IDLE_TIMEOUT_SECONDS = int(os.environ.get('IDLE_TIMEOUT', '600'))  # 10 min default
 
 # AppSync configuration (for real-time subscriptions)
@@ -53,7 +53,7 @@ META_WEIGHT = 0.4
 sqs = boto3.client('sqs', region_name=AWS_REGION)
 s3 = boto3.client('s3', region_name=AWS_REGION)
 
-# Load CLIP model (downloads on first use, ~2GB)
+# Load CLIP model at startup
 print("Loading CLIP model...")
 clip_model = SentenceTransformer('clip-ViT-L-14')
 print("CLIP model loaded")
@@ -652,12 +652,12 @@ def process_image(message_body: str) -> bool:
         temp_path = f'/tmp/{image_id}_medium.jpg'
         medium_image.save(temp_path, 'JPEG', quality=90)
 
-        # Generate CLIP embedding (uses original for best quality)
+        # Generate CLIP embedding
         print("  Generating CLIP embedding...")
         embedding = clip_model.encode(image)
         embedding_list = embedding.tolist()
 
-        # Generate metadata with Ollama (uses medium image - faster, sufficient quality)
+        # Generate metadata with Gemma 3 27B (vision model)
         print("  Generating metadata with Ollama...")
         ai_metadata = generate_metadata_with_ollama(temp_path)
 
