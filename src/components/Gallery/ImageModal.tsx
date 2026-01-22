@@ -89,53 +89,56 @@ export function ImageModal() {
   }, [isFullscreen, modalOpen]);
   
   // Load signed URL and image dimensions when image changes
+  // IMPORTANT: Load image via new Image() FIRST, wait for it to cache, THEN set URL state
+  // This prevents double-download (the <img> tag will use the cached version)
   useEffect(() => {
     if (!selectedImage) return;
 
     let mounted = true;
     const imageId = selectedImage.id;
 
-    // Check module-level cache first - if we have the URL, use it immediately
+    // Helper to preload image and get dimensions
+    const preloadImage = (url: string) => {
+      const img = new Image();
+      img.crossOrigin = 'use-credentials';
+      img.onload = () => {
+        if (!mounted) return;
+        setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+        // NOW set URL state - image is cached, <img> tag won't re-download
+        setUrlState({ imageId, url });
+      };
+      img.onerror = () => {
+        if (!mounted) return;
+        // Still show the image even if preload fails
+        setUrlState({ imageId, url });
+      };
+      img.src = url;
+    };
+
+    // Check module-level cache first
     const cachedUrl = imageUrlCache.get(imageId);
     if (cachedUrl) {
-      // URL is already in cache, just update state to match (triggers re-render with cached URL)
-      setUrlState({ imageId, url: cachedUrl });
-      // Still load dimensions if needed
-      const img = new Image();
-      img.onload = () => {
-        if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-      };
-      img.src = cachedUrl;
+      // URL cached - preload to get dimensions, then render
+      preloadImage(cachedUrl);
       return () => { mounted = false; };
     }
 
-    // Not in cache - clear state so we show spinner (not stale image)
+    // Not in cache - clear state so we show spinner
     setUrlState(null);
 
     // In local dev, use URL directly
     if (IS_LOCAL_DEV) {
       const url = selectedImage.urls.full;
       imageUrlCache.set(imageId, url);
-      setUrlState({ imageId, url });
-      const img = new Image();
-      img.onload = () => {
-        if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-      };
-      img.src = url;
+      preloadImage(url);
       return () => { mounted = false; };
     }
 
-    // In production, get signed URL first
+    // In production, get signed URL first, then preload
     getSignedImageUrl(selectedImage.urls.full, 'full').then((url) => {
       if (!mounted) return;
       imageUrlCache.set(imageId, url);
-      setUrlState({ imageId, url });
-
-      const img = new Image();
-      img.onload = () => {
-        if (mounted) setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-      };
-      img.src = url;
+      preloadImage(url);
     });
 
     return () => { mounted = false; };

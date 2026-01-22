@@ -604,14 +604,13 @@ def process_image(message_body: str) -> bool:
         if image.mode in ('RGBA', 'P'):
             image = image.convert('RGB')
 
-        # Save original temporarily for Ollama
-        temp_path = f'/tmp/{image_id}_original.jpg'
-        image.save(temp_path, 'JPEG', quality=95)
-
         # Resize and upload different sizes
         sizes = {'small': 200, 'medium': 1024, 'full': None}
+        medium_image = None
         for size_name, max_dim in sizes.items():
             resized = resize_image(image, max_dim)
+            if size_name == 'medium':
+                medium_image = resized  # Save for Ollama
             buf = BytesIO()
             resized.save(buf, format='JPEG', quality=85 if size_name != 'full' else 92)
             buf.seek(0)
@@ -623,23 +622,29 @@ def process_image(message_body: str) -> bool:
             )
             print(f"  Uploaded images/{size_name}/{image_id}.jpg")
 
-        # Generate CLIP embedding
+        # Save medium image temporarily for Ollama (1024px is sufficient for LLM analysis)
+        temp_path = f'/tmp/{image_id}_medium.jpg'
+        medium_image.save(temp_path, 'JPEG', quality=90)
+
+        # Generate CLIP embedding (uses original for best quality)
         print("  Generating CLIP embedding...")
         embedding = clip_model.encode(image)
         embedding_list = embedding.tolist()
 
-        # Generate metadata with Gemma 3
+        # Generate metadata with Ollama (uses medium image - faster, sufficient quality)
         print("  Generating metadata with Ollama...")
         ai_metadata = generate_metadata_with_ollama(temp_path)
 
         # Build metadata object (neighbors computed next)
+        # Use CDN URLs (CloudFront serves images with signed cookies)
+        CDN_BASE = 'https://cdn.picgraf.com'
         metadata = {
             'id': image_id,
             'filename': original_filename,  # Preserve original filename
             'urls': {
-                'small': f'images/small/{image_id}.jpg',
-                'medium': f'images/medium/{image_id}.jpg',
-                'full': f'images/full/{image_id}.jpg',
+                'small': f'{CDN_BASE}/images/small/{image_id}.jpg',
+                'medium': f'{CDN_BASE}/images/medium/{image_id}.jpg',
+                'full': f'{CDN_BASE}/images/full/{image_id}.jpg',
             },
             'description': ai_metadata.get('description', ''),
             'main_subject': ai_metadata.get('main_subject', ''),

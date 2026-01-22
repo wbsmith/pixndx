@@ -294,7 +294,6 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
   return (
     <div className="min-h-screen bg-gradient-cosmos flex items-center justify-center p-4">
       {/* Background effects */}
-      <div className="noise-overlay" />
       <div className="fixed inset-0 bg-gradient-to-br from-stellar-cyan/5 via-transparent to-stellar-violet/5 pointer-events-none" />
       
       <ThemeProvider theme={theme}>
