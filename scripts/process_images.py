@@ -73,21 +73,47 @@ def resize_image(image: Image.Image, max_dim: int | None) -> Image.Image:
 
 
 def generate_metadata_with_ollama(image_path: str) -> dict:
-    """Generate image metadata using Gemma 3 via Ollama."""
-    prompt = """Analyze this image and provide a JSON response with:
+    """Generate image metadata using Gemma via Ollama."""
+    prompt = """Analyze this photograph and provide a detailed JSON response.
+
+REQUIRED FORMAT:
 {
-  "description": "A detailed 2-3 sentence description of the image",
+  "description": "A detailed 3-5 sentence description capturing the scene, composition, lighting, and notable details. Be specific and evocative.",
   "main_subject": "The primary subject in 2-5 words",
-  "mood": "One word describing the mood (e.g., peaceful, dramatic, joyful)",
+  "mood": "The emotional tone (e.g., serene and majestic, dramatic and intense, peaceful and contemplative)",
   "tags": {
-    "category1": ["tag1", "tag2"],
-    "category2": ["tag3", "tag4"]
+    "subject": ["primary subject tags"],
+    "environment": ["setting, location, time of day"],
+    "style": ["composition, lighting, photographic style"],
+    "mood": ["emotional qualities"],
+    "colors": ["dominant color descriptions"]
   },
   "main_colors": {
-    "color_name": "#hexcode"
+    "color_name": "#hexcode",
+    "another_color": "#hexcode"
   }
 }
 
+EXAMPLE OUTPUT:
+{
+  "description": "A vibrant image captures a brown pelican in mid-flight against a pale blue sky. The pelican's wings are fully extended, showcasing the dark brown and black feathers. The bird's long beak is visible as it soars gracefully. The overall composition emphasizes the pelican's movement and its connection to the open sky.",
+  "main_subject": "Brown pelican in flight",
+  "mood": "Serene and majestic",
+  "tags": {
+    "subject": ["bird", "pelican", "wildlife"],
+    "environment": ["sky", "outdoors", "daytime"],
+    "style": ["wildlife photography", "action shot", "natural lighting"],
+    "mood": ["peaceful", "graceful", "free"],
+    "colors": ["brown", "blue", "earth tones"]
+  },
+  "main_colors": {
+    "brown": "#8B4513",
+    "sky_blue": "#ADD8E6",
+    "dark_brown": "#5C4033"
+  }
+}
+
+Provide 3-5 main colors with accurate hex codes. Use descriptive color names (e.g., "sky_blue" not just "blue").
 Respond ONLY with valid JSON, no other text."""
 
     try:
