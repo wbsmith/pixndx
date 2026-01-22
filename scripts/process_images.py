@@ -23,6 +23,7 @@ import os
 import sys
 import time
 import requests
+from decimal import Decimal
 from io import BytesIO
 from typing import Dict, List, Any, Tuple, Optional
 from dataclasses import dataclass
@@ -37,6 +38,10 @@ AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma3:27b')
 IDLE_TIMEOUT_SECONDS = int(os.environ.get('IDLE_TIMEOUT', '600'))  # 10 min default
+
+# AppSync configuration (for real-time subscriptions)
+APPSYNC_ENDPOINT = os.environ.get('APPSYNC_ENDPOINT')
+APPSYNC_API_KEY = os.environ.get('APPSYNC_API_KEY')
 
 # Neighbor computation settings
 SIMILARITY_THRESHOLD = 0.3
@@ -374,12 +379,11 @@ def get_image_table_name() -> str:
     paginator = dynamodb.get_paginator('list_tables')
     for page in paginator.paginate():
         for table_name in page['TableNames']:
-            if DYNAMODB_TABLE_PATTERN in table_name and 'Image' in table_name:
-                # Prefer tables that look like Amplify-generated ones
-                if '-Image-' in table_name:
-                    _dynamodb_table_name = table_name
-                    print(f"  Found DynamoDB table: {table_name}")
-                    return table_name
+            # Match tables like "Image-xxxxx-NONE" (Amplify Gen 2 format)
+            if table_name.startswith('Image-') and '-NONE' in table_name:
+                _dynamodb_table_name = table_name
+                print(f"  Found DynamoDB table: {table_name}")
+                return table_name
 
     raise RuntimeError(f"Could not find DynamoDB table matching pattern '{DYNAMODB_TABLE_PATTERN}'")
 
@@ -444,9 +448,90 @@ def update_cdn_manifest(metadata: Dict):
         # Don't fail the whole process if manifest update fails
 
 
-def write_to_dynamodb(metadata: Dict):
-    """Write image metadata to DynamoDB."""
-    print("  Writing to DynamoDB...")
+def convert_floats_to_decimal(obj):
+    """Recursively convert floats to Decimal for DynamoDB."""
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: convert_floats_to_decimal(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_floats_to_decimal(i) for i in obj]
+    return obj
+
+
+def create_image_via_appsync(metadata: Dict):
+    """Create image via AppSync GraphQL mutation (triggers real-time subscriptions)."""
+    print("  Creating image via AppSync...")
+
+    if not APPSYNC_ENDPOINT or not APPSYNC_API_KEY:
+        print("  Warning: AppSync not configured, falling back to DynamoDB")
+        return write_to_dynamodb_fallback(metadata)
+
+    # Extract first color as dominant
+    colors = metadata.get('main_colors', {})
+    dominant_color = list(colors.values())[0] if colors else '#808080'
+
+    # GraphQL mutation for creating an image
+    mutation = """
+    mutation CreateImage($input: CreateImageInput!) {
+        createImage(input: $input) {
+            id
+            filename
+        }
+    }
+    """
+
+    # Build input matching the Amplify schema
+    variables = {
+        "input": {
+            "id": metadata['id'],
+            "filename": metadata['filename'],
+            "urlSmall": metadata['urls']['small'],
+            "urlMedium": metadata['urls']['medium'],
+            "urlFull": metadata['urls']['full'],
+            "description": metadata.get('description', ''),
+            "mood": metadata.get('mood', 'neutral'),
+            "mainSubject": metadata.get('main_subject', ''),
+            "tags": json.dumps(metadata.get('tags', {})),
+            "mainColors": json.dumps(metadata.get('main_colors', {})),
+            "dominantColorHex": dominant_color,
+            "exif": json.dumps(metadata.get('exif', {})),
+            "clipNeighbors": json.dumps(metadata.get('clipNeighbors', [])),
+            "avgRating": 0,
+            "ratingCount": 0,
+        }
+    }
+
+    try:
+        response = requests.post(
+            APPSYNC_ENDPOINT,
+            json={"query": mutation, "variables": variables},
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": APPSYNC_API_KEY,
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        if 'errors' in result:
+            print(f"  AppSync errors: {result['errors']}")
+            raise RuntimeError(f"AppSync mutation failed: {result['errors']}")
+
+        print(f"  Created via AppSync: {metadata['id']}")
+        return True
+
+    except Exception as e:
+        print(f"  Error creating via AppSync: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+def write_to_dynamodb_fallback(metadata: Dict):
+    """Fallback: Write image metadata directly to DynamoDB (no subscription trigger)."""
+    print("  Writing to DynamoDB (fallback)...")
 
     try:
         table_name = get_image_table_name()
@@ -470,12 +555,11 @@ def write_to_dynamodb(metadata: Dict):
             'mainColors': metadata.get('main_colors', {}),
             'dominantColorHex': dominant_color,
             'exif': metadata.get('exif', {}),
-            'clipNeighbors': metadata.get('clipNeighbors', []),
-            'avgRating': 0,
-            'ratingCount': 0,
+            'clipNeighbors': convert_floats_to_decimal(metadata.get('clipNeighbors', [])),
+            'avgRating': Decimal('0'),
+            'ratingCount': Decimal('0'),
             'createdAt': metadata.get('createdAt', time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())),
             'updatedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            # Amplify requires these for authorization
             '__typename': 'Image',
         }
 
@@ -489,7 +573,6 @@ def write_to_dynamodb(metadata: Dict):
         print(f"  Error writing to DynamoDB: {e}")
         import traceback
         traceback.print_exc()
-        # Re-raise so the message goes to DLQ if this keeps failing
         raise
 
 
@@ -500,13 +583,19 @@ def write_to_dynamodb(metadata: Dict):
 def process_image(message_body: str) -> bool:
     """Process a single image from the queue."""
     data = json.loads(message_body)
-    image_id = data['imageId']
+    image_id = data['imageId']  # Now the original filename (without extension)
     source_key = data['sourceKey']
+    # Original filename with extension for display
+    original_filename = f"{image_id}.jpg"
 
     print(f"Processing image: {image_id}")
+    print(f"  Original filename: {original_filename}")
+    print(f"  Source key: {source_key}")
+    print(f"  Bucket: {STORAGE_BUCKET}")
 
     try:
         # Download image from S3
+        print(f"  Attempting to download from s3://{STORAGE_BUCKET}/{source_key}")
         response = s3.get_object(Bucket=STORAGE_BUCKET, Key=source_key)
         image_data = response['Body'].read()
         image = Image.open(BytesIO(image_data))
@@ -546,7 +635,7 @@ def process_image(message_body: str) -> bool:
         # Build metadata object (neighbors computed next)
         metadata = {
             'id': image_id,
-            'filename': f'{image_id}.jpg',
+            'filename': original_filename,  # Preserve original filename
             'urls': {
                 'small': f'images/small/{image_id}.jpg',
                 'medium': f'images/medium/{image_id}.jpg',
@@ -611,8 +700,8 @@ def process_image(message_body: str) -> bool:
         # Delete from processing queue
         s3.delete_object(Bucket=STORAGE_BUCKET, Key=source_key)
 
-        # Write to DynamoDB for the gallery
-        write_to_dynamodb(metadata)
+        # Create via AppSync (triggers real-time subscriptions)
+        create_image_via_appsync(metadata)
 
         # Update CDN manifest for fast initial load
         update_cdn_manifest(metadata)

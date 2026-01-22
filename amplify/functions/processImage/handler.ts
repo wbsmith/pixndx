@@ -29,12 +29,15 @@ export const handler: AppSyncResolverHandler<ProcessImageInput, ProcessImageResu
     throw new Error('STORAGE_BUCKET_NAME not configured');
   }
 
-  // Generate unique image ID
-  const timestamp = Date.now();
-  const randomSuffix = Math.random().toString(36).slice(2, 8);
-  const extension = sourceKey.split('.').pop()?.toLowerCase() || 'jpg';
-  const imageId = `${timestamp}-${randomSuffix}`;
-  const queueKey = `processing-queue/${imageId}.${extension}`;
+  // Extract original filename and preserve it
+  const fullFilename = sourceKey.split('/').pop() || 'unknown.jpg';
+  // Remove timestamp prefix if frontend added one (e.g., "1234567890-myimage.jpg" -> "myimage.jpg")
+  const originalFilename = fullFilename.replace(/^\d+-/, '');
+  const extension = originalFilename.split('.').pop()?.toLowerCase() || 'jpg';
+  // Use original filename (without extension) as the image ID
+  const imageId = originalFilename.replace(/\.[^.]+$/, '');
+  // Use timestamped key for processing queue to avoid collisions during processing
+  const queueKey = `processing-queue/${Date.now()}-${originalFilename}`;
 
   try {
     // Verify source file exists

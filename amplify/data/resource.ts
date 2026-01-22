@@ -79,10 +79,12 @@ const schema = a.schema({
       index('avgRating'),
     ])
     .authorization((allow) => [
-      // Only authenticated users can access (no guest access)
+      // Authenticated users can read
       allow.authenticated().to(['read']),
-      // Only owners can create/update/delete
+      // Owners can manage their images
       allow.owner(),
+      // API key auth for GPU instance to create/update images (triggers subscriptions)
+      allow.publicApiKey().to(['create', 'update']),
     ]),
 
   // Individual user ratings for images
@@ -260,8 +262,8 @@ export const data = defineData({
   authorizationModes: {
     // Default to user pool authentication (requires login)
     defaultAuthorizationMode: 'userPool',
-    // IAM auth for backend services (GPU instance, Lambda)
-    // GPU instance writes directly to DynamoDB, not through AppSync
+    // API key auth for GPU instance to create images via AppSync
+    // This triggers subscriptions for real-time updates
     apiKeyAuthorizationMode: {
       expiresInDays: 365,
     },

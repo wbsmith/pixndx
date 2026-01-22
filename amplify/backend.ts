@@ -584,6 +584,18 @@ gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
   resources: [modelsFileSystem.fileSystemArn],
 }));
 
+// Grant GPU instance access to AppSync (for listing API keys and getting API details)
+gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
+  actions: [
+    'appsync:ListApiKeys',
+    'appsync:GetGraphqlApi',
+  ],
+  resources: [
+    backend.data.resources.cfnResources.cfnGraphqlApi.attrArn,
+    `${backend.data.resources.cfnResources.cfnGraphqlApi.attrArn}/*`,
+  ],
+}));
+
 // User data script with persistent EFS model storage
 const userData = ec2.UserData.forLinux();
 userData.addCommands(
@@ -700,12 +712,23 @@ userData.addCommands(
   '  echo "Models already cached on EFS"',
   'fi',
   '',
+  '# Warm up Ollama by loading the model into GPU memory',
+  '# This prevents timeout on first image processing request',
+  'echo "Warming up Gemma 3 model (this takes ~2 minutes)..."',
+  'curl -s http://localhost:11434/api/generate -d \'{"model": "gemma3:27b", "prompt": "Hi", "stream": false}\' --max-time 300 || echo "Model warm-up completed or timed out"',
+  'echo "Model warm-up complete!"',
+  '',
   '# ============================================================',
   '# PHASE 5: Download latest processing script and start service',
   '# ============================================================',
   '',
   '# Always download latest script from S3',
   `aws s3 cp s3://${modelsBucket.bucketName}/scripts/process_images.py $MOUNT_POINT/scripts/process_images.py --region $REGION || echo "Script not found in S3"`,
+  '',
+  '# Fetch AppSync API key',
+  `APPSYNC_API_ID="${backend.data.resources.cfnResources.cfnGraphqlApi.attrApiId}"`,
+  'APPSYNC_API_KEY=$(aws appsync list-api-keys --api-id $APPSYNC_API_ID --region $REGION --query "apiKeys[0].id" --output text 2>/dev/null || echo "")',
+  'echo "AppSync API Key: $APPSYNC_API_KEY"',
   '',
   '# Create systemd service for image processor',
   'cat > /etc/systemd/system/picgraf-processor.service << SERVICEEOF',
@@ -722,6 +745,8 @@ userData.addCommands(
   `Environment=AWS_REGION=${cdk.Aws.REGION}`,
   `Environment=MODELS_BUCKET=${modelsBucket.bucketName}`,
   'Environment=DYNAMODB_TABLE_PATTERN=Image',
+  `Environment=APPSYNC_ENDPOINT=${backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl}`,
+  'Environment=APPSYNC_API_KEY=$APPSYNC_API_KEY',
   'Environment=OLLAMA_MODELS=$MOUNT_POINT/ollama',
   'Environment=HF_HOME=$MOUNT_POINT/huggingface',
   'ExecStart=/usr/bin/python3 $MOUNT_POINT/scripts/process_images.py',
