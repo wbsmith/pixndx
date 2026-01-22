@@ -36,7 +36,7 @@ STORAGE_BUCKET = os.environ.get('STORAGE_BUCKET')
 SQS_QUEUE_URL = os.environ.get('SQS_QUEUE_URL')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma3:27b')
+OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma2:9b')  # 9B fits alongside CLIP
 IDLE_TIMEOUT_SECONDS = int(os.environ.get('IDLE_TIMEOUT', '600'))  # 10 min default
 
 # AppSync configuration (for real-time subscriptions)
