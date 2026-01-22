@@ -377,7 +377,7 @@ const imageDistribution = new cloudfront.Distribution(
     domainNames: [CDN_DOMAIN],
     certificate: cdnCertificate,
     defaultBehavior: {
-      origin: new origins.S3Origin(s3Bucket, {
+      origin: origins.S3BucketOrigin.withOriginAccessIdentity(s3Bucket, {
         originAccessIdentity,
         originPath: '', // Serve from bucket root
       }),
@@ -825,7 +825,7 @@ const gpuAsg = new autoscaling.AutoScalingGroup(gpuStack, 'GpuAutoScalingGroup',
   minCapacity: 0,
   maxCapacity: 1,
   desiredCapacity: 0,
-  healthCheck: autoscaling.HealthCheck.ec2({
+  healthChecks: autoscaling.HealthChecks.ec2({
     grace: cdk.Duration.minutes(15), // Allow time for first-boot model download
   }),
   updatePolicy: autoscaling.UpdatePolicy.rollingUpdate(),
