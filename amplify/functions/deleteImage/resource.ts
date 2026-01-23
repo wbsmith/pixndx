@@ -3,12 +3,13 @@ import { defineFunction } from '@aws-amplify/backend';
 /**
  * Delete Image Lambda Function
  *
- * Deletes all files associated with an image:
+ * Deletes image files from S3:
  * - images/small/{imageId}.*
  * - images/medium/{imageId}.*
  * - images/full/{imageId}.*
- * - metadata/{imageId}.json
- * - embeddings/{imageId}.json (if exists)
+ *
+ * Note: Manifest is rebuilt from EFS by GPU processor.
+ * Orphan cleanup syncs manifest with actual S3 contents.
  *
  * Environment variables (set in backend.ts):
  * - STORAGE_BUCKET_NAME: S3 bucket for images
@@ -16,8 +17,8 @@ import { defineFunction } from '@aws-amplify/backend';
 export const deleteImage = defineFunction({
   name: 'deleteImage',
   entry: './handler.ts',
-  timeoutSeconds: 30,
-  memoryMB: 256,
+  timeoutSeconds: 60,
+  memoryMB: 512,
   environment: {
     NODE_OPTIONS: '--enable-source-maps',
   },
