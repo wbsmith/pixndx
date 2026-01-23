@@ -7,7 +7,7 @@ import type {
   SimilarityEdge,
 } from '@/types/gallery';
 import { computeEdges } from '@/lib/similarity/edgeComputation';
-import { loadImagesProgressively, loadRemainingImages, type LoadProgress } from '@/lib/dataLoader';
+import { loadImagesProgressively, loadRemainingImages, subscribeToManifestUpdates, invalidateCache, type LoadProgress } from '@/lib/dataLoader';
 import { useRatingStore } from '@/stores/ratingStore';
 
 // =============================================================================
@@ -290,6 +290,22 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
       });
       
       console.log(`✅ Loaded ${get().images.length} images`);
+
+      // Subscribe to manifest updates (new images processed by GPU)
+      subscribeToManifestUpdates(() => {
+        console.log('[GalleryStore] Manifest updated, reloading images...');
+        // Clear cache and reload
+        invalidateCache();
+        // Reload images (will merge with existing)
+        loadImagesProgressively(() => {}).then(newImages => {
+          const existingIds = new Set(get().images.map(img => img.id));
+          const brandNew = newImages.filter(img => !existingIds.has(img.id));
+          if (brandNew.length > 0) {
+            console.log(`[GalleryStore] Adding ${brandNew.length} new images from manifest update`);
+            get().addImages(brandNew);
+          }
+        });
+      });
     } catch (error) {
       console.error('Failed to load images:', error);
       set({ loading: false });
