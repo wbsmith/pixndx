@@ -193,6 +193,25 @@ const schema = a.schema({
       allow.authenticated(),
     ]),
 
+  // Manifest update notification model
+  // GPU processor creates a record when manifest is updated
+  // Frontend subscribes to onCreate to know when to refetch manifest
+  ManifestUpdate: a
+    .model({
+      version: a.string().required(),      // Manifest version
+      imageCount: a.integer().required(),  // Number of images in manifest
+      processedCount: a.integer(),         // Images processed this session
+      instanceId: a.string(),              // GPU instance ID
+      // TTL for auto-cleanup (DynamoDB TTL) - records expire after 1 day
+      ttl: a.integer(),
+    })
+    .authorization((allow) => [
+      // Anyone authenticated can read (for subscriptions)
+      allow.authenticated().to(['read']),
+      // API key auth for GPU processor to create records
+      allow.publicApiKey().to(['create']),
+    ]),
+
   // Process image result type
   ProcessImageResult: a.customType({
     success: a.boolean().required(),

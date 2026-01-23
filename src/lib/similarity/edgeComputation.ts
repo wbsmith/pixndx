@@ -34,6 +34,17 @@ export interface EdgeStats {
 // =============================================================================
 
 /**
+ * Get the appropriate neighbor list based on mode.
+ * Uses compositeNeighbors when available for composite mode (already sorted by composite weight).
+ */
+function getNeighbors(image: ImageMetadata, mode: SimilarityMode) {
+  if (mode === 'composite' && image.compositeNeighbors && image.compositeNeighbors.length > 0) {
+    return image.compositeNeighbors;
+  }
+  return image.clipNeighbors || [];
+}
+
+/**
  * Compute statistics for all edge weights in the current image set.
  * This helps users understand the weight distribution before filtering.
  */
@@ -43,22 +54,23 @@ export function computeEdgeStats(
 ): EdgeStats | null {
   try {
     if (!images || images.length === 0) return null;
-    
+
     const validIds = new Set(images.map(img => img.id));
     const weights: number[] = [];
     const seen = new Set<string>();
-    
+
     for (const image of images) {
-      if (!image.clipNeighbors) continue;
-      
-      for (const neighbor of image.clipNeighbors) {
+      const neighbors = getNeighbors(image, mode);
+      if (!neighbors.length) continue;
+
+      for (const neighbor of neighbors) {
         if (!neighbor?.id || !validIds.has(neighbor.id)) continue;
-        
+
         // Deduplicate
         const key = [image.id, neighbor.id].sort().join('|');
         if (seen.has(key)) continue;
         seen.add(key);
-        
+
         const weight = mode === 'clip' ? neighbor.clipWeight : neighbor.compositeWeight;
         const actualWeight = weight ?? (neighbor as any).weight ?? 0;
         if (actualWeight > 0) {
@@ -120,18 +132,19 @@ export function computeEdges(
     const validIds = new Set(images.map(img => img.id));
   
   // Debug: check how many images have neighbors
-  const withNeighbors = images.filter(img => img.clipNeighbors && img.clipNeighbors.length > 0);
-  console.log(`[computeEdges] ${images.length} images, ${withNeighbors.length} with neighbors`);
+  const withNeighbors = images.filter(img => getNeighbors(img, mode).length > 0);
+  console.log(`[computeEdges] ${images.length} images, ${withNeighbors.length} with neighbors (mode: ${mode})`);
   console.log(`[computeEdges] Range: ${thresholdMin.toFixed(2)} - ${thresholdMax.toFixed(2)}, max/node: ${maxEdgesPerNode}`);
-  
+
   // Collect all valid edges first, sorted by weight descending
   const candidateEdges: { source: string; target: string; weight: number }[] = [];
   const seen = new Set<string>();
-  
+
   for (const image of images) {
-    if (!image.clipNeighbors || image.clipNeighbors.length === 0) continue;
-    
-    for (const neighbor of image.clipNeighbors) {
+    const neighbors = getNeighbors(image, mode);
+    if (!neighbors.length) continue;
+
+    for (const neighbor of neighbors) {
       // Skip if target not in current filtered set
       if (!validIds.has(neighbor.id)) continue;
       

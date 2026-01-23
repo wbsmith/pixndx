@@ -5,8 +5,7 @@
  * for checking if Amplify is properly configured.
  */
 
-import { useState, useEffect } from 'react';
-import { IS_LOCAL_DEV, config } from '@/config';
+import { IS_LOCAL_DEV } from '@/config';
 
 let amplifyConfigured = false;
 let configurationPromise: Promise<void> | null = null;
@@ -96,9 +95,6 @@ export function startSessionRefresh(): void {
 
       // Refresh CloudFront signed cookies
       await refreshImageCookies();
-
-      // Clear the signed URL cache on session refresh to ensure fresh URLs
-      signedUrlCache.clear();
     } catch (error) {
       console.warn('[Amplify] Proactive session refresh failed:', error);
     }
@@ -190,269 +186,54 @@ export function clearImageCookies(): void {
   console.log('[Amplify] Image access cookies cleared');
 }
 
+// =============================================================================
+// IMAGE URL HANDLING (Simplified)
+// =============================================================================
+// The manifest contains complete CDN URLs (https://cdn.picgraf.com/images/...).
+// Signed cookies (set at login via refreshImageCookies) handle authentication.
+// No URL transformation is needed - just use the URLs directly.
+// =============================================================================
+
 /**
- * Extract the filename from various URL/path formats.
+ * Get a URL for an image.
  *
- * Handles:
- * - Full S3 URLs: https://bucket.s3.region.amazonaws.com/images/small/photo.jpg
- * - Full CDN URLs: https://cdn.picgraf.com/images/small/photo.jpg
- * - Relative paths: images/small/photo.jpg
- * - URL-encoded paths: images%2Fsmall%2Fphoto.jpg
- * - Just filename: photo.jpg
+ * The manifest already contains complete CDN URLs (https://cdn.picgraf.com/images/...).
+ * Signed cookies (set at login) handle authentication - no URL transformation needed.
  *
- * Returns: just the filename (e.g., "photo.jpg")
- */
-export function extractS3Key(url: string): string | null {
-  if (!url) return null;
-
-  try {
-    // First, decode any URL encoding (handles images%2Fsmall%2F cases)
-    let decoded = url;
-    try {
-      // Keep decoding until stable (handles double-encoding)
-      let prev = '';
-      while (decoded !== prev && decoded.includes('%')) {
-        prev = decoded;
-        decoded = decodeURIComponent(decoded);
-      }
-    } catch {
-      // decodeURIComponent can throw on malformed input, use original
-      decoded = url;
-    }
-
-    // Pattern to match images/{size}/ prefix and extract filename
-    const pathPattern = /(?:^|\/)?images\/(?:small|medium|full)\/(.+)$/;
-
-    // Handle full S3 URLs
-    const s3Pattern = /\.s3\.[^/]+\.amazonaws\.com\/(.+)$/;
-    const s3Match = decoded.match(s3Pattern);
-    if (s3Match) {
-      const pathMatch = s3Match[1].match(pathPattern);
-      return pathMatch ? pathMatch[1] : s3Match[1];
-    }
-
-    // Handle CDN URLs
-    const cdnPattern = /cdn\.picgraf\.com\/(.+)$/;
-    const cdnMatch = decoded.match(cdnPattern);
-    if (cdnMatch) {
-      const pathMatch = cdnMatch[1].match(pathPattern);
-      return pathMatch ? pathMatch[1] : cdnMatch[1];
-    }
-
-    // Handle relative paths (with or without leading images/)
-    const pathMatch = decoded.match(pathPattern);
-    if (pathMatch) {
-      return pathMatch[1];
-    }
-
-    // If it's already just a filename (no slashes after decoding), return as-is
-    if (!decoded.includes('/')) {
-      return decoded;
-    }
-
-    // Last resort: return the last path segment
-    const segments = decoded.split('/').filter(Boolean);
-    return segments.length > 0 ? segments[segments.length - 1] : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Get the S3 path for an image
- */
-export function getS3Path(filename: string, size: 'small' | 'medium' | 'full' = 'small'): string {
-  return `images/${size}/${filename}`;
-}
-
-// Cache for signed URLs to avoid repeated API calls
-const signedUrlCache = new Map<string, { url: string; expires: number }>();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-// Track if we're currently refreshing the session to avoid multiple refreshes
-let sessionRefreshPromise: Promise<boolean> | null = null;
-
-/**
- * Refresh the auth session if it's expired
- * Returns true if session is valid after refresh attempt
- */
-async function ensureValidSession(): Promise<boolean> {
-  // If already refreshing, wait for that to complete
-  if (sessionRefreshPromise) {
-    return sessionRefreshPromise;
-  }
-  
-  sessionRefreshPromise = (async () => {
-    try {
-      const { fetchAuthSession } = await import('aws-amplify/auth');
-      // Force refresh the session to get new tokens
-      const session = await fetchAuthSession({ forceRefresh: true });
-      const isValid = !!session.tokens?.accessToken;
-      console.log('[Amplify] Session refreshed:', isValid ? 'valid' : 'invalid');
-      return isValid;
-    } catch (error) {
-      console.error('[Amplify] Failed to refresh session:', error);
-      return false;
-    } finally {
-      // Clear the promise after a short delay to allow retry
-      setTimeout(() => { sessionRefreshPromise = null; }, 1000);
-    }
-  })();
-  
-  return sessionRefreshPromise;
-}
-
-/**
- * Check if an error is an auth token error
- */
-function isAuthError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    return message.includes('invalid login token') || 
-           message.includes('token') ||
-           message.includes('notauthorized') ||
-           message.includes('credentials');
-  }
-  return false;
-}
-
-/**
- * Get a URL for an S3 image
- * Uses CDN if configured, otherwise falls back to signed URLs
+ * This function exists for backward compatibility but simply returns the URL as-is.
+ * The 'size' parameter is ignored since the manifest URL already specifies the size.
  */
 export async function getSignedImageUrl(
-  s3Url: string, 
-  size: 'small' | 'medium' | 'full' = 'small'
+  imageUrl: string,
+  _size: 'small' | 'medium' | 'full' = 'small'
 ): Promise<string> {
-  // In local dev, use the URL directly
-  if (IS_LOCAL_DEV || !amplifyConfigured) {
-    return s3Url;
-  }
-  
-  // Extract the filename from the S3 URL
-  const key = extractS3Key(s3Url);
-  if (!key) {
-    console.warn('Could not extract S3 key from URL:', s3Url);
-    return s3Url; // Fallback to direct URL
-  }
-
-  // Sanity check: key should be just a filename, not a path
-  if (key.includes('/')) {
-    console.warn('extractS3Key returned a path instead of filename:', key, 'from:', s3Url);
-  }
-
-  // If CDN is configured, use it directly (signed cookies handle authentication)
-  if (config.cdn.enabled && config.cdn.imageUrl) {
-    return `${config.cdn.imageUrl}/images/${size}/${encodeURIComponent(key)}`;
-  }
-  
-  // Check cache for signed URL
-  const cacheKey = `${size}:${s3Url}`;
-  const cached = signedUrlCache.get(cacheKey);
-  if (cached && Date.now() < cached.expires) {
-    return cached.url;
-  }
-  
-  // Try to get signed URL, with retry on auth errors
-  const attemptGetUrl = async (isRetry = false): Promise<string> => {
-    try {
-      const { getUrl } = await import('aws-amplify/storage');
-      const result = await getUrl({
-        path: `images/${size}/${key}`,
-        options: { expiresIn: 900 }, // 15 minutes
-      });
-      const signedUrl = result.url.toString();
-      
-      // Cache the result
-      signedUrlCache.set(cacheKey, {
-        url: signedUrl,
-        expires: Date.now() + CACHE_TTL,
-      });
-      
-      return signedUrl;
-    } catch (error) {
-      // If it's an auth error and we haven't retried, refresh session and retry
-      if (!isRetry && isAuthError(error)) {
-        console.log('[Amplify] Auth error, refreshing session...');
-        const sessionValid = await ensureValidSession();
-        if (sessionValid) {
-          // Clear the cache entry and retry
-          signedUrlCache.delete(cacheKey);
-          return attemptGetUrl(true);
-        }
-      }
-      
-      console.error('Failed to get signed URL:', error);
-      return s3Url; // Fallback to direct URL
-    }
-  };
-  
-  return attemptGetUrl();
+  // URLs from the manifest are already complete CDN URLs
+  // Signed cookies handle authentication
+  return imageUrl;
 }
 
 /**
- * Batch fetch signed URLs for multiple images
- * More efficient than individual calls for gallery views
+ * Batch get URLs for multiple images.
+ * Simply returns the URLs from the manifest (they're already complete CDN URLs).
  */
 export async function getSignedImageUrls(
   images: Array<{ id: string; url: string }>,
-  size: 'small' | 'medium' | 'full' = 'small'
+  _size: 'small' | 'medium' | 'full' = 'small'
 ): Promise<Map<string, string>> {
   const urlMap = new Map<string, string>();
-  
-  // In local dev, return direct URLs
-  if (IS_LOCAL_DEV || !amplifyConfigured) {
-    images.forEach(img => urlMap.set(img.id, img.url));
-    return urlMap;
-  }
-  
-  // Fetch all URLs in parallel
-  await Promise.all(
-    images.map(async (img) => {
-      const signedUrl = await getSignedImageUrl(img.url, size);
-      urlMap.set(img.id, signedUrl);
-    })
-  );
-
+  images.forEach(img => urlMap.set(img.id, img.url));
   return urlMap;
 }
 
 /**
- * React hook for getting an image URL with proper authentication
- * Handles CDN URLs with cookies or signed URLs depending on configuration
+ * React hook for getting an image URL.
+ * Simply returns the URL as-is (manifest URLs are already complete CDN URLs).
  */
 export function useImageUrl(
-  s3Url: string | undefined,
-  size: 'small' | 'medium' | 'full' = 'small'
+  imageUrl: string | undefined,
+  _size: 'small' | 'medium' | 'full' = 'small'
 ): string | null {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!s3Url) {
-      setImageUrl(null);
-      return;
-    }
-
-    let mounted = true;
-
-    // In local dev, use URL directly
-    if (IS_LOCAL_DEV) {
-      setImageUrl(s3Url);
-      return;
-    }
-
-    // Get the transformed URL (CDN or signed)
-    getSignedImageUrl(s3Url, size).then((url) => {
-      if (mounted) {
-        setImageUrl(url);
-      }
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, [s3Url, size]);
-
-  return imageUrl;
+  // URLs from manifest are already complete - just return as-is
+  return imageUrl || null;
 }
 

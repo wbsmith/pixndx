@@ -24,9 +24,11 @@ export interface ImageMetadata {
   main_colors: Record<string, string>;  // e.g., { orange: "#FFA500", dark_blue: "#000080" }
   exif: ExifData;
   
-  // Precomputed CLIP neighbors (from preprocessing/compute_neighbors.py)
-  // Used for CLIP-based edge computation at runtime
+  // Precomputed neighbors (from GPU processor)
+  // clipNeighbors: sorted by CLIP embedding similarity
+  // compositeNeighbors: sorted by blended CLIP + metadata similarity
   clipNeighbors?: ClipNeighbor[];
+  compositeNeighbors?: ClipNeighbor[];
   
   // Precomputed layout data (from preprocessing/cluster_layout.py)
   // UMAP 2D position for initial graph layout

@@ -183,8 +183,48 @@ export async function loadRemainingImages(
 }
 
 /**
+ * Subscribe to manifest updates.
+ * When the GPU processor finishes and updates the manifest,
+ * this callback is triggered to refetch the manifest.
+ */
+export async function subscribeToManifestUpdates(
+  onManifestUpdated: () => void
+): Promise<() => void> {
+  if (IS_LOCAL_DEV) {
+    return () => {};
+  }
+
+  try {
+    const { generateClient } = await import('aws-amplify/data');
+    const client = generateClient<Schema>();
+
+    const subscription = client.models.ManifestUpdate.onCreate().subscribe({
+      next: (record) => {
+        if (record) {
+          console.log('[dataLoader] Manifest updated:', record.version, 'images:', record.imageCount);
+          // Invalidate cache so next load gets fresh data
+          invalidateCache();
+          onManifestUpdated();
+        }
+      },
+      error: (err) => {
+        console.error('[dataLoader] ManifestUpdate subscription error:', err);
+      },
+    });
+
+    return () => subscription.unsubscribe();
+  } catch (e) {
+    console.warn('[dataLoader] Failed to subscribe to manifest updates:', e);
+    return () => {};
+  }
+}
+
+/**
  * Subscribe to new images (real-time updates).
  * Returns an unsubscribe function.
+ *
+ * @deprecated Use subscribeToManifestUpdates instead - individual image
+ * subscriptions are no longer used since we batch updates via manifest.
  */
 export async function subscribeToNewImages(
   onNewImage: (image: ImageMetadata) => void
