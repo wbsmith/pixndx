@@ -135,12 +135,13 @@ export function computeEdges(
       // Skip if target not in current filtered set
       if (!validIds.has(neighbor.id)) continue;
       
-      // Pick the weight based on mode
+      // Pick the weight based on mode (handle NaN and undefined)
       const weight = mode === 'clip' ? neighbor.clipWeight : neighbor.compositeWeight;
-      const actualWeight = weight ?? (neighbor as any).weight ?? 0;
-      
-      // Skip if outside threshold range
-      if (actualWeight < thresholdMin || actualWeight > thresholdMax) continue;
+      const rawWeight = weight ?? (neighbor as any).weight ?? 0;
+      const actualWeight = Number.isFinite(rawWeight) ? rawWeight : 0;
+
+      // Skip if outside threshold range or invalid
+      if (actualWeight <= 0 || actualWeight < thresholdMin || actualWeight > thresholdMax) continue;
       
       // Deduplicate edges (A->B same as B->A)
       const key = [image.id, neighbor.id].sort().join('|');

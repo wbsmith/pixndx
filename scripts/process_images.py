@@ -39,6 +39,12 @@ OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma3:27b-it-qat')  # Vision model, 4-bit QAT
 IDLE_TIMEOUT_SECONDS = int(os.environ.get('IDLE_TIMEOUT', '600'))  # 10 min default
 
+# EFS cache paths (persists across instance restarts)
+EFS_MOUNT = os.environ.get('EFS_MOUNT', '/mnt/models')
+EFS_CACHE_DIR = os.path.join(EFS_MOUNT, 'cache')
+EFS_EMBEDDINGS_DIR = os.path.join(EFS_CACHE_DIR, 'embeddings')
+EFS_METADATA_DIR = os.path.join(EFS_CACHE_DIR, 'metadata')
+
 # AppSync configuration (for real-time subscriptions)
 APPSYNC_ENDPOINT = os.environ.get('APPSYNC_ENDPOINT')
 APPSYNC_API_KEY = os.environ.get('APPSYNC_API_KEY')
@@ -53,9 +59,9 @@ META_WEIGHT = 0.4
 sqs = boto3.client('sqs', region_name=AWS_REGION)
 s3 = boto3.client('s3', region_name=AWS_REGION)
 
-# Load CLIP model at startup
+# Load CLIP model at startup (GPU - g5 instances have 24GB VRAM)
 print("Loading CLIP model...")
-clip_model = SentenceTransformer('clip-ViT-L-14')
+clip_model = SentenceTransformer('clip-ViT-L-14')  # 768-dim, runs on GPU
 print("CLIP model loaded")
 
 
@@ -224,39 +230,112 @@ def compute_metadata_similarity(meta1: Dict, meta2: Dict) -> float:
     return tag_sim * 0.4 + mood_sim * 0.3 + color_sim * 0.3
 
 
-def load_all_embeddings() -> Tuple[List[str], List[np.ndarray], List[Dict]]:
-    """Load all existing embeddings and metadata from S3."""
-    image_ids = []
-    embeddings = []
-    metadata_list = []
+def ensure_cache_dirs():
+    """Create EFS cache directories if they don't exist."""
+    os.makedirs(EFS_EMBEDDINGS_DIR, exist_ok=True)
+    os.makedirs(EFS_METADATA_DIR, exist_ok=True)
 
-    # List all embedding files
+
+def save_to_cache(image_id: str, embedding: np.ndarray, metadata: Dict):
+    """Save embedding and metadata to EFS cache."""
+    ensure_cache_dirs()
+    # Save embedding as numpy binary (faster than JSON)
+    np.save(os.path.join(EFS_EMBEDDINGS_DIR, f'{image_id}.npy'), embedding)
+    # Save metadata as JSON
+    with open(os.path.join(EFS_METADATA_DIR, f'{image_id}.json'), 'w') as f:
+        json.dump(metadata, f)
+
+
+def load_from_cache(image_id: str) -> Tuple[Optional[np.ndarray], Optional[Dict]]:
+    """Load embedding and metadata from EFS cache."""
+    emb_path = os.path.join(EFS_EMBEDDINGS_DIR, f'{image_id}.npy')
+    meta_path = os.path.join(EFS_METADATA_DIR, f'{image_id}.json')
+
+    embedding = None
+    metadata = None
+
+    if os.path.exists(emb_path):
+        embedding = np.load(emb_path)
+    if os.path.exists(meta_path):
+        with open(meta_path, 'r') as f:
+            metadata = json.load(f)
+
+    return embedding, metadata
+
+
+def sync_cache_from_s3():
+    """Sync EFS cache with S3, downloading any missing items."""
+    ensure_cache_dirs()
+
+    # Get list of cached embeddings
+    cached_ids = set()
+    if os.path.exists(EFS_EMBEDDINGS_DIR):
+        cached_ids = {f.replace('.npy', '') for f in os.listdir(EFS_EMBEDDINGS_DIR) if f.endswith('.npy')}
+
+    # List S3 embeddings and find missing ones
+    s3_ids = set()
     paginator = s3.get_paginator('list_objects_v2')
     for page in paginator.paginate(Bucket=STORAGE_BUCKET, Prefix='embeddings/'):
         for obj in page.get('Contents', []):
             key = obj['Key']
-            if not key.endswith('.json'):
-                continue
+            if key.endswith('.json'):
+                s3_ids.add(key.replace('embeddings/', '').replace('.json', ''))
 
-            image_id = key.replace('embeddings/', '').replace('.json', '')
-
+    missing_ids = s3_ids - cached_ids
+    if missing_ids:
+        print(f"  Syncing {len(missing_ids)} embeddings from S3 to EFS cache...")
+        for i, image_id in enumerate(missing_ids):
             try:
-                # Load embedding
-                emb_response = s3.get_object(Bucket=STORAGE_BUCKET, Key=key)
+                # Download embedding
+                emb_response = s3.get_object(Bucket=STORAGE_BUCKET, Key=f'embeddings/{image_id}.json')
                 emb_data = json.loads(emb_response['Body'].read())
                 embedding = np.array(emb_data['embedding'], dtype=np.float32)
 
-                # Load metadata
-                meta_key = f'metadata/{image_id}.json'
-                meta_response = s3.get_object(Bucket=STORAGE_BUCKET, Key=meta_key)
+                # Download metadata
+                meta_response = s3.get_object(Bucket=STORAGE_BUCKET, Key=f'metadata/{image_id}.json')
                 metadata = json.loads(meta_response['Body'].read())
 
-                image_ids.append(image_id)
-                embeddings.append(embedding)
-                metadata_list.append(metadata)
-            except Exception as e:
-                print(f"  Warning: Could not load {image_id}: {e}")
+                # Save to cache
+                save_to_cache(image_id, embedding, metadata)
 
+                if (i + 1) % 100 == 0:
+                    print(f"    Synced {i + 1}/{len(missing_ids)}")
+            except Exception as e:
+                print(f"    Warning: Could not sync {image_id}: {e}")
+
+    # Remove stale cache entries (deleted from S3)
+    stale_ids = cached_ids - s3_ids
+    if stale_ids:
+        print(f"  Removing {len(stale_ids)} stale cache entries...")
+        for image_id in stale_ids:
+            try:
+                os.remove(os.path.join(EFS_EMBEDDINGS_DIR, f'{image_id}.npy'))
+                os.remove(os.path.join(EFS_METADATA_DIR, f'{image_id}.json'))
+            except:
+                pass
+
+    return s3_ids
+
+
+def load_all_embeddings() -> Tuple[List[str], List[np.ndarray], List[Dict]]:
+    """Load all embeddings and metadata from EFS cache (syncing from S3 if needed)."""
+    image_ids = []
+    embeddings = []
+    metadata_list = []
+
+    # Sync cache with S3 first
+    print("  Loading embeddings from EFS cache...")
+    valid_ids = sync_cache_from_s3()
+
+    # Load from cache (much faster than S3)
+    for image_id in valid_ids:
+        embedding, metadata = load_from_cache(image_id)
+        if embedding is not None and metadata is not None:
+            image_ids.append(image_id)
+            embeddings.append(embedding)
+            metadata_list.append(metadata)
+
+    print(f"  Loaded {len(image_ids)} embeddings from cache")
     return image_ids, embeddings, metadata_list
 
 
@@ -351,7 +430,7 @@ def compute_incremental_neighbors(
 
 
 def update_existing_metadata(image_id: str, new_neighbors: List[Dict]):
-    """Update an existing image's metadata with new neighbors in S3 and DynamoDB."""
+    """Update an existing image's metadata with new neighbors in S3, DynamoDB, and EFS cache."""
     # Update S3 metadata file
     key = f'metadata/{image_id}.json'
     try:
@@ -364,10 +443,15 @@ def update_existing_metadata(image_id: str, new_neighbors: List[Dict]):
             Body=json.dumps(metadata, indent=2),
             ContentType='application/json'
         )
+        # Update EFS cache
+        meta_cache_path = os.path.join(EFS_METADATA_DIR, f'{image_id}.json')
+        if os.path.exists(os.path.dirname(meta_cache_path)):
+            with open(meta_cache_path, 'w') as f:
+                json.dump(metadata, f)
     except Exception as e:
         print(f"  Warning: Could not update S3 metadata for {image_id}: {e}")
 
-    # Update DynamoDB record
+    # Update DynamoDB record (convert floats to Decimal)
     try:
         table_name = get_image_table_name()
         table = dynamodb_resource.Table(table_name)
@@ -375,7 +459,7 @@ def update_existing_metadata(image_id: str, new_neighbors: List[Dict]):
             Key={'id': image_id},
             UpdateExpression='SET clipNeighbors = :neighbors, updatedAt = :updated',
             ExpressionAttributeValues={
-                ':neighbors': new_neighbors,
+                ':neighbors': convert_floats_to_decimal(new_neighbors),
                 ':updated': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
             }
         )
@@ -652,9 +736,9 @@ def process_image(message_body: str) -> bool:
         temp_path = f'/tmp/{image_id}_medium.jpg'
         medium_image.save(temp_path, 'JPEG', quality=90)
 
-        # Generate CLIP embedding
+        # Generate CLIP embedding (use medium 1024px - CLIP resizes to 224x224 anyway)
         print("  Generating CLIP embedding...")
-        embedding = clip_model.encode(image)
+        embedding = clip_model.encode(medium_image)
         embedding_list = embedding.tolist()
 
         # Generate metadata with Gemma 3 27B (vision model)
@@ -684,7 +768,7 @@ def process_image(message_body: str) -> bool:
             'clipNeighbors': [],  # Filled in below
         }
 
-        # Upload embedding first (needed for neighbor computation)
+        # Upload embedding to S3 (needed for neighbor computation)
         s3.put_object(
             Bucket=STORAGE_BUCKET,
             Key=f'embeddings/{image_id}.json',
@@ -722,6 +806,10 @@ def process_image(message_body: str) -> bool:
             ContentType='application/json'
         )
         print(f"  Uploaded metadata/{image_id}.json")
+
+        # Save to EFS cache (with final metadata including neighbors)
+        save_to_cache(image_id, embedding, metadata)
+        print(f"  Cached to EFS")
 
         # Update existing images that now have new image as neighbor
         for existing_id, new_neighbor_list in updates.items():

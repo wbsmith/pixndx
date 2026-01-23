@@ -191,34 +191,68 @@ export function clearImageCookies(): void {
 }
 
 /**
- * Extract S3 key from a full S3 URL
- * 
- * Example:
- * Input:  https://bucket.s3.region.amazonaws.com/images/small/photo.jpg
- * Output: photo.jpg
+ * Extract the filename from various URL/path formats.
+ *
+ * Handles:
+ * - Full S3 URLs: https://bucket.s3.region.amazonaws.com/images/small/photo.jpg
+ * - Full CDN URLs: https://cdn.picgraf.com/images/small/photo.jpg
+ * - Relative paths: images/small/photo.jpg
+ * - URL-encoded paths: images%2Fsmall%2Fphoto.jpg
+ * - Just filename: photo.jpg
+ *
+ * Returns: just the filename (e.g., "photo.jpg")
  */
 export function extractS3Key(url: string): string | null {
+  if (!url) return null;
+
   try {
+    // First, decode any URL encoding (handles images%2Fsmall%2F cases)
+    let decoded = url;
+    try {
+      // Keep decoding until stable (handles double-encoding)
+      let prev = '';
+      while (decoded !== prev && decoded.includes('%')) {
+        prev = decoded;
+        decoded = decodeURIComponent(decoded);
+      }
+    } catch {
+      // decodeURIComponent can throw on malformed input, use original
+      decoded = url;
+    }
+
+    // Pattern to match images/{size}/ prefix and extract filename
+    const pathPattern = /(?:^|\/)?images\/(?:small|medium|full)\/(.+)$/;
+
     // Handle full S3 URLs
-    const s3Pattern = /\.s3\.[^/]+\.amazonaws\.com\/images\/(?:small|medium|full)\/(.+)$/;
-    const s3Match = url.match(s3Pattern);
+    const s3Pattern = /\.s3\.[^/]+\.amazonaws\.com\/(.+)$/;
+    const s3Match = decoded.match(s3Pattern);
     if (s3Match) {
-      return decodeURIComponent(s3Match[1]);
+      const pathMatch = s3Match[1].match(pathPattern);
+      return pathMatch ? pathMatch[1] : s3Match[1];
     }
 
-    // Handle CDN URLs (e.g., https://cdn.picgraf.com/images/full/photo.jpg)
-    const cdnPattern = /cdn\.picgraf\.com\/images\/(?:small|medium|full)\/(.+)$/;
-    const cdnMatch = url.match(cdnPattern);
+    // Handle CDN URLs
+    const cdnPattern = /cdn\.picgraf\.com\/(.+)$/;
+    const cdnMatch = decoded.match(cdnPattern);
     if (cdnMatch) {
-      return decodeURIComponent(cdnMatch[1]);
+      const pathMatch = cdnMatch[1].match(pathPattern);
+      return pathMatch ? pathMatch[1] : cdnMatch[1];
     }
 
-    // If it's already a key (no protocol), return as-is
-    if (!url.startsWith('http')) {
-      return url;
+    // Handle relative paths (with or without leading images/)
+    const pathMatch = decoded.match(pathPattern);
+    if (pathMatch) {
+      return pathMatch[1];
     }
 
-    return null;
+    // If it's already just a filename (no slashes after decoding), return as-is
+    if (!decoded.includes('/')) {
+      return decoded;
+    }
+
+    // Last resort: return the last path segment
+    const segments = decoded.split('/').filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : null;
   } catch {
     return null;
   }
@@ -301,7 +335,12 @@ export async function getSignedImageUrl(
     console.warn('Could not extract S3 key from URL:', s3Url);
     return s3Url; // Fallback to direct URL
   }
-  
+
+  // Sanity check: key should be just a filename, not a path
+  if (key.includes('/')) {
+    console.warn('extractS3Key returned a path instead of filename:', key, 'from:', s3Url);
+  }
+
   // If CDN is configured, use it directly (signed cookies handle authentication)
   if (config.cdn.enabled && config.cdn.imageUrl) {
     return `${config.cdn.imageUrl}/images/${size}/${encodeURIComponent(key)}`;

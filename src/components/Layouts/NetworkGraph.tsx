@@ -296,9 +296,13 @@ export function NetworkGraph() {
     node.call(dragBehavior as any);
 
     simulation.on('tick', () => {
-      link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
-      node.attr('transform', (d) => `translate(${d.x},${d.y})`);
+      link.attr('x1', (d: any) => d.source.x ?? 0).attr('y1', (d: any) => d.source.y ?? 0)
+        .attr('x2', (d: any) => d.target.x ?? 0).attr('y2', (d: any) => d.target.y ?? 0);
+      node.attr('transform', (d) => {
+        const x = Number.isFinite(d.x) ? d.x : 0;
+        const y = Number.isFinite(d.y) ? d.y : 0;
+        return `translate(${x},${y})`;
+      });
     });
 
     simulation.on('end', () => setIsStable(true));

@@ -816,10 +816,9 @@ const gpuAsg = new autoscaling.AutoScalingGroup(gpuStack, 'GpuAutoScalingGroup',
     },
     launchTemplate: gpuLaunchTemplate,
     launchTemplateOverrides: [
-      // Prefer g5.2xlarge for Gemma 3 27B + CLIP (24GB VRAM)
+      // Only g5 instances - need 24GB VRAM for Gemma 3 27B + CLIP
       { instanceType: ec2.InstanceType.of(ec2.InstanceClass.G5, ec2.InstanceSize.XLARGE2) },
       { instanceType: ec2.InstanceType.of(ec2.InstanceClass.G5, ec2.InstanceSize.XLARGE) },
-      { instanceType: ec2.InstanceType.of(ec2.InstanceClass.G4DN, ec2.InstanceSize.XLARGE2) },
     ],
   },
   minCapacity: 0,
