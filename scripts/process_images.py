@@ -293,11 +293,73 @@ def load_all_embeddings() -> Dict[str, np.ndarray]:
 
 
 # =============================================================================
+# EFS/S3 SYNC
+# =============================================================================
+
+def sync_efs_with_s3():
+    """Remove EFS data for images that no longer exist in S3.
+
+    S3 images/small/ is the source of truth for what images exist.
+    Cleans up orphaned metadata/embeddings/neighbors from EFS.
+    """
+    print("Syncing EFS with S3...")
+
+    # Get image IDs from S3 (images/small/)
+    s3_image_ids = set()
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=STORAGE_BUCKET, Prefix='images/small/'):
+        for obj in page.get('Contents', []):
+            # Extract ID from key like 'images/small/WBS_1234.jpg'
+            filename = obj['Key'].split('/')[-1]
+            image_id = os.path.splitext(filename)[0]
+            s3_image_ids.add(image_id)
+
+    print(f"  S3 has {len(s3_image_ids)} images")
+
+    # Get image IDs from EFS
+    efs_image_ids = set(list_all_image_ids())
+    print(f"  EFS has {len(efs_image_ids)} embeddings")
+
+    # Find orphaned (in EFS but not in S3)
+    orphaned = efs_image_ids - s3_image_ids
+
+    if not orphaned:
+        print("  No orphaned images found")
+        return 0
+
+    print(f"  Found {len(orphaned)} orphaned images, cleaning up...")
+
+    for image_id in orphaned:
+        # Delete embedding
+        emb_path = os.path.join(EFS_EMBEDDINGS_DIR, f'{image_id}.npy')
+        if os.path.exists(emb_path):
+            os.remove(emb_path)
+
+        # Delete metadata
+        meta_path = os.path.join(EFS_METADATA_DIR, f'{image_id}.json')
+        if os.path.exists(meta_path):
+            os.remove(meta_path)
+
+        # Delete neighbors
+        neighbors_path = os.path.join(EFS_NEIGHBORS_DIR, f'{image_id}.json')
+        if os.path.exists(neighbors_path):
+            os.remove(neighbors_path)
+
+        print(f"    Removed: {image_id}")
+
+    print(f"  Cleaned up {len(orphaned)} orphaned images")
+    return len(orphaned)
+
+
+# =============================================================================
 # MANIFEST GENERATION
 # =============================================================================
 
 def generate_manifest_from_efs():
     """Generate complete manifest from EFS data and upload to S3."""
+    # First sync EFS with S3 to remove orphaned data
+    sync_efs_with_s3()
+
     print("Generating manifest from EFS...")
 
     images = []
