@@ -620,6 +620,20 @@ deleteImageLambdaFn.fileSystemConfigs = [{
 // Add EFS mount path environment variable
 backend.deleteImage.resources.lambda.addEnvironment('EFS_MOUNT_PATH', '/mnt/efs');
 
+// Grant Lambda VPC networking permissions (required for Lambda in VPC)
+backend.deleteImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: [
+      'ec2:CreateNetworkInterface',
+      'ec2:DescribeNetworkInterfaces',
+      'ec2:DeleteNetworkInterface',
+      'ec2:AssignPrivateIpAddresses',
+      'ec2:UnassignPrivateIpAddresses',
+    ],
+    resources: ['*'],
+  })
+);
+
 // Grant Lambda permission to access EFS
 backend.deleteImage.resources.lambda.addToRolePolicy(
   new iam.PolicyStatement({
