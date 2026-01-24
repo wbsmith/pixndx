@@ -485,20 +485,15 @@ const imageProcessingQueue = new sqs.Queue(gpuStack, 'ImageProcessingQueue', {
 });
 
 // Create VPC with multiple AZs for flexibility (EFS spans AZs)
-// Includes private subnet with NAT for Lambda functions that need EFS + internet
+// Keep original 3-AZ config to avoid EFS mount target conflicts
 const vpc = new ec2.Vpc(gpuStack, 'GpuVpc', {
   vpcName: 'picgraf-gpu-vpc',
-  maxAzs: 2,  // 2 AZs for NAT cost efficiency
-  natGateways: 1,  // Single NAT gateway for Lambda (cost: ~$32/month)
+  maxAzs: 3,  // Must match original deployment to avoid EFS mount target conflicts
+  natGateways: 0,  // No NAT - Lambda uses VPC endpoints for AWS services
   subnetConfiguration: [
     {
       name: 'public',
       subnetType: ec2.SubnetType.PUBLIC,
-      cidrMask: 24,
-    },
-    {
-      name: 'private',
-      subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
       cidrMask: 24,
     },
   ],
@@ -507,6 +502,22 @@ const vpc = new ec2.Vpc(gpuStack, 'GpuVpc', {
 // S3 Gateway endpoint (free) - allows Lambda to access S3 without going through NAT
 vpc.addGatewayEndpoint('S3Endpoint', {
   service: ec2.GatewayVpcEndpointAwsService.S3,
+});
+
+// Security group for AppSync VPC endpoint
+const appsyncEndpointSg = new ec2.SecurityGroup(gpuStack, 'AppSyncEndpointSg', {
+  vpc,
+  description: 'Security group for AppSync VPC endpoint',
+  allowAllOutbound: false,
+});
+
+// AppSync Interface endpoint - allows Lambda to call AppSync mutations from VPC
+// Cost: ~$7.30/month/AZ (3 AZs = ~$22/month) + $0.01/GB data processed
+vpc.addInterfaceEndpoint('AppSyncEndpoint', {
+  service: ec2.InterfaceVpcEndpointAwsService.APP_SYNC,
+  subnets: { subnetType: ec2.SubnetType.PUBLIC },
+  securityGroups: [appsyncEndpointSg],
+  privateDnsEnabled: true,
 });
 
 // Security group for GPU instances
@@ -565,6 +576,13 @@ efsSecurityGroup.addIngressRule(
   deleteImageLambdaSg,
   ec2.Port.tcp(2049),
   'Allow NFS from deleteImage Lambda'
+);
+
+// Allow HTTPS traffic from deleteImage Lambda to AppSync VPC endpoint
+appsyncEndpointSg.addIngressRule(
+  deleteImageLambdaSg,
+  ec2.Port.tcp(443),
+  'Allow HTTPS from deleteImage Lambda to AppSync'
 );
 
 // EFS access point for Lambda (different from root access used by GPU)
