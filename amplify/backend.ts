@@ -20,6 +20,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 
 // Custom domain for CloudFront (allows cookie sharing with app domain)
 const CDN_DOMAIN = 'cdn.picgraf.com';
@@ -484,17 +485,28 @@ const imageProcessingQueue = new sqs.Queue(gpuStack, 'ImageProcessingQueue', {
 });
 
 // Create VPC with multiple AZs for flexibility (EFS spans AZs)
+// Includes private subnet with NAT for Lambda functions that need EFS + internet
 const vpc = new ec2.Vpc(gpuStack, 'GpuVpc', {
   vpcName: 'picgraf-gpu-vpc',
-  maxAzs: 3,  // Multiple AZs - EFS is cross-AZ
-  natGateways: 0,
+  maxAzs: 2,  // 2 AZs for NAT cost efficiency
+  natGateways: 1,  // Single NAT gateway for Lambda (cost: ~$32/month)
   subnetConfiguration: [
     {
       name: 'public',
       subnetType: ec2.SubnetType.PUBLIC,
       cidrMask: 24,
     },
+    {
+      name: 'private',
+      subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+      cidrMask: 24,
+    },
   ],
+});
+
+// S3 Gateway endpoint (free) - allows Lambda to access S3 without going through NAT
+vpc.addGatewayEndpoint('S3Endpoint', {
+  service: ec2.GatewayVpcEndpointAwsService.S3,
 });
 
 // Security group for GPU instances
@@ -535,6 +547,100 @@ const modelsFileSystem = new efs.FileSystem(gpuStack, 'ModelsFileSystem', {
 // Tag the filesystem
 cdk.Tags.of(modelsFileSystem).add('Name', 'picgraf-ai-models');
 cdk.Tags.of(modelsFileSystem).add('Purpose', 'ai-models');
+
+// ============================================================
+// deleteImage Lambda EFS Configuration
+// Allows Lambda to read/write EFS for metadata cleanup & manifest regen
+// ============================================================
+
+// Security group for deleteImage Lambda to access EFS
+const deleteImageLambdaSg = new ec2.SecurityGroup(gpuStack, 'DeleteImageLambdaSg', {
+  vpc,
+  description: 'Security group for deleteImage Lambda to access EFS',
+  allowAllOutbound: true,
+});
+
+// Allow NFS traffic from deleteImage Lambda to EFS
+efsSecurityGroup.addIngressRule(
+  deleteImageLambdaSg,
+  ec2.Port.tcp(2049),
+  'Allow NFS from deleteImage Lambda'
+);
+
+// EFS access point for Lambda (different from root access used by GPU)
+const deleteImageAccessPoint = new efs.AccessPoint(gpuStack, 'DeleteImageAccessPoint', {
+  fileSystem: modelsFileSystem,
+  path: '/cache',
+  createAcl: {
+    ownerGid: '1000',
+    ownerUid: '1000',
+    permissions: '755',
+  },
+  posixUser: {
+    gid: '1000',
+    uid: '1000',
+  },
+});
+
+// Get the underlying CfnFunction to configure VPC and EFS
+const deleteImageLambdaFn = backend.deleteImage.resources.lambda.node.defaultChild as lambda.CfnFunction;
+
+// Configure VPC for deleteImage Lambda
+deleteImageLambdaFn.vpcConfig = {
+  securityGroupIds: [deleteImageLambdaSg.securityGroupId],
+  subnetIds: vpc.privateSubnets.length > 0
+    ? vpc.privateSubnets.map(s => s.subnetId)
+    : vpc.publicSubnets.map(s => s.subnetId),
+};
+
+// Configure EFS mount for deleteImage Lambda
+deleteImageLambdaFn.fileSystemConfigs = [{
+  arn: deleteImageAccessPoint.accessPointArn,
+  localMountPath: '/mnt/efs',
+}];
+
+// Add EFS mount path environment variable
+backend.deleteImage.resources.lambda.addEnvironment('EFS_MOUNT_PATH', '/mnt/efs');
+
+// Grant Lambda permission to access EFS
+backend.deleteImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: [
+      'elasticfilesystem:ClientMount',
+      'elasticfilesystem:ClientWrite',
+      'elasticfilesystem:ClientRootAccess',
+    ],
+    resources: [modelsFileSystem.fileSystemArn],
+  })
+);
+
+// Grant Lambda permission to access the access point
+backend.deleteImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: ['elasticfilesystem:ClientMount'],
+    resources: [deleteImageAccessPoint.accessPointArn],
+  })
+);
+
+// Add AppSync endpoint and API key for manifest update notifications
+// The API endpoint is available from the data resource
+backend.deleteImage.resources.lambda.addEnvironment(
+  'APPSYNC_ENDPOINT',
+  backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl
+);
+
+// Grant Lambda permission to call AppSync mutations
+backend.deleteImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: ['appsync:GraphQL'],
+    resources: [`${backend.data.resources.cfnResources.cfnGraphqlApi.attrArn}/*`],
+  })
+);
+
+// Note: For API key auth, we need to pass the key. Since Amplify generates the key,
+// we'll use IAM auth instead which is cleaner for Lambda-to-AppSync communication.
+// The Lambda will use AWS credentials to authenticate with AppSync.
+// If API key is needed, it can be retrieved via AWS SDK at runtime.
 
 // IAM role for GPU instances
 const gpuInstanceRole = new iam.Role(gpuStack, 'GpuInstanceRole', {
@@ -721,11 +827,23 @@ userData.addCommands(
   'echo "Model warm-up complete!"',
   '',
   '# ============================================================',
-  '# PHASE 5: Download latest processing script and start service',
+  '# PHASE 5: Pull latest code from git and start service',
   '# ============================================================',
   '',
-  '# Always download latest script from S3',
-  `aws s3 cp s3://${modelsBucket.bucketName}/scripts/process_images.py $MOUNT_POINT/scripts/process_images.py --region $REGION || echo "Script not found in S3"`,
+  '# Pull latest code from git repo on EFS',
+  'REPO_DIR="$MOUNT_POINT/repo"',
+  'DEPLOY_KEY="$MOUNT_POINT/config/deploy_key"',
+  '',
+  'if [ -d "$REPO_DIR" ] && [ -f "$DEPLOY_KEY" ]; then',
+  '  echo "Pulling latest code from git..."',
+  '  cd "$REPO_DIR"',
+  '  export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no"',
+  '  git fetch origin main 2>/dev/null || echo "Warning: Could not fetch from origin"',
+  '  git reset --hard origin/main 2>/dev/null || echo "Warning: Could not reset to origin/main"',
+  '  echo "Current commit: $(git log --oneline -1)"',
+  'else',
+  '  echo "Warning: Git repo or deploy key not found, using existing code"',
+  'fi',
   '',
   '# Discover AppSync API (find the one with "amplify" in the name)',
   'echo "Discovering AppSync API..."',
@@ -751,7 +869,7 @@ userData.addCommands(
   '',
   '[Service]',
   'Type=simple',
-  'WorkingDirectory=$MOUNT_POINT/scripts',
+  'WorkingDirectory=$MOUNT_POINT/repo/scripts',
   `Environment=STORAGE_BUCKET=${s3Bucket.bucketName}`,
   `Environment=SQS_QUEUE_URL=${imageProcessingQueue.queueUrl}`,
   `Environment=AWS_REGION=${cdk.Aws.REGION}`,
@@ -761,7 +879,8 @@ userData.addCommands(
   'Environment=APPSYNC_API_KEY=$APPSYNC_API_KEY',
   'Environment=OLLAMA_MODELS=$MOUNT_POINT/ollama',
   'Environment=HF_HOME=$MOUNT_POINT/huggingface',
-  'ExecStart=/usr/bin/python3 $MOUNT_POINT/scripts/process_images.py',
+  'Environment=EFS_MOUNT=$MOUNT_POINT',
+  'ExecStart=/usr/bin/python3 $MOUNT_POINT/repo/scripts/process_images.py',
   'Restart=on-failure',
   'RestartSec=10',
   '',

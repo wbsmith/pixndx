@@ -46,18 +46,18 @@ OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma3:27b-it-qat')
 IDLE_TIMEOUT_SECONDS = int(os.environ.get('IDLE_TIMEOUT', '120'))  # 2 min idle before shutdown
 
 # EFS paths (source of truth for all processing data)
+# Note: neighbors are stored IN metadata JSON, not in a separate directory
 EFS_MOUNT = os.environ.get('EFS_MOUNT', '/mnt/models')
-EFS_DATA_DIR = os.path.join(EFS_MOUNT, 'data')
-EFS_EMBEDDINGS_DIR = os.path.join(EFS_DATA_DIR, 'embeddings')
-EFS_METADATA_DIR = os.path.join(EFS_DATA_DIR, 'metadata')
-EFS_NEIGHBORS_DIR = os.path.join(EFS_DATA_DIR, 'neighbors')
+EFS_CACHE_DIR = os.path.join(EFS_MOUNT, 'cache')
+EFS_EMBEDDINGS_DIR = os.path.join(EFS_CACHE_DIR, 'embeddings')
+EFS_METADATA_DIR = os.path.join(EFS_CACHE_DIR, 'metadata')
 
 # CDN base URL for image URLs in manifest
 CDN_BASE = 'https://cdn.picgraf.com'
 
 # Neighbor computation settings
 SIMILARITY_THRESHOLD = 0.3
-MAX_NEIGHBORS = 50
+MAX_NEIGHBORS = 200
 CLIP_WEIGHT = 0.6
 META_WEIGHT = 0.4
 
@@ -130,7 +130,7 @@ def emit_event(event_type: str, data: Dict = None):
 
 def ensure_efs_dirs():
     """Create EFS data directories if they don't exist."""
-    for dir_path in [EFS_EMBEDDINGS_DIR, EFS_METADATA_DIR, EFS_NEIGHBORS_DIR]:
+    for dir_path in [EFS_EMBEDDINGS_DIR, EFS_METADATA_DIR]:
         os.makedirs(dir_path, exist_ok=True)
 
 
@@ -155,9 +155,8 @@ def restore_efs_from_s3():
     ensure_efs_dirs()
 
     backups = [
-        ('backups/embeddings.tar.gz', EFS_DATA_DIR),
-        ('backups/metadata.tar.gz', EFS_DATA_DIR),
-        ('backups/neighbors.tar.gz', EFS_DATA_DIR),
+        ('backups/embeddings.tar.gz', EFS_CACHE_DIR),
+        ('backups/metadata.tar.gz', EFS_CACHE_DIR),
     ]
 
     for s3_key, extract_to in backups:
@@ -190,7 +189,6 @@ def backup_efs_to_s3():
     backups = [
         (EFS_EMBEDDINGS_DIR, 'embeddings', 'backups/embeddings.tar.gz'),
         (EFS_METADATA_DIR, 'metadata', 'backups/metadata.tar.gz'),
-        (EFS_NEIGHBORS_DIR, 'neighbors', 'backups/neighbors.tar.gz'),
     ]
 
     for source_dir, archive_name, s3_key in backups:
@@ -256,22 +254,21 @@ def load_metadata(image_id: str) -> Optional[Dict]:
 
 
 def save_neighbors(image_id: str, clip_neighbors: List[Dict], composite_neighbors: List[Dict]):
-    """Save neighbors to EFS (separate from metadata for easier updates)."""
-    ensure_efs_dirs()
-    with open(os.path.join(EFS_NEIGHBORS_DIR, f'{image_id}.json'), 'w') as f:
-        json.dump({
-            'clipNeighbors': clip_neighbors,
-            'compositeNeighbors': composite_neighbors,
-        }, f)
+    """Save neighbors to metadata JSON (neighbors are embedded in metadata, not separate)."""
+    metadata = load_metadata(image_id)
+    if metadata is None:
+        print(f"  Warning: No metadata for {image_id}, cannot save neighbors")
+        return
+    metadata['clipNeighbors'] = clip_neighbors
+    metadata['compositeNeighbors'] = composite_neighbors
+    save_metadata(image_id, metadata)
 
 
 def load_neighbors(image_id: str) -> Tuple[List[Dict], List[Dict]]:
-    """Load neighbors from EFS. Returns (clipNeighbors, compositeNeighbors)."""
-    path = os.path.join(EFS_NEIGHBORS_DIR, f'{image_id}.json')
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            data = json.load(f)
-            return data.get('clipNeighbors', []), data.get('compositeNeighbors', [])
+    """Load neighbors from metadata JSON. Returns (clipNeighbors, compositeNeighbors)."""
+    metadata = load_metadata(image_id)
+    if metadata:
+        return metadata.get('clipNeighbors', []), metadata.get('compositeNeighbors', [])
     return [], []
 
 
@@ -335,15 +332,10 @@ def sync_efs_with_s3():
         if os.path.exists(emb_path):
             os.remove(emb_path)
 
-        # Delete metadata
+        # Delete metadata (neighbors are embedded in metadata, so this removes both)
         meta_path = os.path.join(EFS_METADATA_DIR, f'{image_id}.json')
         if os.path.exists(meta_path):
             os.remove(meta_path)
-
-        # Delete neighbors
-        neighbors_path = os.path.join(EFS_NEIGHBORS_DIR, f'{image_id}.json')
-        if os.path.exists(neighbors_path):
-            os.remove(neighbors_path)
 
         print(f"    Removed: {image_id}")
 
