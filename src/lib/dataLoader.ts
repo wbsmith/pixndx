@@ -200,7 +200,8 @@ export async function subscribeToManifestUpdates(
 
     // Custom subscription query to avoid requesting createdAt/updatedAt
     // (API key auth doesn't auto-generate timestamps, causing null errors)
-    const subscription = client.graphql({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const observable = client.graphql({
       query: `subscription OnCreateManifestUpdate {
         onCreateManifestUpdate {
           id
@@ -210,9 +211,11 @@ export async function subscribeToManifestUpdates(
           instanceId
         }
       }`
-    }).subscribe({
-      next: (result) => {
-        const record = (result as { data?: { onCreateManifestUpdate?: { version?: string; imageCount?: number } } }).data?.onCreateManifestUpdate;
+    }) as any;
+
+    const subscription = observable.subscribe({
+      next: (result: { data?: { onCreateManifestUpdate?: { version?: string; imageCount?: number } } }) => {
+        const record = result.data?.onCreateManifestUpdate;
         if (record) {
           console.log('[dataLoader] Manifest updated:', record.version, 'images:', record.imageCount);
           // Invalidate cache so next load gets fresh data
@@ -220,7 +223,7 @@ export async function subscribeToManifestUpdates(
           onManifestUpdated();
         }
       },
-      error: (err) => {
+      error: (err: Error) => {
         console.error('[dataLoader] ManifestUpdate subscription error:', err);
       },
     });
