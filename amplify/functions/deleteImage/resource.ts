@@ -24,4 +24,5 @@ export const deleteImage = defineFunction({
     NODE_OPTIONS: '--enable-source-maps',
   },
   runtime: 20, // Node.js 20.x
+  resourceGroupName: 'data', // Assign to data stack to avoid circular dependency
 });
