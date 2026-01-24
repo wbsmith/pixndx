@@ -198,8 +198,21 @@ export async function subscribeToManifestUpdates(
     const { generateClient } = await import('aws-amplify/data');
     const client = generateClient<Schema>();
 
-    const subscription = client.models.ManifestUpdate.onCreate().subscribe({
-      next: (record) => {
+    // Custom subscription query to avoid requesting createdAt/updatedAt
+    // (API key auth doesn't auto-generate timestamps, causing null errors)
+    const subscription = client.graphql({
+      query: `subscription OnCreateManifestUpdate {
+        onCreateManifestUpdate {
+          id
+          version
+          imageCount
+          processedCount
+          instanceId
+        }
+      }`
+    }).subscribe({
+      next: (result) => {
+        const record = (result as { data?: { onCreateManifestUpdate?: { version?: string; imageCount?: number } } }).data?.onCreateManifestUpdate;
         if (record) {
           console.log('[dataLoader] Manifest updated:', record.version, 'images:', record.imageCount);
           // Invalidate cache so next load gets fresh data
