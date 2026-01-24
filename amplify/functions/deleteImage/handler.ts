@@ -13,12 +13,13 @@ const APPSYNC_ENDPOINT = process.env.APPSYNC_ENDPOINT;
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
 interface DeleteImageInput {
-  imageId: string;
+  imageIds: string[];
 }
 
 interface DeleteImageResult {
   success: boolean;
-  imageId: string;
+  deletedImageIds: string[];
+  failedImageIds: string[];
   deletedFiles: string[];
   message: string;
   manifestUpdated: boolean;
@@ -52,98 +53,116 @@ function logWithTime(startTime: number, message: string): void {
 
 export const handler: AppSyncResolverHandler<DeleteImageInput, DeleteImageResult> = async (event) => {
   const startTime = Date.now();
-  const { imageId } = event.arguments;
+  const { imageIds } = event.arguments;
 
-  logWithTime(startTime, `=== deleteImage started for ${imageId} ===`);
+  logWithTime(startTime, `=== deleteImage started for ${imageIds.length} images ===`);
+  logWithTime(startTime, `Image IDs: ${imageIds.join(', ')}`);
   logWithTime(startTime, `EFS_MOUNT_PATH: ${EFS_MOUNT_PATH}`);
   logWithTime(startTime, `BUCKET_NAME: ${BUCKET_NAME}`);
-  logWithTime(startTime, `APPSYNC_ENDPOINT: ${APPSYNC_ENDPOINT ? 'configured' : 'not configured'}`);
 
   if (!BUCKET_NAME) {
     throw new Error('STORAGE_BUCKET_NAME not configured');
   }
 
-  if (!imageId) {
-    throw new Error('imageId is required');
+  if (!imageIds || imageIds.length === 0) {
+    throw new Error('imageIds array is required and must not be empty');
   }
 
   const deletedFiles: string[] = [];
+  const deletedImageIds: string[] = [];
+  const failedImageIds: string[] = [];
   const errors: string[] = [];
   let manifestUpdated = false;
 
-  // Image prefixes to search and delete from S3
-  const imagePrefixes = [
-    `images/small/${imageId}`,
-    `images/medium/${imageId}`,
-    `images/full/${imageId}`,
-  ];
-
   try {
-    // 1. Delete image files from S3
-    logWithTime(startTime, `Step 1: Deleting S3 files for ${imageId}...`);
-    for (const prefix of imagePrefixes) {
-      try {
-        const listStart = Date.now();
-        const listResult = await s3.send(new ListObjectsV2Command({
-          Bucket: BUCKET_NAME,
-          Prefix: prefix,
-          MaxKeys: 10,
-        }));
-        logWithTime(startTime, `  Listed ${prefix} (${Date.now() - listStart}ms)`);
+    // 1. Delete image files from S3 for all images
+    logWithTime(startTime, `Step 1: Deleting S3 files for ${imageIds.length} images...`);
 
-        if (listResult.Contents) {
-          for (const obj of listResult.Contents) {
-            if (obj.Key) {
-              const deleteStart = Date.now();
-              await s3.send(new DeleteObjectCommand({
-                Bucket: BUCKET_NAME,
-                Key: obj.Key,
-              }));
-              deletedFiles.push(obj.Key);
-              logWithTime(startTime, `  Deleted S3: ${obj.Key} (${Date.now() - deleteStart}ms)`);
+    for (const imageId of imageIds) {
+      const imagePrefixes = [
+        `images/small/${imageId}`,
+        `images/medium/${imageId}`,
+        `images/full/${imageId}`,
+      ];
+
+      let imageDeleted = false;
+
+      for (const prefix of imagePrefixes) {
+        try {
+          const listResult = await s3.send(new ListObjectsV2Command({
+            Bucket: BUCKET_NAME,
+            Prefix: prefix,
+            MaxKeys: 10,
+          }));
+
+          if (listResult.Contents) {
+            for (const obj of listResult.Contents) {
+              if (obj.Key) {
+                await s3.send(new DeleteObjectCommand({
+                  Bucket: BUCKET_NAME,
+                  Key: obj.Key,
+                }));
+                deletedFiles.push(obj.Key);
+                imageDeleted = true;
+              }
             }
           }
+        } catch (error) {
+          const msg = `Failed to delete S3 ${prefix}: ${error instanceof Error ? error.message : 'Unknown'}`;
+          console.warn(msg);
+          errors.push(msg);
         }
-      } catch (error) {
-        const msg = `Failed to delete S3 ${prefix}: ${error instanceof Error ? error.message : 'Unknown'}`;
-        console.warn(msg);
-        errors.push(msg);
+      }
+
+      if (imageDeleted) {
+        deletedImageIds.push(imageId);
       }
     }
-    logWithTime(startTime, `Step 1 complete: ${deletedFiles.length} S3 files deleted`);
 
-    // 2. Delete metadata and embeddings from EFS
-    logWithTime(startTime, `Step 2: Deleting EFS files for ${imageId}...`);
-    const efsFiles = [
-      path.join(EFS_MOUNT_PATH, 'metadata', `${imageId}.json`),
-      path.join(EFS_MOUNT_PATH, 'embeddings', `${imageId}.npy`),
-    ];
+    logWithTime(startTime, `Step 1 complete: ${deletedFiles.length} S3 files deleted for ${deletedImageIds.length} images`);
 
-    for (const filePath of efsFiles) {
-      try {
-        const existsStart = Date.now();
-        const exists = fs.existsSync(filePath);
-        logWithTime(startTime, `  Check ${path.basename(filePath)}: ${exists ? 'exists' : 'not found'} (${Date.now() - existsStart}ms)`);
-        if (exists) {
-          const deleteStart = Date.now();
-          fs.unlinkSync(filePath);
-          deletedFiles.push(`efs:${path.basename(filePath)}`);
-          logWithTime(startTime, `  Deleted EFS: ${filePath} (${Date.now() - deleteStart}ms)`);
+    // 2. Delete metadata and embeddings from EFS for all images
+    logWithTime(startTime, `Step 2: Deleting EFS files for ${imageIds.length} images...`);
+
+    for (const imageId of imageIds) {
+      const efsFiles = [
+        path.join(EFS_MOUNT_PATH, 'metadata', `${imageId}.json`),
+        path.join(EFS_MOUNT_PATH, 'embeddings', `${imageId}.npy`),
+      ];
+
+      for (const filePath of efsFiles) {
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            deletedFiles.push(`efs:${path.basename(filePath)}`);
+
+            // Mark as deleted if not already (from S3 deletion)
+            if (!deletedImageIds.includes(imageId)) {
+              deletedImageIds.push(imageId);
+            }
+          }
+        } catch (error) {
+          const msg = `Failed to delete EFS ${filePath}: ${error instanceof Error ? error.message : 'Unknown'}`;
+          console.warn(msg);
+          errors.push(msg);
         }
-      } catch (error) {
-        const msg = `Failed to delete EFS ${filePath}: ${error instanceof Error ? error.message : 'Unknown'}`;
-        console.warn(msg);
-        errors.push(msg);
       }
     }
-    logWithTime(startTime, `Step 2 complete`);
 
-    // 3. Regenerate manifest from remaining EFS metadata
-    logWithTime(startTime, 'Step 3: Regenerating manifest from EFS...');
+    logWithTime(startTime, `Step 2 complete: EFS cleanup done`);
+
+    // Track failed images
+    for (const imageId of imageIds) {
+      if (!deletedImageIds.includes(imageId)) {
+        failedImageIds.push(imageId);
+      }
+    }
+
+    // 3. Regenerate manifest from remaining EFS metadata (ONCE for all deletions)
+    logWithTime(startTime, 'Step 3: Regenerating manifest from EFS (once for all deletions)...');
     try {
       const metadataDir = path.join(EFS_MOUNT_PATH, 'metadata');
 
-      logWithTime(startTime, `  Checking metadata dir: ${metadataDir}`);
       if (fs.existsSync(metadataDir)) {
         const images: ImageMetadata[] = [];
 
@@ -160,7 +179,6 @@ export const handler: AppSyncResolverHandler<DeleteImageInput, DeleteImageResult
             const metadata = JSON.parse(metaContent);
             const imgId = file.replace('.json', '');
 
-            // Neighbors data is embedded in metadata JSON
             images.push({
               id: imgId,
               filename: metadata.filename || `${imgId}.jpg`,
@@ -182,7 +200,6 @@ export const handler: AppSyncResolverHandler<DeleteImageInput, DeleteImageResult
             });
 
             processedCount++;
-            // Log progress every 500 files
             if (processedCount % 500 === 0) {
               logWithTime(startTime, `  Processed ${processedCount}/${files.length} metadata files...`);
             }
@@ -199,7 +216,6 @@ export const handler: AppSyncResolverHandler<DeleteImageInput, DeleteImageResult
           images,
         };
 
-        // Upload to S3
         logWithTime(startTime, '  Uploading manifest to S3...');
         const uploadStart = Date.now();
         await s3.send(new PutObjectCommand({
@@ -220,8 +236,6 @@ export const handler: AppSyncResolverHandler<DeleteImageInput, DeleteImageResult
           const notifyStart = Date.now();
           await notifyManifestUpdated(images.length);
           logWithTime(startTime, `Step 4 complete (${Date.now() - notifyStart}ms)`);
-        } else {
-          logWithTime(startTime, 'Step 4: Skipped - AppSync not configured');
         }
       } else {
         logWithTime(startTime, `  ERROR: Metadata dir does not exist: ${metadataDir}`);
@@ -233,31 +247,31 @@ export const handler: AppSyncResolverHandler<DeleteImageInput, DeleteImageResult
       errors.push(msg);
     }
 
-    const success = deletedFiles.length > 0;
+    const success = deletedImageIds.length > 0;
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
     logWithTime(startTime, `=== deleteImage completed in ${totalTime}s ===`);
-    logWithTime(startTime, `Result: ${deletedFiles.length} files deleted, manifest ${manifestUpdated ? 'updated' : 'not updated'}`);
+    logWithTime(startTime, `Result: ${deletedImageIds.length}/${imageIds.length} images deleted, ${deletedFiles.length} files removed`);
 
     return {
       success,
-      imageId,
+      deletedImageIds,
+      failedImageIds,
       deletedFiles,
       manifestUpdated,
       message: success
-        ? `Deleted ${deletedFiles.length} items in ${totalTime}s, manifest ${manifestUpdated ? 'updated' : 'not updated'}`
-        : `No files found for ${imageId}. Errors: ${errors.join(', ')}`,
+        ? `Deleted ${deletedImageIds.length}/${imageIds.length} images (${deletedFiles.length} files) in ${totalTime}s`
+        : `No files found. Errors: ${errors.join(', ')}`,
     };
   } catch (error) {
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
     logWithTime(startTime, `=== deleteImage FAILED after ${totalTime}s ===`);
-    console.error('Failed to delete image:', error);
-    throw new Error(`Failed to delete image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error('Failed to delete images:', error);
+    throw new Error(`Failed to delete images: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
 /**
  * Sign a request with AWS Signature v4 using Lambda's credentials
- * Uses Node.js built-in crypto module
  */
 function signRequest(
   method: string,
@@ -269,14 +283,12 @@ function signRequest(
   const datetime = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
   const date = datetime.slice(0, 8);
 
-  // Get credentials from environment (Lambda runtime provides these)
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID!;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY!;
   const sessionToken = process.env.AWS_SESSION_TOKEN;
 
-  // Create canonical request
   const host = url.hostname;
-  const path = url.pathname || '/';
+  const urlPath = url.pathname || '/';
   const hashedPayload = crypto.createHash('sha256').update(body).digest('hex');
 
   const headers: Record<string, string> = {
@@ -296,20 +308,18 @@ function signRequest(
 
   const canonicalRequest = [
     method,
-    path,
-    '', // query string
+    urlPath,
+    '',
     canonicalHeaders,
     signedHeaders,
     hashedPayload,
   ].join('\n');
 
-  // Create string to sign
   const algorithm = 'AWS4-HMAC-SHA256';
   const credentialScope = `${date}/${region}/${service}/aws4_request`;
   const hashedCanonicalRequest = crypto.createHash('sha256').update(canonicalRequest).digest('hex');
   const stringToSign = [algorithm, datetime, credentialScope, hashedCanonicalRequest].join('\n');
 
-  // Calculate signature
   const hmac = (key: Buffer | string, data: string) =>
     crypto.createHmac('sha256', key).update(data).digest();
   const kDate = hmac(`AWS4${secretAccessKey}`, date);
@@ -318,7 +328,6 @@ function signRequest(
   const kSigning = hmac(kService, 'aws4_request');
   const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
 
-  // Build authorization header
   const authorization = `${algorithm} Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
   return {
@@ -329,7 +338,6 @@ function signRequest(
 
 /**
  * Notify frontend via AppSync that manifest was updated
- * Uses IAM authentication (AWS Signature v4)
  */
 async function notifyManifestUpdated(imageCount: number): Promise<void> {
   if (!APPSYNC_ENDPOINT) {
@@ -351,15 +359,13 @@ async function notifyManifestUpdated(imageCount: number): Promise<void> {
     input: {
       version: new Date().toISOString(),
       imageCount,
-      ttl: Math.floor(Date.now() / 1000) + 86400, // 1 day TTL
+      ttl: Math.floor(Date.now() / 1000) + 86400,
     },
   };
 
   try {
     const url = new URL(APPSYNC_ENDPOINT);
     const body = JSON.stringify({ query: mutation, variables });
-
-    // Sign request with AWS Signature v4
     const headers = signRequest('POST', url, body, AWS_REGION, 'appsync');
 
     const response = await fetch(APPSYNC_ENDPOINT, {

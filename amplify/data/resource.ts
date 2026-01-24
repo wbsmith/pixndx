@@ -220,12 +220,14 @@ const schema = a.schema({
     queuedAt: a.string().required(),
   }),
 
-  // Delete image result type
+  // Delete image result type (batch)
   DeleteImageResult: a.customType({
     success: a.boolean().required(),
-    imageId: a.string().required(),
+    deletedImageIds: a.string().array().required(),
+    failedImageIds: a.string().array().required(),
     deletedFiles: a.string().array().required(),
     message: a.string().required(),
+    manifestUpdated: a.boolean().required(),
   }),
 
   // Cookie options for frontend to use when setting cookies
@@ -263,10 +265,11 @@ const schema = a.schema({
       allow.groups(['Admins']),
     ]),
 
-  // Delete image and all associated files from S3 (Admins only)
+  // Delete images and all associated files from S3/EFS (Admins only)
+  // Batch operation: deletes all, then regenerates manifest once
   deleteImageFiles: a
     .mutation()
-    .arguments({ imageId: a.string().required() })
+    .arguments({ imageIds: a.string().array().required() })
     .returns(a.ref('DeleteImageResult'))
     .handler(a.handler.function(deleteImage))
     .authorization((allow) => [

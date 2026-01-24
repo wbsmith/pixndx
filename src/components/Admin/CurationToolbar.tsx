@@ -61,7 +61,7 @@ export function CurationToolbar() {
   const stats = getStats();
   const deleteMarkedCount = stats.delete;
 
-  // Apply deletions via GraphQL mutation
+  // Apply deletions via GraphQL mutation (batch operation)
   const handleApplyDeletions = async () => {
     if (IS_LOCAL_DEV) {
       setDeleteError('Deletion API not available in local dev mode');
@@ -84,46 +84,36 @@ export function CurationToolbar() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = generateClient() as any;
 
-      const deletedIds: string[] = [];
-      const errors: string[] = [];
-
-      for (let i = 0; i < idsToDelete.length; i++) {
-        const imageId = idsToDelete[i];
-        setDeleteProgress({ current: i + 1, total: idsToDelete.length });
-
-        try {
-          const result = await client.graphql({
-            query: `mutation DeleteImageFiles($imageId: String!) {
-              deleteImageFiles(imageId: $imageId) {
-                success
-                imageId
-                deletedFiles
-                message
-              }
-            }`,
-            variables: { imageId },
-          });
-          const data = result.data?.deleteImageFiles;
-          if (data?.success) {
-            deletedIds.push(imageId);
-            console.log(`Deleted: ${imageId}`, data.deletedFiles);
-          } else {
-            errors.push(`${imageId}: ${data?.message || 'Unknown error'}`);
+      // Batch delete - send all IDs at once, manifest regenerated once
+      const result = await client.graphql({
+        query: `mutation DeleteImageFiles($imageIds: [String!]!) {
+          deleteImageFiles(imageIds: $imageIds) {
+            success
+            deletedImageIds
+            failedImageIds
+            deletedFiles
+            message
+            manifestUpdated
           }
-        } catch (err) {
-          errors.push(`${imageId}: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        }
+        }`,
+        variables: { imageIds: idsToDelete },
+      });
+
+      const data = result.data?.deleteImageFiles;
+
+      if (data?.deletedImageIds?.length > 0) {
+        removeImages(data.deletedImageIds);
+        removeDecisions(data.deletedImageIds);
+        console.log(`Batch deleted: ${data.deletedImageIds.length} images`, data.message);
       }
 
-      // Remove deleted images from gallery and curation stores
-      if (deletedIds.length > 0) {
-        removeImages(deletedIds);
-        removeDecisions(deletedIds);
+      if (data?.failedImageIds?.length > 0) {
+        setDeleteError(`Deleted ${data.deletedImageIds.length}/${idsToDelete.length}. Failed: ${data.failedImageIds.join(', ')}`);
+      } else if (!data?.success) {
+        setDeleteError(data?.message || 'Delete operation failed');
       }
 
-      if (errors.length > 0) {
-        setDeleteError(`Deleted ${deletedIds.length}/${idsToDelete.length}. Errors: ${errors.join(', ')}`);
-      }
+      setDeleteProgress({ current: idsToDelete.length, total: idsToDelete.length });
     } catch (err) {
       setDeleteError(`Failed to delete: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {

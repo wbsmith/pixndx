@@ -1,0 +1,15 @@
+npm install @aws-amplify/storage
+npm install -g @aws-amplify/cli
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+npm install @aws-sdk/credential-providers
+npm install @aws-sdk/credential-provider-node
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+npm install @aws-sdk/credential-providers
+npm install aws-amplify @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+npm install aws-amplify
+npm uninstall @aws-amplify/storage
+npm install aws-amplify@latest
+cd .aws
+npm install aws-amplify
+aws efs describe-mount-targets --file-system-id $(aws efs describe-file-systems --query 'FileSystems[?Name!=`null`].FileSystemId' --output text | head -1) --query 'MountTargets[].[AvailabilityZoneName,LifeCycleState,IpAddress]' --output table
+aws efs describe-mount-targets --file-system-id $(aws efs describe-file-systems --query 'FileSystems[?Name!=`null`].FileSystemId' --output text | head -1) --query 'MountTargets[].[AvailabilityZoneName,LifeCycleState,IpAddress]' --output table

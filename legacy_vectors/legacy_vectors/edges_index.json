@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "chunks": 87,
+  "chunk_pattern": "edges_{:03d}.json",
+  "stats": {
+    "total_images": 2555,
+    "embedding_dim": 512,
+    "count": 860774,
+    "min_weight": 0.43971672654151917,
+    "max_weight": 0.9999999403953552,
+    "mean_weight": 0.7239436129791181,
+    "median_weight": 0.7228347659111023
+  }
+}

@@ -1,0 +1,1878 @@
+{
+  "description": "A young boy is running through a pumpkin patch, surrounded by pumpkins of various sizes and colors. The pumpkins range in hues from traditional orange to pale pink, cream, and green. They are scattered on a bed of dry straw, with stacked hay bales forming a backdrop. The lighting suggests a sunny day, creating warm tones throughout the scene. The boy is wearing an orange shirt and appears to be enjoying himself in the autumnal setting.",
+  "tags": {
+    "seasonal_activities": [
+      "autumn",
+      "fall",
+      "pumpkin patch",
+      "harvest"
+    ],
+    "objects": [
+      "pumpkins",
+      "hay bales",
+      "straw",
+      "child"
+    ],
+    "colors": [
+      "orange",
+      "pink",
+      "cream",
+      "green"
+    ]
+  },
+  "mood": "Joyful and festive",
+  "main_subject": "A boy running in a pumpkin patch",
+  "main_colors": {
+    "orange": "#E9967A",
+    "beige": "#F5F5DC"
+  },
+  "exif": {
+    "SourceFile": "/home/tyler/pictures/edits/WBS_0446_20181014_113.jpg",
+    "ExifToolVersion": 12.76,
+    "FileName": "WBS_0446_20181014_113.jpg",
+    "Directory": "/home/tyler/pictures/edits",
+    "FileSize": 7867476,
+    "FileModifyDate": "2018:10:14 20:51:44-07:00",
+    "FileAccessDate": "2025:12:26 20:30:09-08:00",
+    "FileInodeChangeDate": "2025:12:26 18:01:01-08:00",
+    "FilePermissions": 100644,
+    "FileType": "JPEG",
+    "FileTypeExtension": "JPG",
+    "MIMEType": "image/jpeg",
+    "JFIFVersion": "1 2",
+    "ExifByteOrder": "II",
+    "Make": "NIKON CORPORATION",
+    "Model": "NIKON D850",
+    "Orientation": 1,
+    "XResolution": 300,
+    "YResolution": 300,
+    "ResolutionUnit": 2,
+    "Software": "Capture NX-D 1.4.7 M",
+    "ModifyDate": "2018:10:14 20:51:28",
+    "Artist": "W. Bryan Smith",
+    "YCbCrPositioning": 1,
+    "ReferenceBlackWhite": "0 255 0 255 0 255",
+    "Copyright": "",
+    "ExposureTime": 0.0005,
+    "FNumber": 5.6,
+    "ExposureProgram": 3,
+    "ISO": 125,
+    "SensitivityType": 2,
+    "RecommendedExposureIndex": 125,
+    "ExifVersion": "0231",
+    "DateTimeOriginal": "2018:10:14 11:40:42",
+    "CreateDate": "2018:10:14 11:40:42",
+    "OffsetTime": "-08:00",
+    "OffsetTimeOriginal": "-08:00",
+    "OffsetTimeDigitized": "-08:00",
+    "ComponentsConfiguration": "1 2 3 0",
+    "ExposureCompensation": 0,
+    "MaxApertureValue": 1.4142135623731,
+    "MeteringMode": 3,
+    "LightSource": 9,
+    "Flash": 0,
+    "FocalLength": 50,
+    "MakerNoteVersion": "0211",
+    "Quality": "RAW    ",
+    "WhiteBalance": "SUNNY       ",
+    "FocusMode": "AF-C  ",
+    "WB_RBLevels": "1.900390625 1.375488281 1 1",
+    "ProgramShift": 0,
+    "ExposureDifference": 0,
+    "Compression": 6,
+    "PreviewImageStart": 30652,
+    "PreviewImageLength": 34366,
+    "ExposureBracketValue": 0,
+    "CropHiSpeed": "11 8288 5520 8288 5520 0 0",
+    "ExposureTuning": 0,
+    "SerialNumber": 3002217,
+    "VRInfoVersion": "0100",
+    "VibrationReduction": 2,
+    "VRMode": 0,
+    "ActiveD-Lighting": 65535,
+    "PictureControlVersion": "0200",
+    "PictureControlName": "AUTO",
+    "PictureControlBase": "AUTO",
+    "PictureControlAdjust": 0,
+    "PictureControlQuickAdjust": 0,
+    "Clarity": 127,
+    "Brightness": 127,
+    "Hue": 127,
+    "FilterEffect": 255,
+    "ToningEffect": 255,
+    "ToningSaturation": 127,
+    "TimeZone": -480,
+    "DaylightSavings": 0,
+    "DateDisplayFormat": 0,
+    "ISOExpansion": 0,
+    "ISO2": 125.992104989487,
+    "ISOExpansion2": 0,
+    "VignetteControl": 3,
+    "AutoDistortionControl": 0,
+    "ShutterMode": 0,
+    "MechanicalShutterCount": 11221,
+    "BlackLevel": "400 400 400 400",
+    "ImageSizeRAW": 1,
+    "WhiteBalanceFineTune": "0 0",
+    "CropArea": "16 8 8256 5504",
+    "ISOAutoShutterTime": 3,
+    "FlickerReductionShooting": 2,
+    "FlickerReductionIndicator": 1,
+    "MovieISOAutoControlManualMode": 1,
+    "MovieWhiteBalanceSameAsPhoto": 1,
+    "AF-SPrioritySel": 2,
+    "ManualFocusPointIllumination": 1,
+    "ManualFocusRingInAFMode": 1,
+    "FileNumberSequence": 1,
+    "FramingGridDisplay": 2,
+    "OpticalVR": 1,
+    "CmdDialsChangeMainSub": 2,
+    "CmdDialsMenuAndPlayback": 3,
+    "SubDialFrameAdvance": 1,
+    "Language": 5,
+    "FlickAdvanceDirection": 2,
+    "HDMIOutputResolution": 1,
+    "HDMIOutputRange": 1,
+    "CmdDialsReverseRotation": 1,
+    "FocusPeakingHighlightColor": 1,
+    "ContinuousModeDisplay": 1,
+    "MovieHighlightDisplayThreshold": 2,
+    "HDMIExternalRecorder": 2,
+    "DynamicAreaAFAssist": 1,
+    "CmdDialsApertureSetting": 1,
+    "LightSwitch": 1,
+    "MovieFunc2Button": 3,
+    "ColorTemperatureAuto": 0,
+    "LensType": 6,
+    "Lens": "50 50 1.4 1.4",
+    "FlashMode": 0,
+    "ShootingMode": 0,
+    "ContrastCurve": "(Binary data 578 bytes, use -b option to extract)",
+    "ShotInfoVersion": "0243",
+    "FirmwareVersion": "1.00b",
+    "PhotoShootingMenuBankImageArea": 0,
+    "PhotoShootingMenuBank": 0,
+    "PrimarySlot": 0,
+    "CustomSettingsBank": 0,
+    "AF-CPrioritySelection": 0,
+    "AF-SPrioritySelection": 0,
+    "AFPointSelection": 0,
+    "Three-DTrackingFaceDetection": 0,
+    "BlockShotAFResponse": 3,
+    "FocusPointWrap": 0,
+    "AFPointBrightness": 0,
+    "ISODisplay": 0,
+    "GridDisplay": 1,
+    "LCDIllumination": 0,
+    "ElectronicFront-CurtainShutter": 0,
+    "ReverseIndicators": 1,
+    "CommandDialsReverseRotation": 0,
+    "EasyExposureCompensation": 0,
+    "ExposureControlStepSize": 0,
+    "ISOStepSize": 0,
+    "ExposureCompStepSize": 0,
+    "CenterWeightedAreaSize": 0,
+    "FineTuneOptMatrixMetering": 0,
+    "FineTuneOptCenterWeighted": 0,
+    "FineTuneOptSpotMetering": 0,
+    "MultiSelectorShootMode": 0,
+    "MultiSelectorPlaybackMode": 2,
+    "MultiSelector": 0,
+    "ExposureDelayMode": 0,
+    "CLModeShootingSpeed": 5,
+    "MaxContinuousRelease": 200,
+    "AutoBracketOrder": 0,
+    "AutoBracketModeM": 0,
+    "Func1Button": 0,
+    "PreviewButton": 1,
+    "AssignBktButton": 0,
+    "CommandDialsChangeMainSub": 0,
+    "CommandDialsMenuAndPlayback": 1,
+    "CommandDialsApertureSetting": 0,
+    "ReleaseButtonToUseDial": 0,
+    "StandbyTimer": 1,
+    "SelfTimerTime": 2,
+    "SelfTimerShotInterval": 0,
+    "SelfTimerShotCount": 1,
+    "ImageReviewMonitorOffTime": 1,
+    "LiveViewMonitorOffTime": 2,
+    "MenuMonitorOffTime": 5,
+    "ShootingInfoMonitorOffTime": 2,
+    "FlashSyncSpeed": 3,
+    "FlashShutterSpeed": 0,
+    "ModelingFlash": 0,
+    "PlaybackMonitorOffTime": 1,
+    "MultiSelectorLiveView": 0,
+    "ShutterSpeedLock": 0,
+    "ApertureLock": 0,
+    "MovieShutterButton": 0,
+    "FlashExposureCompArea": 0,
+    "AutoFlashISOSensitivity": 0,
+    "MovieFunc1Button": 3,
+    "MoviePreviewButton": 3,
+    "Func1ButtonPlusDials": 1,
+    "PreviewButtonPlusDials": 0,
+    "AssignMovieRecordButtonPlusDials": 0,
+    "FineTuneOptHighlightWeighted": 0,
+    "DynamicAreaAFDisplay": 1,
+    "AFPointIllumination": 1,
+    "StoreByOrientation": 0,
+    "MatrixMetering": 0,
+    "LiveViewButtonOptions": 0,
+    "AFModeRestrictions": 0,
+    "LimitAFAreaModeSelection": 63,
+    "LensFocusFunctionButtons": 7,
+    "VerticalMultiSelector": 0,
+    "AssignMB-D18FuncButton": 5,
+    "AssignMB-D18FuncButtonPlusDials": 0,
+    "AF-OnButton": 8,
+    "SubSelector": 0,
+    "SubSelectorCenter": 3,
+    "SubSelectorPlusDials": 0,
+    "AssignMovieSubselector": 5,
+    "AssignMovieFunc1ButtonPlusDials": 0,
+    "AssignMoviePreviewButtonPlusDials": 0,
+    "AssignMovieSubselectorPlusDials": 0,
+    "SyncReleaseMode": 1,
+    "ContinuousModeLiveView": 1,
+    "Three-DTrackingWatchArea": 1,
+    "SubjectMotion": 1,
+    "AFActivation": 0,
+    "ShutterReleaseButtonAE-L": 0,
+    "AssignMB-D18AF-OnButton": 100,
+    "Func2Button": 55,
+    "AssignMovieFunc2Button": 0,
+    "RollAngle": -0.228150000000028,
+    "PitchAngle": 0.41862,
+    "YawAngle": 172.18604,
+    "NoiseReduction": "OFF ",
+    "ColorBalanceVersion": "0227",
+    "LensDataVersion": "0204",
+    "ExitPupilPosition": 85.3333333333333,
+    "AFAperture": 1.37395364745809,
+    "FocusPosition": 3,
+    "FocusDistance": 7.94328234724281,
+    "LensIDNumber": 160,
+    "LensFStops": 7,
+    "MinFocalLength": 50.3968419957949,
+    "MaxFocalLength": 50.3968419957949,
+    "MaxApertureAtMinFocal": 1.4142135623731,
+    "MaxApertureAtMaxFocal": 1.4142135623731,
+    "MCUVersion": 162,
+    "EffectiveMaxAperture": 1.4142135623731,
+    "RawImageCenter": "4144 2760",
+    "RetouchHistory": 0,
+    "ImageDataSize": 7792721,
+    "ShutterCount": 21785,
+    "VariProgram": " ",
+    "MultiExposureVersion": "0101",
+    "MultiExposureMode": 0,
+    "MultiExposureShots": 0,
+    "MultiExposureAutoGain": 0,
+    "HighISONoiseReduction": 4,
+    "PowerUpTime": "2018:10:14 09:59:06",
+    "AFInfo2Version": "0101",
+    "ContrastDetectAF": 0,
+    "AFAreaMode": 1,
+    "PhaseDetectAF": 7,
+    "AFPointsUsed": "00 00 00 00 00 00 08 00 00 00 00 00 00 00 00 00 00 00 00 00",
+    "AFPointsSelected": "00 00 00 00 00 00 08 00 00 00 00 00 00 00 00 00 00 00 00 00",
+    "AFPointsInFocus": "00 00 00 00 00 00 08 00 00 00 00 00 00 00 00 00 00 00 00 00",
+    "PrimaryAFPoint": 52,
+    "FileInfoVersion": "0100",
+    "MemoryCardNumber": 0,
+    "DirectoryNumber": 101,
+    "FileNumber": 446,
+    "AFFineTune": 0,
+    "AFFineTuneIndex": 255,
+    "AFFineTuneAdj": 0,
+    "AFFineTuneAdjTele": 0,
+    "RetouchInfoVersion": "0200",
+    "RetouchNEFProcessing": -1,
+    "SilentPhotography": 0,
+    "NikonCaptureVersion": "Capture NX-D 1.4.7 M",
+    "IFD0_Offset": 27677,
+    "PreviewIFD_Offset": 27577,
+    "NEFBitDepth": "14 0 0 0",
+    "UserComment": "",
+    "SubSecTime": 63,
+    "SubSecTimeOriginal": 63,
+    "SubSecTimeDigitized": 63,
+    "FlashpixVersion": "0100",
+    "ColorSpace": 65535,
+    "ExifImageWidth": 4170,
+    "ExifImageHeight": 2131,
+    "SensingMethod": 2,
+    "FileSource": 3,
+    "SceneType": 1,
+    "CFAPattern": "2 2 0 1 1 2",
+    "CustomRendered": 0,
+    "ExposureMode": 0,
+    "FocalLengthIn35mmFormat": 50,
+    "SceneCaptureType": 0,
+    "GainControl": 0,
+    "Contrast": 0,
+    "Saturation": 0,
+    "Sharpness": 0,
+    "SubjectDistanceRange": 0,
+    "GPSVersionID": "2 3 0 0",
+    "ThumbnailOffset": 27801,
+    "ThumbnailLength": 2851,
+    "CreatorTool": "NIKON D850 Ver.1.00     ",
+    "ProfileCMMType": "NKON",
+    "ProfileVersion": 544,
+    "ProfileClass": "mntr",
+    "ColorSpaceData": "RGB ",
+    "ProfileConnectionSpace": "XYZ ",
+    "ProfileDateTime": "2009:02:20 17:07:10",
+    "ProfileFileSignature": "acsp",
+    "PrimaryPlatform": "APPL",
+    "CMMFlags": 0,
+    "DeviceManufacturer": "none",
+    "DeviceModel": "",
+    "DeviceAttributes": "0 0",
+    "RenderingIntent": 0,
+    "ConnectionSpaceIlluminant": "0.9642 1 0.82491",
+    "ProfileCreator": "",
+    "ProfileID": "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0",
+    "ProfileDescription": "Nikon sRGB 4.0.0.3002",
+    "RedMatrixColumn": "0.43607 0.2225 0.01392",
+    "GreenMatrixColumn": "0.38507 0.71687 0.09706",
+    "BlueMatrixColumn": "0.14305 0.06061 0.71399",
+    "MediaWhitePoint": "0.9505 1 1.0891",
+    "ProfileCopyright": "Nikon Inc. & Nikon Corporation 2009",
+    "RedTRC": "(Binary data 8204 bytes, use -b option to extract)",
+    "GreenTRC": "(Binary data 8204 bytes, use -b option to extract)",
+    "BlueTRC": "(Binary data 8204 bytes, use -b option to extract)",
+    "ImageWidth": 4170,
+    "ImageHeight": 2131,
+    "EncodingProcess": 0,
+    "BitsPerSample": 8,
+    "ColorComponents": 3,
+    "YCbCrSubSampling": "1 1",
+    "Aperture": 5.6,
+    "BlueBalance": 1.375488281,
+    "ImageSize": "4170 2131",
+    "Megapixels": 8.88627,
+    "PreviewImage": "(Binary data 34366 bytes, use -b option to extract)",
+    "RedBalance": 1.900390625,
+    "ScaleFactor35efl": 1,
+    "ShutterSpeed": 0.0005,
+    "SubSecCreateDate": "2018:10:14 11:40:42.63-08:00",
+    "SubSecDateTimeOriginal": "2018:10:14 11:40:42.63-08:00",
+    "SubSecModifyDate": "2018:10:14 20:51:28.63-08:00",
+    "ThumbnailImage": "(Binary data 2851 bytes, use -b option to extract)",
+    "AutoFocus": 1,
+    "LensID": "A0 54 50 50 0C 0C A2 06",
+    "LensSpec": "50 50 1.4 1.4 6",
+    "CircleOfConfusion": 0.0300462606288666,
+    "DOF": "5.18746153385474 16.9455426873101",
+    "FOV": "39.3677405254627 5.68316329001482",
+    "FocalLength35efl": 50,
+    "HyperfocalDistance": 14.8580409703186,
+    "LightValue": 15.6147098441152
+  },
+  "clipNeighbors": [
+    {
+      "id": "WBS_0445_20181014_112",
+      "clipWeight": 0.9421,
+      "compositeWeight": 0.7248
+    },
+    {
+      "id": "WBS_0442_20181014_109",
+      "clipWeight": 0.8793,
+      "compositeWeight": 0.7251
+    },
+    {
+      "id": "WBS_0451_20181014_118",
+      "clipWeight": 0.8107,
+      "compositeWeight": 0.6125
+    },
+    {
+      "id": "WBS_0360_20181014_027",
+      "clipWeight": 0.7715,
+      "compositeWeight": 0.549
+    },
+    {
+      "id": "WBS_5663",
+      "clipWeight": 0.7647,
+      "compositeWeight": 0.5753
+    },
+    {
+      "id": "WBS_0359_20181014_026",
+      "clipWeight": 0.747,
+      "compositeWeight": 0.5422
+    },
+    {
+      "id": "WBS_9323",
+      "clipWeight": 0.7232,
+      "compositeWeight": 0.5468
+    },
+    {
+      "id": "rainbow-leaves-101339479",
+      "clipWeight": 0.719,
+      "compositeWeight": 0.5462
+    },
+    {
+      "id": "WBS_0449_20181014_116",
+      "clipWeight": 0.719,
+      "compositeWeight": 0.5375
+    },
+    {
+      "id": "WBS_9324",
+      "clipWeight": 0.7102,
+      "compositeWeight": 0.5294
+    },
+    {
+      "id": "WBS_8012_20240310_4464001",
+      "clipWeight": 0.7056,
+      "compositeWeight": 0.5362
+    },
+    {
+      "id": "WBS_3110_20181231_098",
+      "clipWeight": 0.7047,
+      "compositeWeight": 0.5049
+    },
+    {
+      "id": "WBS_4071_20190121_020",
+      "clipWeight": 0.7031,
+      "compositeWeight": 0.5058
+    },
+    {
+      "id": "WBS_8912_20210118_033001",
+      "clipWeight": 0.7002,
+      "compositeWeight": 0.5158
+    },
+    {
+      "id": "WBS_5341",
+      "clipWeight": 0.6953,
+      "compositeWeight": 0.5289
+    },
+    {
+      "id": "WBS_8011_20240310_4463001",
+      "clipWeight": 0.6942,
+      "compositeWeight": 0.5211
+    },
+    {
+      "id": "WBS_7587_20200727_117001",
+      "clipWeight": 0.6936,
+      "compositeWeight": 0.5155
+    },
+    {
+      "id": "WBS_6099_20230212_2597001",
+      "clipWeight": 0.6929,
+      "compositeWeight": 0.5086
+    },
+    {
+      "id": "WBS_3603_20190112_109",
+      "clipWeight": 0.6929,
+      "compositeWeight": 0.5293
+    },
+    {
+      "id": "WBS_3335_20190103_020",
+      "clipWeight": 0.6912,
+      "compositeWeight": 0.4859
+    },
+    {
+      "id": "WBS_4074_20190121_023",
+      "clipWeight": 0.6896,
+      "compositeWeight": 0.5089
+    },
+    {
+      "id": "WBS_6329_20200513_046",
+      "clipWeight": 0.6884,
+      "compositeWeight": 0.5229
+    },
+    {
+      "id": "WBS_3099_20181231_087",
+      "clipWeight": 0.6856,
+      "compositeWeight": 0.5335
+    },
+    {
+      "id": "WBS_4899_20221120_1406001",
+      "clipWeight": 0.6847,
+      "compositeWeight": 0.5239
+    },
+    {
+      "id": "WBS_5377_20200301_065",
+      "clipWeight": 0.6843,
+      "compositeWeight": 0.5275
+    },
+    {
+      "id": "WBS_5361_20200301_049",
+      "clipWeight": 0.6843,
+      "compositeWeight": 0.5334
+    },
+    {
+      "id": "WBS_4085_20190121_034",
+      "clipWeight": 0.6834,
+      "compositeWeight": 0.4735
+    },
+    {
+      "id": "WBS_8005_20240310_4458001",
+      "clipWeight": 0.6823,
+      "compositeWeight": 0.5013
+    },
+    {
+      "id": "WBS_5362_20200301_050",
+      "clipWeight": 0.6813,
+      "compositeWeight": 0.5452
+    },
+    {
+      "id": "WBS_8949_20240811_5396001",
+      "clipWeight": 0.6807,
+      "compositeWeight": 0.4988
+    },
+    {
+      "id": "WBS_7250",
+      "clipWeight": 0.6804,
+      "compositeWeight": 0.4759
+    },
+    {
+      "id": "WBS_6441_20200608_091",
+      "clipWeight": 0.6798,
+      "compositeWeight": 0.4995
+    },
+    {
+      "id": "WBS_8000_20240310_4453001",
+      "clipWeight": 0.6787,
+      "compositeWeight": 0.5222
+    },
+    {
+      "id": "WBS_3604_20190112_110",
+      "clipWeight": 0.6785,
+      "compositeWeight": 0.4911
+    },
+    {
+      "id": "WBS_000358_20241104_172619",
+      "clipWeight": 0.6785,
+      "compositeWeight": 0.4918
+    },
+    {
+      "id": "WBS_4081_20190121_030",
+      "clipWeight": 0.6777,
+      "compositeWeight": 0.4855
+    },
+    {
+      "id": "WBS_5370_20200301_058",
+      "clipWeight": 0.6777,
+      "compositeWeight": 0.4944
+    },
+    {
+      "id": "WBS_8021_20240315_4473001",
+      "clipWeight": 0.6768,
+      "compositeWeight": 0.4943
+    },
+    {
+      "id": "WBS_9209",
+      "clipWeight": 0.6765,
+      "compositeWeight": 0.48
+    },
+    {
+      "id": "WBS_9243_20210307_063001",
+      "clipWeight": 0.6761,
+      "compositeWeight": 0.5448
+    },
+    {
+      "id": "WBS_6221_20230224_2713001",
+      "clipWeight": 0.6759,
+      "compositeWeight": 0.4985
+    },
+    {
+      "id": "WBS_7992_20240303_4445001",
+      "clipWeight": 0.6748,
+      "compositeWeight": 0.524
+    },
+    {
+      "id": "WBS_5368_20200301_056",
+      "clipWeight": 0.6742,
+      "compositeWeight": 0.4745
+    },
+    {
+      "id": "WBS_5527_20200303_055",
+      "clipWeight": 0.6742,
+      "compositeWeight": 0.5264
+    },
+    {
+      "id": "WBS_000664_20241123_162110",
+      "clipWeight": 0.6741,
+      "compositeWeight": 0.504
+    },
+    {
+      "id": "WBS_8284_20190617_106",
+      "clipWeight": 0.6739,
+      "compositeWeight": 0.4936
+    },
+    {
+      "id": "WBS_6293_20200512_010",
+      "clipWeight": 0.6735,
+      "compositeWeight": 0.5432
+    },
+    {
+      "id": "WBS_6386_20230227_2872001",
+      "clipWeight": 0.6734,
+      "compositeWeight": 0.4952
+    },
+    {
+      "id": "WBS_6538",
+      "clipWeight": 0.6734,
+      "compositeWeight": 0.5126
+    },
+    {
+      "id": "WBS_3583_20190112_089",
+      "clipWeight": 0.6728,
+      "compositeWeight": 0.4697
+    },
+    {
+      "id": "WBS_0268_20181008_0442",
+      "clipWeight": 0.6727,
+      "compositeWeight": 0.4961
+    },
+    {
+      "id": "WBS_4089_20190121_038",
+      "clipWeight": 0.6721,
+      "compositeWeight": 0.4584
+    },
+    {
+      "id": "WBS_5637",
+      "clipWeight": 0.6718,
+      "compositeWeight": 0.4827
+    },
+    {
+      "id": "WBS_8023_20240315_4475001",
+      "clipWeight": 0.6717,
+      "compositeWeight": 0.5044
+    },
+    {
+      "id": "WBS_5502_20200303_030",
+      "clipWeight": 0.6716,
+      "compositeWeight": 0.5252
+    },
+    {
+      "id": "WBS_9684_20210504_033001",
+      "clipWeight": 0.6714,
+      "compositeWeight": 0.5024
+    },
+    {
+      "id": "WBS_6245",
+      "clipWeight": 0.6713,
+      "compositeWeight": 0.4866
+    },
+    {
+      "id": "WBS_6346_20200515_063",
+      "clipWeight": 0.6702,
+      "compositeWeight": 0.507
+    },
+    {
+      "id": "WBS_3602_20190112_108",
+      "clipWeight": 0.6701,
+      "compositeWeight": 0.4678
+    },
+    {
+      "id": "WBS_5627",
+      "clipWeight": 0.67,
+      "compositeWeight": 0.5259
+    },
+    {
+      "id": "WBS_4419_20200120_053",
+      "clipWeight": 0.6688,
+      "compositeWeight": 0.4962
+    },
+    {
+      "id": "WBS_8408_20190621_055",
+      "clipWeight": 0.6688,
+      "compositeWeight": 0.5358
+    },
+    {
+      "id": "WBS_3608_20190112_114",
+      "clipWeight": 0.6686,
+      "compositeWeight": 0.473
+    },
+    {
+      "id": "WBS_6553_20230408_3036001",
+      "clipWeight": 0.6685,
+      "compositeWeight": 0.4942
+    },
+    {
+      "id": "DSC_4792",
+      "clipWeight": 0.6684,
+      "compositeWeight": 0.4782
+    },
+    {
+      "id": "WBS_8003_20240310_4456001",
+      "clipWeight": 0.6683,
+      "compositeWeight": 0.4793
+    },
+    {
+      "id": "WBS_6172_20230213_2664001",
+      "clipWeight": 0.6683,
+      "compositeWeight": 0.5218
+    },
+    {
+      "id": "WBS_002608_20251012_172021",
+      "clipWeight": 0.668,
+      "compositeWeight": 0.5058
+    },
+    {
+      "id": "WBS_6550_20230408_3033001",
+      "clipWeight": 0.6678,
+      "compositeWeight": 0.4938
+    },
+    {
+      "id": "WBS_8391_20190621_038",
+      "clipWeight": 0.6676,
+      "compositeWeight": 0.5329
+    },
+    {
+      "id": "WBS_2601_20191110_226",
+      "clipWeight": 0.667,
+      "compositeWeight": 0.5091
+    },
+    {
+      "id": "WBS_7983_20240303_4436001",
+      "clipWeight": 0.6666,
+      "compositeWeight": 0.5333
+    },
+    {
+      "id": "WBS_6884_20200618_248001",
+      "clipWeight": 0.6664,
+      "compositeWeight": 0.4676
+    },
+    {
+      "id": "WBS_2293_20210806_0057001",
+      "clipWeight": 0.6661,
+      "compositeWeight": 0.4859
+    },
+    {
+      "id": "WBS_3594_20190112_100",
+      "clipWeight": 0.6648,
+      "compositeWeight": 0.458
+    },
+    {
+      "id": "WBS_7989_20240303_4442001",
+      "clipWeight": 0.6647,
+      "compositeWeight": 0.5311
+    },
+    {
+      "id": "WBS_4898_20221120_1405001",
+      "clipWeight": 0.6647,
+      "compositeWeight": 0.5005
+    },
+    {
+      "id": "WBS_6547_20230408_3030001",
+      "clipWeight": 0.6644,
+      "compositeWeight": 0.4717
+    },
+    {
+      "id": "WBS_5002_20221123_1509001",
+      "clipWeight": 0.6644,
+      "compositeWeight": 0.5048
+    },
+    {
+      "id": "WBS_9578_20210430_014001",
+      "clipWeight": 0.6643,
+      "compositeWeight": 0.5071
+    },
+    {
+      "id": "WBS_8404_20201123_156001",
+      "clipWeight": 0.6642,
+      "compositeWeight": 0.4971
+    },
+    {
+      "id": "WBS_7972_20240303_4425001",
+      "clipWeight": 0.6639,
+      "compositeWeight": 0.5315
+    },
+    {
+      "id": "WBS_000263_20241013_151827",
+      "clipWeight": 0.6638,
+      "compositeWeight": 0.4991
+    },
+    {
+      "id": "WBS_9276_20210313_004001",
+      "clipWeight": 0.6635,
+      "compositeWeight": 0.4893
+    },
+    {
+      "id": "WBS_4976_20221123_1483001",
+      "clipWeight": 0.6634,
+      "compositeWeight": 0.5106
+    },
+    {
+      "id": "WBS_7980_20240303_4433001",
+      "clipWeight": 0.6628,
+      "compositeWeight": 0.5221
+    },
+    {
+      "id": "WBS_0884_20191006_445",
+      "clipWeight": 0.6627,
+      "compositeWeight": 0.5232
+    },
+    {
+      "id": "WBS_4336_20221023_881001",
+      "clipWeight": 0.6626,
+      "compositeWeight": 0.4688
+    },
+    {
+      "id": "WBS_5330_20190222_091",
+      "clipWeight": 0.6625,
+      "compositeWeight": 0.498
+    },
+    {
+      "id": "WBS_001060_20241202_164905",
+      "clipWeight": 0.6623,
+      "compositeWeight": 0.4758
+    },
+    {
+      "id": "WBS_4891_20221120_1398001",
+      "clipWeight": 0.662,
+      "compositeWeight": 0.4986
+    },
+    {
+      "id": "WBS_8007_20240310_4460001",
+      "clipWeight": 0.6615,
+      "compositeWeight": 0.5098
+    },
+    {
+      "id": "WBS_5355_20200301_044",
+      "clipWeight": 0.6613,
+      "compositeWeight": 0.5419
+    },
+    {
+      "id": "WBS_9367_20210411_035001",
+      "clipWeight": 0.6613,
+      "compositeWeight": 0.4801
+    },
+    {
+      "id": "WBS_8017_20240315_4469001",
+      "clipWeight": 0.6608,
+      "compositeWeight": 0.4968
+    },
+    {
+      "id": "WBS_6387_20230227_2873001",
+      "clipWeight": 0.6607,
+      "compositeWeight": 0.5163
+    },
+    {
+      "id": "WBS_7389_20190517_096",
+      "clipWeight": 0.6607,
+      "compositeWeight": 0.5081
+    },
+    {
+      "id": "WBS_6344_20200515_061",
+      "clipWeight": 0.6606,
+      "compositeWeight": 0.4863
+    },
+    {
+      "id": "D800Moon001_00001_01",
+      "clipWeight": 0.6596,
+      "compositeWeight": 0.4728
+    },
+    {
+      "id": "WBS_6388_20230227_2874001",
+      "clipWeight": 0.6596,
+      "compositeWeight": 0.522
+    },
+    {
+      "id": "WBS_9928_20190827_124",
+      "clipWeight": 0.6594,
+      "compositeWeight": 0.4787
+    },
+    {
+      "id": "WBS_001115_20241210_091532",
+      "clipWeight": 0.6594,
+      "compositeWeight": 0.5216
+    },
+    {
+      "id": "WBS_8875_20240811_5324001",
+      "clipWeight": 0.6587,
+      "compositeWeight": 0.4836
+    },
+    {
+      "id": "WBS_8309",
+      "clipWeight": 0.6584,
+      "compositeWeight": 0.4807
+    },
+    {
+      "id": "WBS_8581_20190623_222",
+      "clipWeight": 0.6584,
+      "compositeWeight": 0.4936
+    },
+    {
+      "id": "WBS_7635_20200727_165001",
+      "clipWeight": 0.6583,
+      "compositeWeight": 0.4827
+    },
+    {
+      "id": "WBS_5944_20200330_003",
+      "clipWeight": 0.6582,
+      "compositeWeight": 0.4539
+    },
+    {
+      "id": "WBS_6325_20200513_042",
+      "clipWeight": 0.6581,
+      "compositeWeight": 0.5345
+    },
+    {
+      "id": "WBS_6336_20200513_053",
+      "clipWeight": 0.6581,
+      "compositeWeight": 0.4961
+    },
+    {
+      "id": "WBS_5365_20200301_053",
+      "clipWeight": 0.6581,
+      "compositeWeight": 0.5077
+    },
+    {
+      "id": "WBS_5510_20200303_038",
+      "clipWeight": 0.6577,
+      "compositeWeight": 0.4971
+    },
+    {
+      "id": "WBS_000499_20241110_100548",
+      "clipWeight": 0.6572,
+      "compositeWeight": 0.5364
+    },
+    {
+      "id": "WBS_8117_20190610_035",
+      "clipWeight": 0.6571,
+      "compositeWeight": 0.4872
+    },
+    {
+      "id": "WBS_000766_20241124_101458",
+      "clipWeight": 0.6569,
+      "compositeWeight": 0.5078
+    },
+    {
+      "id": "WBS_6312_20200513_029",
+      "clipWeight": 0.6568,
+      "compositeWeight": 0.4968
+    },
+    {
+      "id": "WBS_5257_20200218_048",
+      "clipWeight": 0.6568,
+      "compositeWeight": 0.4993
+    },
+    {
+      "id": "WBS_6383_20230227_2869001",
+      "clipWeight": 0.6568,
+      "compositeWeight": 0.5006
+    },
+    {
+      "id": "WBS_7998_20240305_4451001",
+      "clipWeight": 0.6567,
+      "compositeWeight": 0.524
+    },
+    {
+      "id": "WBS_9249_20210307_069001",
+      "clipWeight": 0.6566,
+      "compositeWeight": 0.4991
+    },
+    {
+      "id": "WBS_4339_20221023_884001",
+      "clipWeight": 0.6562,
+      "compositeWeight": 0.4933
+    },
+    {
+      "id": "WBS_1737_20191021_019",
+      "clipWeight": 0.6562,
+      "compositeWeight": 0.4425
+    },
+    {
+      "id": "WBS_7631_20200727_161001",
+      "clipWeight": 0.6558,
+      "compositeWeight": 0.4593
+    },
+    {
+      "id": "WBS_6092_20230211_2591001",
+      "clipWeight": 0.6554,
+      "compositeWeight": 0.5356
+    },
+    {
+      "id": "WBS_4451_20200120_085",
+      "clipWeight": 0.6553,
+      "compositeWeight": 0.469
+    },
+    {
+      "id": "WBS_8365",
+      "clipWeight": 0.6553,
+      "compositeWeight": 0.5095
+    },
+    {
+      "id": "WBS_4631_20200130_037",
+      "clipWeight": 0.6548,
+      "compositeWeight": 0.4641
+    },
+    {
+      "id": "WBS_7953",
+      "clipWeight": 0.6544,
+      "compositeWeight": 0.499
+    },
+    {
+      "id": "WBS_7942",
+      "clipWeight": 0.6544,
+      "compositeWeight": 0.5075
+    },
+    {
+      "id": "WBS_7120",
+      "clipWeight": 0.6539,
+      "compositeWeight": 0.4796
+    },
+    {
+      "id": "WBS_6839_20200618_203001",
+      "clipWeight": 0.6537,
+      "compositeWeight": 0.4606
+    },
+    {
+      "id": "WBS_000355_20241104_172259",
+      "clipWeight": 0.6534,
+      "compositeWeight": 0.5015
+    },
+    {
+      "id": "WBS_6219_20230224_2711001",
+      "clipWeight": 0.6532,
+      "compositeWeight": 0.4922
+    },
+    {
+      "id": "WBS_6104_20200411_111",
+      "clipWeight": 0.653,
+      "compositeWeight": 0.473
+    },
+    {
+      "id": "WBS_3431_20211228_057001",
+      "clipWeight": 0.6527,
+      "compositeWeight": 0.4845
+    },
+    {
+      "id": "WBS_000493_20241110_100112",
+      "clipWeight": 0.6527,
+      "compositeWeight": 0.5145
+    },
+    {
+      "id": "WBS_1722_20191021_004",
+      "clipWeight": 0.6527,
+      "compositeWeight": 0.4737
+    },
+    {
+      "id": "WBS_000985_20241127_160721",
+      "clipWeight": 0.6526,
+      "compositeWeight": 0.5072
+    },
+    {
+      "id": "WBS_4895_20221120_1402001",
+      "clipWeight": 0.6525,
+      "compositeWeight": 0.5159
+    },
+    {
+      "id": "WBS_001074_20241205_070240",
+      "clipWeight": 0.6525,
+      "compositeWeight": 0.4812
+    },
+    {
+      "id": "WBS_7186_20200705_051001",
+      "clipWeight": 0.6523,
+      "compositeWeight": 0.4749
+    },
+    {
+      "id": "WBS_7642_20200727_172001",
+      "clipWeight": 0.6523,
+      "compositeWeight": 0.4739
+    },
+    {
+      "id": "WBS_7974_20240303_4427001",
+      "clipWeight": 0.6517,
+      "compositeWeight": 0.5313
+    },
+    {
+      "id": "WBS_6834_20200618_198001",
+      "clipWeight": 0.6516,
+      "compositeWeight": 0.5103
+    },
+    {
+      "id": "WBS_8279",
+      "clipWeight": 0.6508,
+      "compositeWeight": 0.5047
+    },
+    {
+      "id": "WBS_6167_20230212_2659001",
+      "clipWeight": 0.6507,
+      "compositeWeight": 0.5097
+    },
+    {
+      "id": "WBS_000657_20241123_161810",
+      "clipWeight": 0.6506,
+      "compositeWeight": 0.4918
+    },
+    {
+      "id": "WBS_4295_20221023_841001",
+      "clipWeight": 0.6505,
+      "compositeWeight": 0.4595
+    },
+    {
+      "id": "WBS_000939_20241127_154214",
+      "clipWeight": 0.6503,
+      "compositeWeight": 0.4361
+    },
+    {
+      "id": "WBS_7948",
+      "clipWeight": 0.6501,
+      "compositeWeight": 0.475
+    },
+    {
+      "id": "WBS_9541_20210426_027001",
+      "clipWeight": 0.65,
+      "compositeWeight": 0.4867
+    },
+    {
+      "id": "WBS_6527_20230408_3010001",
+      "clipWeight": 0.6498,
+      "compositeWeight": 0.4782
+    },
+    {
+      "id": "WBS_9436_20190721_061",
+      "clipWeight": 0.6497,
+      "compositeWeight": 0.4858
+    },
+    {
+      "id": "WBS_4296_20221023_842001",
+      "clipWeight": 0.6492,
+      "compositeWeight": 0.4896
+    },
+    {
+      "id": "WBS_3416_20211228_042001",
+      "clipWeight": 0.6491,
+      "compositeWeight": 0.4811
+    },
+    {
+      "id": "WBS_7988_20240303_4441001",
+      "clipWeight": 0.6491,
+      "compositeWeight": 0.4978
+    },
+    {
+      "id": "WBS_5559_20200303_087",
+      "clipWeight": 0.649,
+      "compositeWeight": 0.4931
+    },
+    {
+      "id": "WBS_000940_20241127_154218",
+      "clipWeight": 0.6487,
+      "compositeWeight": 0.4493
+    },
+    {
+      "id": "WBS_7877",
+      "clipWeight": 0.6487,
+      "compositeWeight": 0.4824
+    },
+    {
+      "id": "WBS_9504_20210415_103001",
+      "clipWeight": 0.6484,
+      "compositeWeight": 0.4952
+    },
+    {
+      "id": "WBS_3369_20191206_185",
+      "clipWeight": 0.6483,
+      "compositeWeight": 0.4867
+    },
+    {
+      "id": "WBS_8286",
+      "clipWeight": 0.6481,
+      "compositeWeight": 0.5035
+    },
+    {
+      "id": "WBS_8015_20240310_4467001",
+      "clipWeight": 0.648,
+      "compositeWeight": 0.4959
+    },
+    {
+      "id": "WBS_7965_20240302_4419001",
+      "clipWeight": 0.6476,
+      "compositeWeight": 0.487
+    },
+    {
+      "id": "WBS_6835_20200618_199001",
+      "clipWeight": 0.6472,
+      "compositeWeight": 0.5004
+    },
+    {
+      "id": "WBS_6535_20230408_3018001",
+      "clipWeight": 0.6471,
+      "compositeWeight": 0.4677
+    },
+    {
+      "id": "WBS_6937_20190422_017",
+      "clipWeight": 0.647,
+      "compositeWeight": 0.4743
+    },
+    {
+      "id": "WBS_0866_20191006_427",
+      "clipWeight": 0.647,
+      "compositeWeight": 0.4659
+    },
+    {
+      "id": "WBS_8381 1",
+      "clipWeight": 0.6468,
+      "compositeWeight": 0.4675
+    },
+    {
+      "id": "WBS_9237_20210307_057001",
+      "clipWeight": 0.6467,
+      "compositeWeight": 0.5166
+    },
+    {
+      "id": "WBS_9716_20210504_065001",
+      "clipWeight": 0.6465,
+      "compositeWeight": 0.4736
+    },
+    {
+      "id": "WBS_4412_20190122_178",
+      "clipWeight": 0.6463,
+      "compositeWeight": 0.5132
+    },
+    {
+      "id": "WBS_7987_20240303_4440001",
+      "clipWeight": 0.6463,
+      "compositeWeight": 0.4878
+    },
+    {
+      "id": "WBS_8891_20240811_5340001",
+      "clipWeight": 0.6462,
+      "compositeWeight": 0.4674
+    },
+    {
+      "id": "WBS_000537_20241114_162035",
+      "clipWeight": 0.6462,
+      "compositeWeight": 0.4683
+    },
+    {
+      "id": "WBS_000890_20241126_135804",
+      "clipWeight": 0.646,
+      "compositeWeight": 0.5111
+    },
+    {
+      "id": "WBS_000938_20241127_154208",
+      "clipWeight": 0.6456,
+      "compositeWeight": 0.4464
+    },
+    {
+      "id": "WBS_1059_20181122_043_01",
+      "clipWeight": 0.6454,
+      "compositeWeight": 0.4978
+    },
+    {
+      "id": "WBS_9126_20190713_112",
+      "clipWeight": 0.6448,
+      "compositeWeight": 0.4682
+    },
+    {
+      "id": "WBS_8032_20240401_4484001",
+      "clipWeight": 0.6447,
+      "compositeWeight": 0.4985
+    },
+    {
+      "id": "WBS_7979_20240303_4432001",
+      "clipWeight": 0.6444,
+      "compositeWeight": 0.5061
+    },
+    {
+      "id": "WBS_5369",
+      "clipWeight": 0.6443,
+      "compositeWeight": 0.4806
+    },
+    {
+      "id": "WBS_9437_20190721_062",
+      "clipWeight": 0.6443,
+      "compositeWeight": 0.4937
+    },
+    {
+      "id": "WBS_8141_20190610_059",
+      "clipWeight": 0.6443,
+      "compositeWeight": 0.4575
+    },
+    {
+      "id": "WBS_2333_20210806_0097001",
+      "clipWeight": 0.6443,
+      "compositeWeight": 0.4818
+    },
+    {
+      "id": "WBS_7871",
+      "clipWeight": 0.6442,
+      "compositeWeight": 0.4862
+    },
+    {
+      "id": "WBS_8030_20240401_4482001",
+      "clipWeight": 0.6441,
+      "compositeWeight": 0.516
+    },
+    {
+      "id": "WBS_000596_20241118_160002",
+      "clipWeight": 0.6439,
+      "compositeWeight": 0.4632
+    },
+    {
+      "id": "WBS_8942_02",
+      "clipWeight": 0.6438,
+      "compositeWeight": 0.5029
+    },
+    {
+      "id": "WBS_003112_20251207_150245",
+      "clipWeight": 0.6438,
+      "compositeWeight": 0.49
+    },
+    {
+      "id": "WBS_5491_20200303_019",
+      "clipWeight": 0.6435,
+      "compositeWeight": 0.4989
+    },
+    {
+      "id": "WBS_9920_20190827_116",
+      "clipWeight": 0.6433,
+      "compositeWeight": 0.4827
+    },
+    {
+      "id": "WBS_8381",
+      "clipWeight": 0.6427,
+      "compositeWeight": 0.476
+    },
+    {
+      "id": "WBS_6285_20200512_002",
+      "clipWeight": 0.6425,
+      "compositeWeight": 0.4735
+    },
+    {
+      "id": "WBS_6148_20230212_2640001",
+      "clipWeight": 0.6424,
+      "compositeWeight": 0.487
+    },
+    {
+      "id": "WBS_7977_20240303_4430001",
+      "clipWeight": 0.6422,
+      "compositeWeight": 0.5223
+    },
+    {
+      "id": "WBS_7745",
+      "clipWeight": 0.6421,
+      "compositeWeight": 0.483
+    },
+    {
+      "id": "WBS_6409_20230302_2895001",
+      "clipWeight": 0.6421,
+      "compositeWeight": 0.5033
+    },
+    {
+      "id": "WBS_4974_20221123_1481001",
+      "clipWeight": 0.642,
+      "compositeWeight": 0.5021
+    },
+    {
+      "id": "WBS_d7007902",
+      "clipWeight": 0.6419,
+      "compositeWeight": 0.4201
+    },
+    {
+      "id": "WBS_8918_20210118_039001",
+      "clipWeight": 0.6413,
+      "compositeWeight": 0.4876
+    },
+    {
+      "id": "WBS_2511_20181221_153",
+      "clipWeight": 0.6407,
+      "compositeWeight": 0.4194
+    },
+    {
+      "id": "WBS_6829_20200618_193001",
+      "clipWeight": 0.6406,
+      "compositeWeight": 0.4944
+    },
+    {
+      "id": "WBS_8495_20190623_136",
+      "clipWeight": 0.6401,
+      "compositeWeight": 0.5077
+    },
+    {
+      "id": "WBS_4330_20221023_875001",
+      "clipWeight": 0.64,
+      "compositeWeight": 0.4685
+    },
+    {
+      "id": "WBS_6909",
+      "clipWeight": 0.6399,
+      "compositeWeight": 0.4828
+    },
+    {
+      "id": "WBS_002249_20250806_193222",
+      "clipWeight": 0.6397,
+      "compositeWeight": 0.475
+    },
+    {
+      "id": "WBS_000671_20241123_162444",
+      "clipWeight": 0.6396,
+      "compositeWeight": 0.5188
+    },
+    {
+      "id": "WBS_7958",
+      "clipWeight": 0.6396,
+      "compositeWeight": 0.4789
+    },
+    {
+      "id": "WBS_2425_20191109_051",
+      "clipWeight": 0.6396,
+      "compositeWeight": 0.4897
+    },
+    {
+      "id": "WBS_5341_20200301_030",
+      "clipWeight": 0.6395,
+      "compositeWeight": 0.5175
+    },
+    {
+      "id": "WBS_8268",
+      "clipWeight": 0.6395,
+      "compositeWeight": 0.4618
+    },
+    {
+      "id": "nz-flax-with-raindrops-235690653",
+      "clipWeight": 0.6392,
+      "compositeWeight": 0.4459
+    },
+    {
+      "id": "WBS_8541",
+      "clipWeight": 0.639,
+      "compositeWeight": 0.4525
+    },
+    {
+      "id": "WBS_6842_20200618_206001",
+      "clipWeight": 0.639,
+      "compositeWeight": 0.459
+    },
+    {
+      "id": "WBS_4340_20221023_885001",
+      "clipWeight": 0.639,
+      "compositeWeight": 0.4546
+    },
+    {
+      "id": "WBS_9452_20190721_077",
+      "clipWeight": 0.6388,
+      "compositeWeight": 0.5001
+    },
+    {
+      "id": "WBS_1278_20181130_167",
+      "clipWeight": 0.6386,
+      "compositeWeight": 0.4978
+    },
+    {
+      "id": "WBS_6432_20230304_2918001",
+      "clipWeight": 0.6385,
+      "compositeWeight": 0.4671
+    },
+    {
+      "id": "WBS_2411_20191109_037",
+      "clipWeight": 0.6385,
+      "compositeWeight": 0.4788
+    },
+    {
+      "id": "WBS_6390_20230227_2876001",
+      "clipWeight": 0.6384,
+      "compositeWeight": 0.4711
+    },
+    {
+      "id": "WBS_6235_20200510_073",
+      "clipWeight": 0.6383,
+      "compositeWeight": 0.4541
+    },
+    {
+      "id": "WBS_6871_20200618_235001",
+      "clipWeight": 0.6383,
+      "compositeWeight": 0.4587
+    },
+    {
+      "id": "WBS_2585_20181226_003",
+      "clipWeight": 0.6382,
+      "compositeWeight": 0.4782
+    },
+    {
+      "id": "WBS_6441_20230304_2927001",
+      "clipWeight": 0.638,
+      "compositeWeight": 0.454
+    },
+    {
+      "id": "WBS_5924_20190401_025",
+      "clipWeight": 0.6379,
+      "compositeWeight": 0.4766
+    },
+    {
+      "id": "WBS_3579_20190112_085",
+      "clipWeight": 0.6379,
+      "compositeWeight": 0.4961
+    },
+    {
+      "id": "WBS_7639_20200727_169001",
+      "clipWeight": 0.6377,
+      "compositeWeight": 0.4451
+    },
+    {
+      "id": "WBS_0865_20191006_426",
+      "clipWeight": 0.6376,
+      "compositeWeight": 0.4538
+    },
+    {
+      "id": "WBS_7976_20240303_4429001",
+      "clipWeight": 0.6375,
+      "compositeWeight": 0.4904
+    },
+    {
+      "id": "WBS_9548_20210426_034001",
+      "clipWeight": 0.6374,
+      "compositeWeight": 0.4462
+    },
+    {
+      "id": "WBS_000501_20241110_100731",
+      "clipWeight": 0.6372,
+      "compositeWeight": 0.4921
+    },
+    {
+      "id": "WBS_7221",
+      "clipWeight": 0.637,
+      "compositeWeight": 0.4656
+    },
+    {
+      "id": "WBS_9561_20210426_047001",
+      "clipWeight": 0.6368,
+      "compositeWeight": 0.4741
+    },
+    {
+      "id": "WBS_002144_20250703_185238",
+      "clipWeight": 0.6368,
+      "compositeWeight": 0.4411
+    },
+    {
+      "id": "WBS_5346_20200301_035",
+      "clipWeight": 0.6366,
+      "compositeWeight": 0.4734
+    },
+    {
+      "id": "WBS_3155_20191128_211",
+      "clipWeight": 0.6365,
+      "compositeWeight": 0.4156
+    },
+    {
+      "id": "WBS_9451_20190721_076",
+      "clipWeight": 0.6359,
+      "compositeWeight": 0.4768
+    },
+    {
+      "id": "WBS_6410_20230302_2896001",
+      "clipWeight": 0.6358,
+      "compositeWeight": 0.4767
+    },
+    {
+      "id": "WBS_5347_20200301_036",
+      "clipWeight": 0.6357,
+      "compositeWeight": 0.4806
+    },
+    {
+      "id": "WBS_5347_20190224_009",
+      "clipWeight": 0.6354,
+      "compositeWeight": 0.4987
+    },
+    {
+      "id": "WBS_2352_20181212_087",
+      "clipWeight": 0.6353,
+      "compositeWeight": 0.4808
+    },
+    {
+      "id": "WBS_2404_20191109_030",
+      "clipWeight": 0.6351,
+      "compositeWeight": 0.4719
+    },
+    {
+      "id": "WBS_6951_20200623_064001",
+      "clipWeight": 0.6351,
+      "compositeWeight": 0.4921
+    },
+    {
+      "id": "9-30-24_0001",
+      "clipWeight": 0.6349,
+      "compositeWeight": 0.4645
+    },
+    {
+      "id": "WBS_8950",
+      "clipWeight": 0.6348,
+      "compositeWeight": 0.5087
+    },
+    {
+      "id": "WBS_6126_20200411_133",
+      "clipWeight": 0.6347,
+      "compositeWeight": 0.4907
+    },
+    {
+      "id": "WBS_7000_20190422_080",
+      "clipWeight": 0.6346,
+      "compositeWeight": 0.4787
+    },
+    {
+      "id": "WBS_7936",
+      "clipWeight": 0.6345,
+      "compositeWeight": 0.4688
+    },
+    {
+      "id": "WBS_6915",
+      "clipWeight": 0.6343,
+      "compositeWeight": 0.5169
+    },
+    {
+      "id": "WBS_5618",
+      "clipWeight": 0.6342,
+      "compositeWeight": 0.4602
+    },
+    {
+      "id": "WBS_5531_20200303_059",
+      "clipWeight": 0.6339,
+      "compositeWeight": 0.4732
+    },
+    {
+      "id": "WBS_6065_20230211_2566001",
+      "clipWeight": 0.6335,
+      "compositeWeight": 0.5268
+    },
+    {
+      "id": "WBS_7978_20240303_4431001",
+      "clipWeight": 0.6334,
+      "compositeWeight": 0.5069
+    },
+    {
+      "id": "WBS_4953_20221122_1460001",
+      "clipWeight": 0.6333,
+      "compositeWeight": 0.4731
+    },
+    {
+      "id": "WBS_5475_20200303_003",
+      "clipWeight": 0.6332,
+      "compositeWeight": 0.4828
+    },
+    {
+      "id": "WBS_6401_20230227_2887001",
+      "clipWeight": 0.633,
+      "compositeWeight": 0.4888
+    },
+    {
+      "id": "WBS_5016_20221123_1523001",
+      "clipWeight": 0.633,
+      "compositeWeight": 0.4791
+    },
+    {
+      "id": "WBS_6918",
+      "clipWeight": 0.633,
+      "compositeWeight": 0.4854
+    },
+    {
+      "id": "WBS_9756_20210504_105001",
+      "clipWeight": 0.6326,
+      "compositeWeight": 0.4626
+    },
+    {
+      "id": "WBS_5129_20190217_031",
+      "clipWeight": 0.6323,
+      "compositeWeight": 0.4527
+    },
+    {
+      "id": "WBS_000919_20241126_154919",
+      "clipWeight": 0.6314,
+      "compositeWeight": 0.4611
+    },
+    {
+      "id": "WBS_5033_20190210_040",
+      "clipWeight": 0.6313,
+      "compositeWeight": 0.4541
+    },
+    {
+      "id": "WBS_6304_20200513_021",
+      "clipWeight": 0.631,
+      "compositeWeight": 0.5031
+    },
+    {
+      "id": "WBS_7389_20200710_046001",
+      "clipWeight": 0.631,
+      "compositeWeight": 0.4694
+    },
+    {
+      "id": "WBS_4912_20221122_1419001",
+      "clipWeight": 0.631,
+      "compositeWeight": 0.4417
+    },
+    {
+      "id": "WBS_4259_20221022_805001",
+      "clipWeight": 0.6305,
+      "compositeWeight": 0.4787
+    },
+    {
+      "id": "WBS_8073_20201023_019001",
+      "clipWeight": 0.6304,
+      "compositeWeight": 0.4827
+    },
+    {
+      "id": "WBS_4904_20221122_1411001",
+      "clipWeight": 0.6303,
+      "compositeWeight": 0.489
+    },
+    {
+      "id": "WBS_8942",
+      "clipWeight": 0.6301,
+      "compositeWeight": 0.4946
+    },
+    {
+      "id": "WBS_6437_20230304_2923001",
+      "clipWeight": 0.6301,
+      "compositeWeight": 0.4811
+    },
+    {
+      "id": "WBS_4228_20220624_784001",
+      "clipWeight": 0.63,
+      "compositeWeight": 0.4743
+    },
+    {
+      "id": "WBS_7020_20200630_129001",
+      "clipWeight": 0.6298,
+      "compositeWeight": 0.4777
+    },
+    {
+      "id": "WBS_7950",
+      "clipWeight": 0.6298,
+      "compositeWeight": 0.4916
+    },
+    {
+      "id": "WBS_0861_20191006_422",
+      "clipWeight": 0.6297,
+      "compositeWeight": 0.4491
+    },
+    {
+      "id": "WBS_8267_20190617_089",
+      "clipWeight": 0.6297,
+      "compositeWeight": 0.4703
+    },
+    {
+      "id": "WBS_2507_20181221_149",
+      "clipWeight": 0.6294,
+      "compositeWeight": 0.4365
+    },
+    {
+      "id": "WBS_9746_20210504_095001",
+      "clipWeight": 0.6293,
+      "compositeWeight": 0.4633
+    },
+    {
+      "id": "WBS_001943_20250329_155013",
+      "clipWeight": 0.6292,
+      "compositeWeight": 0.4831
+    },
+    {
+      "id": "WBS_4932_20221122_1439001",
+      "clipWeight": 0.6291,
+      "compositeWeight": 0.4835
+    },
+    {
+      "id": "WBS_9231_20210307_051001",
+      "clipWeight": 0.6289,
+      "compositeWeight": 0.469
+    },
+    {
+      "id": "WBS_5949_20200330_008",
+      "clipWeight": 0.6289,
+      "compositeWeight": 0.4778
+    },
+    {
+      "id": "WBS_5010_20221123_1517001",
+      "clipWeight": 0.6287,
+      "compositeWeight": 0.4981
+    },
+    {
+      "id": "WBS_9002_20240811_5449001",
+      "clipWeight": 0.6287,
+      "compositeWeight": 0.448
+    },
+    {
+      "id": "WBS_6429_20190408_002",
+      "clipWeight": 0.6286,
+      "compositeWeight": 0.4443
+    },
+    {
+      "id": "WBS_3395_20190107_048",
+      "clipWeight": 0.6285,
+      "compositeWeight": 0.4483
+    },
+    {
+      "id": "WBS_9229",
+      "clipWeight": 0.6285,
+      "compositeWeight": 0.4695
+    },
+    {
+      "id": "WBS_4322_20221023_867001",
+      "clipWeight": 0.6283,
+      "compositeWeight": 0.4208
+    },
+    {
+      "id": "WBS_1450_20181201_053",
+      "clipWeight": 0.6283,
+      "compositeWeight": 0.4478
+    },
+    {
+      "id": "DSC_4739",
+      "clipWeight": 0.6281,
+      "compositeWeight": 0.4519
+    },
+    {
+      "id": "WBS_4128_20200109_067",
+      "clipWeight": 0.628,
+      "compositeWeight": 0.4497
+    },
+    {
+      "id": "WBS_9257_20210307_077001",
+      "clipWeight": 0.628,
+      "compositeWeight": 0.4834
+    },
+    {
+      "id": "WBS_7370_20190517_077",
+      "clipWeight": 0.6279,
+      "compositeWeight": 0.4924
+    },
+    {
+      "id": "WBS_8957_20240811_5404001",
+      "clipWeight": 0.6279,
+      "compositeWeight": 0.4611
+    },
+    {
+      "id": "WBS_5104_20200217_100",
+      "clipWeight": 0.6278,
+      "compositeWeight": 0.508
+    },
+    {
+      "id": "WBS_9444_20190721_069",
+      "clipWeight": 0.6278,
+      "compositeWeight": 0.4495
+    },
+    {
+      "id": "WBS_6656_20190412_217_01",
+      "clipWeight": 0.6277,
+      "compositeWeight": 0.5165
+    },
+    {
+      "id": "WBS_9114_20210214_033001",
+      "clipWeight": 0.6276,
+      "compositeWeight": 0.4922
+    },
+    {
+      "id": "WBS_6118_20200411_125",
+      "clipWeight": 0.6276,
+      "compositeWeight": 0.4445
+    },
+    {
+      "id": "WBS_001155_20241219_162654",
+      "clipWeight": 0.6276,
+      "compositeWeight": 0.4629
+    }
+  ],
+  "_neighborsComputed": {
+    "threshold": 0.25,
+    "maxNeighbors": 350,
+    "count": 299,
+    "hasComposite": true
+  }
+}
