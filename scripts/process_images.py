@@ -412,11 +412,11 @@ def generate_manifest_from_efs():
 
 def notify_manifest_updated(image_count: int):
     """Create a ManifestUpdate record to trigger frontend subscription."""
-    appsync_endpoint = os.environ.get('APPSYNC_ENDPOINT')
-    appsync_api_key = os.environ.get('APPSYNC_API_KEY')
+    appsync_endpoint = os.environ.get('APPSYNC_ENDPOINT', '').strip()
+    appsync_api_key = os.environ.get('APPSYNC_API_KEY', '').strip()
 
-    print(f"  AppSync endpoint: {appsync_endpoint}")
-    print(f"  AppSync API key: {appsync_api_key[:15] + '...' if appsync_api_key else 'None'}")
+    print(f"  AppSync endpoint: '{appsync_endpoint}'")
+    print(f"  AppSync API key: '{appsync_api_key[:15] + '...' if appsync_api_key else 'None'}'")
 
     if not appsync_endpoint or not appsync_api_key:
         print("  AppSync not configured, skipping manifest notification")
@@ -446,9 +446,13 @@ def notify_manifest_updated(image_count: int):
     }
 
     try:
+        payload = {"query": mutation, "variables": variables}
+        print(f"  Request URL: {appsync_endpoint}")
+        print(f"  Request payload: {json.dumps(payload)[:200]}...")
+
         response = requests.post(
             appsync_endpoint,
-            json={"query": mutation, "variables": variables},
+            json=payload,
             headers={
                 "Content-Type": "application/json",
                 "x-api-key": appsync_api_key,
