@@ -79,16 +79,15 @@ export OLLAMA_URL="http://localhost:11434"
 export OLLAMA_MODEL="gemma3:27b-it-qat"
 export EFS_MOUNT="$MOUNT_POINT"
 
-# Discover AppSync endpoint and API key for manifest notifications
-echo "Discovering AppSync configuration..."
-APPSYNC_API_ID=$(aws appsync list-graphql-apis --query 'graphqlApis[0].apiId' --output text 2>/dev/null)
-if [ -n "$APPSYNC_API_ID" ] && [ "$APPSYNC_API_ID" != "None" ]; then
-    export APPSYNC_ENDPOINT=$(aws appsync list-graphql-apis --query 'graphqlApis[0].uris.GRAPHQL' --output text)
-    export APPSYNC_API_KEY=$(aws appsync list-api-keys --api-id "$APPSYNC_API_ID" --query 'apiKeys[0].id' --output text 2>/dev/null)
-    echo "  AppSync endpoint: $APPSYNC_ENDPOINT"
-    echo "  AppSync API key: ${APPSYNC_API_KEY:0:10}..."
+# Discover notifyManifest Lambda function for manifest notifications
+# (GPU can't reach AppSync directly due to VPC endpoint routing, so we invoke a Lambda)
+echo "Discovering notifyManifest Lambda..."
+NOTIFY_LAMBDA=$(aws lambda list-functions --query 'Functions[?contains(FunctionName, `notifyManifest`)].FunctionName | [0]' --output text 2>/dev/null)
+if [ -n "$NOTIFY_LAMBDA" ] && [ "$NOTIFY_LAMBDA" != "None" ]; then
+    export NOTIFY_MANIFEST_LAMBDA="$NOTIFY_LAMBDA"
+    echo "  notifyManifest Lambda: $NOTIFY_MANIFEST_LAMBDA"
 else
-    echo "  Warning: Could not discover AppSync API"
+    echo "  Warning: Could not discover notifyManifest Lambda"
 fi
 
 # Activate PyTorch virtualenv (pre-installed on Deep Learning AMI)

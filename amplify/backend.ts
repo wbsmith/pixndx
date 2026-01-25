@@ -8,6 +8,7 @@ import { computeSimilarity } from './functions/computeSimilarity/resource';
 import { generateImageCookies } from './functions/generateImageCookies/resource';
 import { processImage } from './functions/processImage/resource';
 import { deleteImage } from './functions/deleteImage/resource';
+import { notifyManifest } from './functions/notifyManifest/resource';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import * as cdk from 'aws-cdk-lib';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
@@ -48,6 +49,7 @@ export const backend = defineBackend({
   generateImageCookies,
   processImage,
   deleteImage,
+  notifyManifest,
 });
 
 // Configure additional permissions
@@ -127,6 +129,26 @@ backend.deleteImage.resources.lambda.addToRolePolicy(
   new iam.PolicyStatement({
     actions: ['dynamodb:ListTables'],
     resources: ['*'],
+  })
+);
+
+// ============================================================
+// notifyManifest Lambda Configuration
+// Simple Lambda that GPU invokes to notify AppSync of manifest updates.
+// NOT in VPC - reaches public AppSync directly (avoids VPC endpoint issues).
+// ============================================================
+
+// Pass AppSync endpoint to notifyManifest
+backend.notifyManifest.resources.lambda.addEnvironment(
+  'APPSYNC_ENDPOINT',
+  backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl
+);
+
+// Grant permission to call AppSync mutations
+backend.notifyManifest.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: ['appsync:GraphQL'],
+    resources: [`${backend.data.resources.cfnResources.cfnGraphqlApi.attrArn}/*`],
   })
 );
 
@@ -513,11 +535,15 @@ const appsyncEndpointSg = new ec2.SecurityGroup(gpuStack, 'AppSyncEndpointSg', {
 
 // AppSync Interface endpoint - allows Lambda to call AppSync mutations from VPC
 // Cost: ~$7.30/month/AZ (3 AZs = ~$22/month) + $0.01/GB data processed
+// NOTE: privateDnsEnabled must be false because our AppSync API is public.
+// With true, ALL VPC traffic to AppSync would go through this endpoint,
+// which returns 404 for public APIs ("Unable to find private GraphQL API").
+// The deleteImage Lambda uses IAM auth and can reach public AppSync directly.
 vpc.addInterfaceEndpoint('AppSyncEndpoint', {
   service: ec2.InterfaceVpcEndpointAwsService.APP_SYNC,
   subnets: { subnetType: ec2.SubnetType.PUBLIC },
   securityGroups: [appsyncEndpointSg],
-  privateDnsEnabled: true,
+  privateDnsEnabled: false,
 });
 
 // Security group for GPU instances
@@ -734,6 +760,16 @@ gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
     'appsync:GetGraphqlApi',
   ],
   resources: ['*'], // Needs to list all APIs to find the right one
+}));
+
+// Grant GPU instance access to invoke notifyManifest Lambda
+// (GPU can't reach AppSync directly due to VPC endpoint routing)
+backend.notifyManifest.resources.lambda.grantInvoke(gpuInstanceRole);
+
+// Grant GPU instance access to list Lambda functions (to discover notifyManifest)
+gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
+  actions: ['lambda:ListFunctions'],
+  resources: ['*'],
 }));
 
 // User data script - simplified for pre-configured AMI

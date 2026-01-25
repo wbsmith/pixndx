@@ -65,6 +65,7 @@ META_WEIGHT = 0.4
 sqs = boto3.client('sqs', region_name=AWS_REGION)
 s3 = boto3.client('s3', region_name=AWS_REGION)
 events = boto3.client('events', region_name=AWS_REGION)
+lambda_client = boto3.client('lambda', region_name=AWS_REGION)
 
 # Get EC2 instance ID for event metadata
 try:
@@ -411,67 +412,46 @@ def generate_manifest_from_efs():
 
 
 def notify_manifest_updated(image_count: int):
-    """Create a ManifestUpdate record to trigger frontend subscription."""
-    appsync_endpoint = os.environ.get('APPSYNC_ENDPOINT', '').strip()
-    appsync_api_key = os.environ.get('APPSYNC_API_KEY', '').strip()
+    """Invoke notifyManifest Lambda to trigger frontend subscription.
 
-    print(f"  AppSync endpoint: '{appsync_endpoint}'")
-    print(f"  AppSync API key: '{appsync_api_key[:15] + '...' if appsync_api_key else 'None'}'")
+    GPU can't call AppSync directly due to VPC endpoint routing, so we
+    invoke a Lambda that runs outside the VPC and calls AppSync for us.
+    """
+    notify_lambda = os.environ.get('NOTIFY_MANIFEST_LAMBDA', '').strip()
 
-    if not appsync_endpoint or not appsync_api_key:
-        print("  AppSync not configured, skipping manifest notification")
+    if not notify_lambda:
+        print("  NOTIFY_MANIFEST_LAMBDA not configured, skipping manifest notification")
         return
 
-    # TTL: 1 day from now (for auto-cleanup)
-    ttl = int(time.time()) + 86400
+    print(f"  Invoking Lambda: {notify_lambda}")
 
-    mutation = """
-    mutation CreateManifestUpdate($input: CreateManifestUpdateInput!) {
-        createManifestUpdate(input: $input) {
-            id
-            version
-            imageCount
-        }
-    }
-    """
-
-    variables = {
-        "input": {
-            "version": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            "imageCount": image_count,
-            "processedCount": len(processed_this_session),
-            "instanceId": INSTANCE_ID,
-            "ttl": ttl,
-        }
+    payload = {
+        "imageCount": image_count,
+        "processedCount": len(processed_this_session),
+        "instanceId": INSTANCE_ID,
     }
 
     try:
-        payload = {"query": mutation, "variables": variables}
-        print(f"  Request URL: {appsync_endpoint}")
-        print(f"  Request payload: {json.dumps(payload)[:200]}...")
-
-        response = requests.post(
-            appsync_endpoint,
-            json=payload,
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": appsync_api_key,
-            },
-            timeout=10
+        response = lambda_client.invoke(
+            FunctionName=notify_lambda,
+            InvocationType='RequestResponse',
+            Payload=json.dumps(payload),
         )
 
-        print(f"  AppSync response status: {response.status_code}")
-        if response.ok:
-            result = response.json()
-            print(f"  AppSync response: {result}")
-            if 'errors' in result:
-                print(f"  AppSync error: {result['errors']}")
-            else:
-                print(f"  Manifest update notification sent successfully!")
+        # Parse response
+        response_payload = json.loads(response['Payload'].read().decode('utf-8'))
+        status_code = response.get('StatusCode', 0)
+
+        print(f"  Lambda response status: {status_code}")
+        print(f"  Lambda response: {response_payload}")
+
+        if response_payload.get('success'):
+            print(f"  Manifest update notification sent successfully!")
         else:
-            print(f"  AppSync request failed: {response.status_code} - {response.text}")
+            print(f"  Lambda returned error: {response_payload.get('message')}")
+
     except Exception as e:
-        print(f"  Failed to notify AppSync: {type(e).__name__}: {e}")
+        print(f"  Failed to invoke notifyManifest Lambda: {type(e).__name__}: {e}")
 
 
 # =============================================================================
