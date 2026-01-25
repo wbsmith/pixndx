@@ -23,9 +23,9 @@ export function ImageCurationOverlay({ image, showControls = true }: ImageCurati
   
   return (
     <>
-      {/* Selection checkbox */}
+      {/* Selection checkbox - z-20 to stay above info overlay (z-10) */}
       <div
-        className="absolute top-2 left-2 z-10"
+        className="absolute top-2 left-2 z-20"
         onClick={(e) => {
           e.stopPropagation();
           toggleSelected();
@@ -47,16 +47,16 @@ export function ImageCurationOverlay({ image, showControls = true }: ImageCurati
         </motion.div>
       </div>
       
-      {/* Status badge */}
+      {/* Status badge - z-20 to stay above info overlay */}
       {status !== 'unreviewed' && (
-        <div className="absolute top-2 right-2 z-10">
+        <div className="absolute top-2 right-2 z-20">
           <StatusBadge status={status} />
         </div>
       )}
-      
-      {/* Rating display */}
+
+      {/* Rating display - z-20 to stay above info overlay */}
       {rating > 0 && (
-        <div className="absolute bottom-2 left-2 z-10 flex items-center gap-0.5">
+        <div className="absolute bottom-2 left-2 z-20 flex items-center gap-0.5">
           {[1, 2, 3, 4, 5].map((star) => (
             <Star
               key={star}
@@ -67,9 +67,9 @@ export function ImageCurationOverlay({ image, showControls = true }: ImageCurati
         </div>
       )}
       
-      {/* Quick actions on hover */}
+      {/* Quick actions on hover - z-20 to stay above info overlay */}
       {showControls && (
-        <div className="absolute bottom-2 right-2 z-10 
+        <div className="absolute bottom-2 right-2 z-20
                         opacity-0 group-hover:opacity-100 transition-opacity
                         flex gap-1">
           <QuickActionButton
