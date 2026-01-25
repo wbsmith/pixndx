@@ -680,25 +680,20 @@ backend.deleteImage.resources.lambda.addToRolePolicy(
   })
 );
 
-// Add AppSync endpoint and API key for manifest update notifications
-// The API endpoint is available from the data resource
-backend.deleteImage.resources.lambda.addEnvironment(
-  'APPSYNC_ENDPOINT',
-  backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl
-);
-
-// Grant Lambda permission to call AppSync mutations
+// Grant deleteImage permission to invoke notifyManifest Lambda for manifest updates
+// (deleteImage is in VPC for EFS access, so can't reach public AppSync directly)
 backend.deleteImage.resources.lambda.addToRolePolicy(
   new iam.PolicyStatement({
-    actions: ['appsync:GraphQL'],
-    resources: [`${backend.data.resources.cfnResources.cfnGraphqlApi.attrArn}/*`],
+    actions: ['lambda:InvokeFunction'],
+    resources: [`arn:aws:lambda:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:function:*notifyManifest*`],
   })
 );
-
-// Note: For API key auth, we need to pass the key. Since Amplify generates the key,
-// we'll use IAM auth instead which is cleaner for Lambda-to-AppSync communication.
-// The Lambda will use AWS credentials to authenticate with AppSync.
-// If API key is needed, it can be retrieved via AWS SDK at runtime.
+backend.deleteImage.resources.lambda.addToRolePolicy(
+  new iam.PolicyStatement({
+    actions: ['lambda:ListFunctions'],
+    resources: ['*'],
+  })
+);
 
 // IAM role for GPU instances
 const gpuInstanceRole = new iam.Role(gpuStack, 'GpuInstanceRole', {

@@ -1,16 +1,38 @@
 import type { AppSyncResolverHandler } from 'aws-lambda';
 import { S3Client, DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
+import { LambdaClient, InvokeCommand, ListFunctionsCommand } from '@aws-sdk/client-lambda';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 
 const s3 = new S3Client({});
+const lambda = new LambdaClient({});
 
 const BUCKET_NAME = process.env.STORAGE_BUCKET_NAME;
 const EFS_MOUNT_PATH = process.env.EFS_MOUNT_PATH || '/mnt/efs';
 const CDN_BASE = 'https://cdn.picgraf.com';
-const APPSYNC_ENDPOINT = process.env.APPSYNC_ENDPOINT;
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+
+// Cache for discovered Lambda name
+let notifyManifestLambdaName: string | null = null;
+
+/**
+ * Discover the notifyManifest Lambda function name at runtime
+ */
+async function getNotifyManifestLambdaName(): Promise<string | null> {
+  if (notifyManifestLambdaName) return notifyManifestLambdaName;
+
+  try {
+    const response = await lambda.send(new ListFunctionsCommand({}));
+    const func = response.Functions?.find(f => f.FunctionName?.includes('notifyManifest'));
+    if (func?.FunctionName) {
+      notifyManifestLambdaName = func.FunctionName;
+      console.log(`Discovered notifyManifest Lambda: ${notifyManifestLambdaName}`);
+      return notifyManifestLambdaName;
+    }
+  } catch (error) {
+    console.warn('Failed to discover notifyManifest Lambda:', error);
+  }
+  return null;
+}
 
 interface DeleteImageInput {
   imageIds: string[];
@@ -271,121 +293,39 @@ export const handler: AppSyncResolverHandler<DeleteImageInput, DeleteImageResult
 };
 
 /**
- * Sign a request with AWS Signature v4 using Lambda's credentials
- */
-function signRequest(
-  method: string,
-  url: URL,
-  body: string,
-  region: string,
-  service: string
-): Record<string, string> {
-  const datetime = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-  const date = datetime.slice(0, 8);
-
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID!;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY!;
-  const sessionToken = process.env.AWS_SESSION_TOKEN;
-
-  const host = url.hostname;
-  const urlPath = url.pathname || '/';
-  const hashedPayload = crypto.createHash('sha256').update(body).digest('hex');
-
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-    host,
-    'x-amz-date': datetime,
-  };
-  if (sessionToken) {
-    headers['x-amz-security-token'] = sessionToken;
-  }
-
-  const signedHeaders = Object.keys(headers).sort().join(';');
-  const canonicalHeaders = Object.keys(headers)
-    .sort()
-    .map((key) => `${key}:${headers[key]}\n`)
-    .join('');
-
-  const canonicalRequest = [
-    method,
-    urlPath,
-    '',
-    canonicalHeaders,
-    signedHeaders,
-    hashedPayload,
-  ].join('\n');
-
-  const algorithm = 'AWS4-HMAC-SHA256';
-  const credentialScope = `${date}/${region}/${service}/aws4_request`;
-  const hashedCanonicalRequest = crypto.createHash('sha256').update(canonicalRequest).digest('hex');
-  const stringToSign = [algorithm, datetime, credentialScope, hashedCanonicalRequest].join('\n');
-
-  const hmac = (key: Buffer | string, data: string) =>
-    crypto.createHmac('sha256', key).update(data).digest();
-  const kDate = hmac(`AWS4${secretAccessKey}`, date);
-  const kRegion = hmac(kDate, region);
-  const kService = hmac(kRegion, service);
-  const kSigning = hmac(kService, 'aws4_request');
-  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
-
-  const authorization = `${algorithm} Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-  return {
-    ...headers,
-    authorization,
-  };
-}
-
-/**
- * Notify frontend via AppSync that manifest was updated
+ * Notify frontend via notifyManifest Lambda that manifest was updated.
+ * We invoke the Lambda instead of calling AppSync directly because
+ * this Lambda is in VPC (for EFS access) and can't reach public AppSync.
  */
 async function notifyManifestUpdated(imageCount: number): Promise<void> {
-  if (!APPSYNC_ENDPOINT) {
-    console.log('AppSync endpoint not configured, skipping notification');
+  const lambdaName = await getNotifyManifestLambdaName();
+  if (!lambdaName) {
+    console.log('Could not discover notifyManifest Lambda, skipping notification');
     return;
   }
 
-  const mutation = `
-    mutation CreateManifestUpdate($input: CreateManifestUpdateInput!) {
-      createManifestUpdate(input: $input) {
-        id
-        version
-        imageCount
-      }
-    }
-  `;
-
-  const variables = {
-    input: {
-      version: new Date().toISOString(),
-      imageCount,
-      ttl: Math.floor(Date.now() / 1000) + 86400,
-    },
-  };
-
   try {
-    const url = new URL(APPSYNC_ENDPOINT);
-    const body = JSON.stringify({ query: mutation, variables });
-    const headers = signRequest('POST', url, body, AWS_REGION, 'appsync');
+    console.log(`Invoking notifyManifest Lambda: ${lambdaName}`);
 
-    const response = await fetch(APPSYNC_ENDPOINT, {
-      method: 'POST',
-      headers,
-      body,
-    });
+    const response = await lambda.send(new InvokeCommand({
+      FunctionName: lambdaName,
+      InvocationType: 'RequestResponse',
+      Payload: JSON.stringify({
+        imageCount,
+        instanceId: 'deleteImage-lambda',
+      }),
+    }));
 
-    if (response.ok) {
-      const result = await response.json();
-      if (result.errors) {
-        console.warn('AppSync mutation errors:', result.errors);
+    if (response.Payload) {
+      const result = JSON.parse(Buffer.from(response.Payload).toString());
+      console.log('notifyManifest Lambda response:', result);
+      if (result.success) {
+        console.log('Manifest notification sent successfully');
       } else {
-        console.log('AppSync notification sent');
+        console.warn('notifyManifest Lambda returned error:', result.message);
       }
-    } else {
-      const text = await response.text();
-      console.warn(`AppSync request failed: ${response.status} - ${text}`);
     }
   } catch (error) {
-    console.warn(`Failed to notify AppSync: ${error}`);
+    console.warn(`Failed to invoke notifyManifest Lambda: ${error}`);
   }
 }
