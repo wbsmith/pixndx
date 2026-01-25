@@ -83,11 +83,11 @@ done
 echo "Ensuring gemma3:27b-it-qat model is available..."
 ollama pull gemma3:27b-it-qat 2>/dev/null || echo "Model already available or pull failed"
 
-# Warm up the model
-echo "Warming up model..."
+# Warm up the model (first load can take 2-3 minutes as model loads to GPU)
+echo "Warming up model (this may take a few minutes on first load)..."
 curl -s http://localhost:11434/api/generate \
     -d '{"model": "gemma3:27b-it-qat", "prompt": "Hi", "stream": false}' \
-    --max-time 180 || echo "Model warm-up complete"
+    --max-time 300 || echo "Model warm-up complete"
 
 # =============================================================================
 # PHASE 4: Run the image processor

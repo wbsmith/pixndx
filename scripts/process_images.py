@@ -580,7 +580,7 @@ Respond ONLY with valid JSON, no other text."""
                 "stream": False,
                 "format": "json",
             },
-            timeout=120
+            timeout=180
         )
         response.raise_for_status()
         result = response.json()
