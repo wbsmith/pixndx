@@ -689,6 +689,10 @@ modelsBucket.grantRead(gpuInstanceRole);
 
 // Grant GPU instance access to SQS queue
 imageProcessingQueue.grantConsumeMessages(gpuInstanceRole);
+gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
+  actions: ['sqs:ListQueues'],
+  resources: ['*'],
+}));
 
 // Grant GPU instance access to DynamoDB Image table
 // The GPU writes image metadata directly to DynamoDB after processing
@@ -911,6 +915,7 @@ userData.addCommands(
   `Environment=STORAGE_BUCKET=${s3Bucket.bucketName}`,
   `Environment=SQS_QUEUE_URL=${imageProcessingQueue.queueUrl}`,
   `Environment=AWS_REGION=${cdk.Aws.REGION}`,
+  `Environment=AWS_DEFAULT_REGION=${cdk.Aws.REGION}`,
   `Environment=MODELS_BUCKET=${modelsBucket.bucketName}`,
   'Environment=DYNAMODB_TABLE_PATTERN=Image',
   'Environment=APPSYNC_ENDPOINT=$APPSYNC_ENDPOINT',

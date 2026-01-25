@@ -26,19 +26,35 @@ DEPLOY_KEY="$MOUNT_POINT/config/deploy_key"
 # =============================================================================
 
 echo "Pulling latest code from git..."
-cd "$REPO_DIR"
+
+# Fix SSH key permissions (SSH requires 600 or stricter)
+chmod 600 "$DEPLOY_KEY"
+
+# Fix git "dubious ownership" error - repo may have been cloned by different user
+git config --global --add safe.directory "$REPO_DIR"
 
 # Configure git to use deploy key
-export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no"
+export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-# Pull latest (will fail gracefully if offline)
-git fetch origin main 2>/dev/null || echo "Warning: Could not fetch from origin"
-git reset --hard origin/main 2>/dev/null || echo "Warning: Could not reset to origin/main"
+cd "$REPO_DIR"
+echo "Using deploy key: $DEPLOY_KEY"
+git fetch origin main || echo "Warning: Could not fetch from origin"
+git reset --hard origin/main || echo "Warning: Could not reset to origin/main"
 
 echo "Current commit: $(git log --oneline -1)"
 
 # =============================================================================
-# PHASE 2: Ensure Ollama is running with correct model
+# PHASE 2: Set up local filesystem (runs every boot)
+# =============================================================================
+
+echo "Setting up local filesystem..."
+
+# Symlink for Ollama models (local filesystem, needs to run every boot)
+mkdir -p /usr/share/ollama
+ln -sf $MOUNT_POINT/ollama /usr/share/ollama/.ollama || true
+
+# =============================================================================
+# PHASE 3: Ensure Ollama is running with correct model
 # =============================================================================
 
 echo "Ensuring Ollama is running..."
@@ -74,7 +90,7 @@ curl -s http://localhost:11434/api/generate \
     --max-time 180 || echo "Model warm-up complete"
 
 # =============================================================================
-# PHASE 3: Run the image processor
+# PHASE 4: Run the image processor
 # =============================================================================
 
 echo "Starting image processor..."
@@ -84,14 +100,31 @@ echo "Script: $REPO_DIR/scripts/process_images.py"
 export STORAGE_BUCKET="${STORAGE_BUCKET:-amplify-d2lj29cnhp0ir0-ma-pixndxgallerystoragebuck-7fehfupmhbjm}"
 export SQS_QUEUE_URL="${SQS_QUEUE_URL:-https://sqs.us-east-1.amazonaws.com/213117946893/picgraf-image-processing}"
 export AWS_REGION="${AWS_REGION:-us-east-1}"
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 export HF_HOME="$MOUNT_POINT/huggingface"
 export OLLAMA_URL="http://localhost:11434"
 export OLLAMA_MODEL="gemma3:27b-it-qat"
 export EFS_MOUNT="$MOUNT_POINT"
 
+# Activate PyTorch virtualenv (pre-installed on Deep Learning AMI)
+PYTORCH_VENV="/opt/pytorch"
+if [ -f "$PYTORCH_VENV/bin/activate" ]; then
+    echo "Activating PyTorch virtualenv..."
+    source "$PYTORCH_VENV/bin/activate"
+else
+    echo "Warning: PyTorch virtualenv not found at $PYTORCH_VENV"
+fi
+
+# Verify Python dependencies are available
+echo "Checking Python dependencies..."
+python -c "import boto3, PIL, numpy, torch, transformers, sentence_transformers" || {
+    echo "ERROR: Python dependencies not installed. Please use an AMI with deps pre-installed."
+    exit 1
+}
+
 # Run the processor
 cd "$REPO_DIR"
-python3 scripts/process_images.py
+python scripts/process_images.py
 
 echo "=========================================="
 echo "GPU Startup Complete: $(date)"
