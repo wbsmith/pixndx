@@ -415,6 +415,9 @@ def notify_manifest_updated(image_count: int):
     appsync_endpoint = os.environ.get('APPSYNC_ENDPOINT')
     appsync_api_key = os.environ.get('APPSYNC_API_KEY')
 
+    print(f"  AppSync endpoint: {appsync_endpoint}")
+    print(f"  AppSync API key: {appsync_api_key[:15] + '...' if appsync_api_key else 'None'}")
+
     if not appsync_endpoint or not appsync_api_key:
         print("  AppSync not configured, skipping manifest notification")
         return
@@ -453,16 +456,18 @@ def notify_manifest_updated(image_count: int):
             timeout=10
         )
 
+        print(f"  AppSync response status: {response.status_code}")
         if response.ok:
             result = response.json()
+            print(f"  AppSync response: {result}")
             if 'errors' in result:
                 print(f"  AppSync error: {result['errors']}")
             else:
-                print(f"  Manifest update notification sent")
+                print(f"  Manifest update notification sent successfully!")
         else:
-            print(f"  AppSync request failed: {response.status_code}")
+            print(f"  AppSync request failed: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"  Failed to notify AppSync: {e}")
+        print(f"  Failed to notify AppSync: {type(e).__name__}: {e}")
 
 
 # =============================================================================
