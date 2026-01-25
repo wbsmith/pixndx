@@ -54,11 +54,13 @@ function transformDbRecord(record: Record<string, unknown>): ImageMetadata {
 
 /**
  * Fetch manifest from a URL.
+ * @param bustCache - If true, append timestamp to bypass CDN cache
  */
-async function fetchManifest(url: string, source: string): Promise<ImageMetadata[] | null> {
+async function fetchManifest(url: string, source: string, bustCache = false): Promise<ImageMetadata[] | null> {
   try {
-    const response = await fetch(url, { credentials: 'include' });
-    console.log(`[dataLoader] ${source} fetch: ${response.status}`);
+    const fetchUrl = bustCache ? `${url}?t=${Date.now()}` : url;
+    const response = await fetch(fetchUrl, { credentials: 'include' });
+    console.log(`[dataLoader] ${source} fetch: ${response.status}${bustCache ? ' (cache-busted)' : ''}`);
 
     if (response.ok) {
       const data = await response.json();
@@ -128,6 +130,25 @@ async function loadAllImages(): Promise<ImageMetadata[]> {
 export function invalidateCache(): void {
   cachedImages = null;
   loadPromise = null;
+}
+
+/**
+ * Refetch manifest with cache-busting (for subscription-triggered reloads).
+ * Bypasses CloudFront cache to get the freshest data.
+ */
+export async function refetchManifestFresh(): Promise<ImageMetadata[]> {
+  console.log('[dataLoader] Refetching manifest with cache-bust...');
+
+  const cdnImages = await fetchManifest(CDN_MANIFEST_URL, 'CDN manifest', true);
+  if (cdnImages && cdnImages.length > 0) {
+    cachedImages = cdnImages;
+    loadPromise = Promise.resolve(cachedImages);
+    console.log(`✅ Loaded ${cachedImages.length} images from CDN manifest (fresh)`);
+    return cachedImages;
+  }
+
+  // Fall back to existing cache or empty
+  return cachedImages || [];
 }
 
 /**
