@@ -764,7 +764,11 @@ gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
 
 // Grant GPU instance access to invoke notifyManifest Lambda
 // (GPU can't reach AppSync directly due to VPC endpoint routing)
-backend.notifyManifest.resources.lambda.grantInvoke(gpuInstanceRole);
+// Use wildcard pattern to avoid cross-stack dependency (function is in data stack)
+gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
+  actions: ['lambda:InvokeFunction'],
+  resources: [`arn:aws:lambda:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:function:*notifyManifest*`],
+}));
 
 // Grant GPU instance access to list Lambda functions (to discover notifyManifest)
 gpuInstanceRole.addToPolicy(new iam.PolicyStatement({
