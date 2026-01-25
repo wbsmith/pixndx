@@ -822,6 +822,7 @@ const gpuLaunchTemplate = new ec2.LaunchTemplate(gpuStack, 'GpuLaunchTemplate', 
   role: gpuInstanceRole,
   securityGroup: gpuSecurityGroup,
   userData,
+  keyName: 'pixndx-admin',  // SSH access for debugging
   associatePublicIpAddress: true,
   blockDevices: [
     {
