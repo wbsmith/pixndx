@@ -62,3 +62,6 @@ amplify/team-provider-info.json
 # CloudFront signing keys (private key must never be committed)
 amplify/keys/cloudfront-private-key.pem
 legacy_vectors/
+
+# Claude Code project instructions (user-specific)
+CLAUDE.md

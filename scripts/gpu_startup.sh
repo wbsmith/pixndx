@@ -3,11 +3,8 @@
 # PicGraf GPU Instance Startup Script
 #
 # This script lives in the git repo and is called by the EC2 user data.
-# It pulls the latest code and starts the image processor.
-#
-# The EC2 user data only needs to:
-#   1. Mount EFS
-#   2. Call: /mnt/models/repo/scripts/gpu_startup.sh
+# The user data handles: EFS mount, git pull, Ollama start
+# This script handles: Ollama warmup, environment setup, running processor
 # =============================================================================
 
 set -ex
@@ -19,42 +16,18 @@ echo "=========================================="
 
 MOUNT_POINT="/mnt/models"
 REPO_DIR="$MOUNT_POINT/repo"
-DEPLOY_KEY="$MOUNT_POINT/config/deploy_key"
 
 # =============================================================================
-# PHASE 1: Pull latest code from git
-# =============================================================================
-
-echo "Pulling latest code from git..."
-
-# Fix SSH key permissions (SSH requires 600 or stricter)
-chmod 600 "$DEPLOY_KEY"
-
-# Fix git "dubious ownership" error - repo may have been cloned by different user
-git config --global --add safe.directory "$REPO_DIR"
-
-# Configure git to use deploy key
-export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-
-cd "$REPO_DIR"
-echo "Using deploy key: $DEPLOY_KEY"
-git fetch origin main || echo "Warning: Could not fetch from origin"
-git reset --hard origin/main || echo "Warning: Could not reset to origin/main"
-
-echo "Current commit: $(git log --oneline -1)"
-
-# =============================================================================
-# PHASE 2: Set up local filesystem (runs every boot)
+# PHASE 1: Set up local filesystem (runs every boot)
 # =============================================================================
 
 echo "Setting up local filesystem..."
 
-# Symlink for Ollama models (local filesystem, needs to run every boot)
-mkdir -p /usr/share/ollama
+# Symlink for Ollama models to EFS (needs to run every boot)
 ln -sf $MOUNT_POINT/ollama /usr/share/ollama/.ollama || true
 
 # =============================================================================
-# PHASE 3: Ensure Ollama is running with correct model
+# PHASE 2: Ensure Ollama is running with correct model
 # =============================================================================
 
 echo "Ensuring Ollama is running..."
@@ -90,7 +63,7 @@ curl -s http://localhost:11434/api/generate \
     --max-time 300 || echo "Model warm-up complete"
 
 # =============================================================================
-# PHASE 4: Run the image processor
+# PHASE 3: Run the image processor
 # =============================================================================
 
 echo "Starting image processor..."
@@ -115,12 +88,7 @@ else
     echo "Warning: PyTorch virtualenv not found at $PYTORCH_VENV"
 fi
 
-# Verify Python dependencies are available
-echo "Checking Python dependencies..."
-python -c "import boto3, PIL, numpy, torch, transformers, sentence_transformers" || {
-    echo "ERROR: Python dependencies not installed. Please use an AMI with deps pre-installed."
-    exit 1
-}
+# Dependencies are pre-installed in the AMI (pytorch venv at /opt/pytorch)
 
 # Run the processor
 cd "$REPO_DIR"
