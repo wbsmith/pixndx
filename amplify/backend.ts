@@ -783,6 +783,7 @@ userData.addCommands(
   'DEPLOY_KEY="$MOUNT_POINT/config/deploy_key"',
   '',
   'chmod 600 "$DEPLOY_KEY"',
+  'export HOME=/root',
   'git config --global --add safe.directory "$REPO_DIR"',
   'export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"',
   '',
