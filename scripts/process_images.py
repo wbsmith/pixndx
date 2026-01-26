@@ -31,8 +31,12 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 from PIL import Image
 from PIL.ExifTags import TAGS
+import pillow_heif  # HEIC support
 from sentence_transformers import SentenceTransformer
 import numpy as np
+
+# Register HEIF/HEIC support with PIL
+pillow_heif.register_heif_opener()
 
 # =============================================================================
 # CONFIGURATION
@@ -782,7 +786,9 @@ def process_image(message_body: str) -> bool:
         image_data = response['Body'].read()
         image = Image.open(BytesIO(image_data))
 
-        if image.mode in ('RGBA', 'P'):
+        # Convert to RGB for JPEG output (handles HEIC, RGBA, P, LA, etc.)
+        if image.mode != 'RGB':
+            print(f"  Converting from {image.mode} to RGB")
             image = image.convert('RGB')
 
         # 2. Resize and upload to S3 (only place images go)

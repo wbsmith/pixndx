@@ -847,7 +847,7 @@ userData.addCommands(
 
 // Custom AMI with NVIDIA, ollama, PyTorch, transformers, sentence-transformers pre-installed
 const gpuAmi = ec2.MachineImage.genericLinux({
-  'us-east-1': 'ami-05c9c6b0a8129b523', // pixndx-gpu-ready-20260124
+  'us-east-1': 'ami-0a81ada0aac338121', // pixndx-gpu-heic-20260125 (pillow-heif, pynvml fix)
 });
 
 // Launch template for GPU instances (no spot options - controlled by ASG mixed policy)
