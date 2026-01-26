@@ -142,7 +142,12 @@ function wordMatchScore(image: ImageMetadata, word: string): number {
   const moodLower = image.mood.toLowerCase();
   const subjectLower = image.main_subject.toLowerCase();
   const colorNames = Object.keys(image.main_colors).map(n => n.toLowerCase());
-  
+
+  // EXIF camera info
+  const cameraMake = (image.exif?.Make || '').toLowerCase();
+  const cameraModel = (image.exif?.Model || '').toLowerCase();
+  const lensModel = (image.exif?.LensModel || '').toLowerCase();
+
   // Check each field for a match - return score for best match found
   if (filenameLower.includes(word)) return 4;
   if (allTags.includes(word)) return 3;
@@ -151,8 +156,11 @@ function wordMatchScore(image: ImageMetadata, word: string): number {
   if (subjectLower.includes(word)) return 2;
   if (moodLower.includes(word)) return 2;
   if (colorNames.some(name => name.includes(word))) return 2;
+  if (cameraModel.includes(word)) return 2;
+  if (cameraMake.includes(word)) return 2;
+  if (lensModel.includes(word)) return 2;
   if (descriptionLower.includes(word)) return 1.5;
-  
+
   return 0; // No match
 }
 
