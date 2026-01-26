@@ -80,7 +80,12 @@ export function ImageUpload() {
   const handleFiles = useCallback((files: FileList | null) => {
     if (!files) return;
 
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    // Accept image/* types and HEIC/HEIF by extension (iOS may not set correct MIME type)
+    const imageFiles = Array.from(files).filter(f =>
+      f.type.startsWith('image/') ||
+      f.name.toLowerCase().endsWith('.heic') ||
+      f.name.toLowerCase().endsWith('.heif')
+    );
 
     const newUploads: FileUpload[] = imageFiles.map(file => ({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -152,7 +157,7 @@ export function ImageUpload() {
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*"
+          accept="image/*,.heic,.heif"
           onChange={(e) => handleFiles(e.target.files)}
           className="hidden"
         />
@@ -163,10 +168,10 @@ export function ImageUpload() {
             className={isDragging ? 'text-stellar-cyan' : 'text-nebula-400'}
           />
           <p className="text-sm text-nebula-300">
-            Drop images or click to upload
+            Tap to upload
           </p>
           <p className="text-xs text-nebula-500">
-            JPG, PNG, WebP
+            JPG, PNG, HEIC, WebP
           </p>
         </div>
       </div>

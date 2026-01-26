@@ -86,6 +86,7 @@ interface GalleryStore {
   performSearch: () => void;
   recomputeEdges: () => void;  // Explicit edge recomputation
   toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
   openModal: (image: ImageMetadata) => void;
   closeModal: () => void;
   applyDefaultSort: () => void;  // Apply rating sort and mark ready - call after ratings loaded
@@ -227,7 +228,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   loading: true,  // Start in loading state
   loadProgress: null,
   ready: false,  // Becomes true when images loaded AND ratings sorted
-  sidebarOpen: true,
+  sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   modalOpen: false,
   
   // ==========================================================================
@@ -475,6 +476,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   },
   
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
   
   openModal: (image) => set({ modalOpen: true, selectedImage: image }),
   

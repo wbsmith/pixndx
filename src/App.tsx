@@ -161,18 +161,27 @@ function AppContent() {
       
       {/* Main content */}
       <div className="flex-1 flex min-h-0 relative">
-        {/* Sidebar */}
+        {/* Mobile sidebar backdrop */}
+        {sidebarOpen && (
+          <div
+            className="lg:hidden fixed inset-0 bg-black/50 z-20"
+            onClick={toggleSidebar}
+          />
+        )}
+
+        {/* Sidebar - overlay on mobile, inline on desktop */}
         <motion.aside
           initial={false}
           animate={{
-            width: sidebarOpen ? 280 : 0,
-            opacity: sidebarOpen ? 1 : 0,
+            x: sidebarOpen ? 0 : -280,
           }}
           transition={{ type: 'spring', damping: 25 }}
           className={`
-            relative z-20 border-r border-nebula-800/50 overflow-hidden
-            ${sidebarOpen ? 'block' : 'hidden lg:block'}
+            fixed lg:relative z-30 lg:z-20 h-full
+            border-r border-nebula-800/50 bg-cosmos-deep lg:bg-transparent
+            ${!sidebarOpen && 'lg:hidden'}
           `}
+          style={{ width: 280 }}
         >
           <div className="w-[280px] h-full p-4 space-y-6 overflow-y-auto">
             {/* Layout selector */}
@@ -278,16 +287,24 @@ function AppContent() {
 
 // Quick filter button component
 function QuickFilter({ label, query }: { label: string; query: string }) {
-  const { setSearchQuery, searchQuery } = useGalleryStore();
+  const { setSearchQuery, searchQuery, setSidebarOpen } = useGalleryStore();
   const isActive = searchQuery === query;
-  
+
+  const handleClick = () => {
+    setSearchQuery(isActive ? '' : query);
+    // Close sidebar on mobile after selecting filter
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <button
-      onClick={() => setSearchQuery(isActive ? '' : query)}
+      onClick={handleClick}
       className={`
         w-full text-left px-3 py-2 rounded-lg text-sm transition-all
-        ${isActive 
-          ? 'bg-stellar-cyan/20 text-stellar-cyan' 
+        ${isActive
+          ? 'bg-stellar-cyan/20 text-stellar-cyan'
           : 'text-nebula-300 hover:bg-nebula-800/50'
         }
       `}
