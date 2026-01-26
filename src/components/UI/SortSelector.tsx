@@ -16,14 +16,14 @@ export function SortSelector() {
         <button
           key={mode}
           onClick={() => setSortMode(mode)}
-          className={`flex-1 px-3 py-2 text-sm rounded-lg transition-all flex items-center justify-center gap-2 ${
+          title={label}
+          className={`flex-1 px-3 py-2 rounded-lg transition-all flex items-center justify-center ${
             sortMode === mode
               ? 'bg-stellar-cyan/20 text-stellar-cyan border border-stellar-cyan/30'
               : 'bg-nebula-800/50 text-nebula-300 hover:bg-nebula-700/50'
           }`}
         >
-          <Icon size={16} />
-          {label}
+          <Icon size={18} />
         </button>
       ))}
     </div>
