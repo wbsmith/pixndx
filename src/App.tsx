@@ -6,6 +6,7 @@ import { useRatingStore } from './stores/ratingStore';
 import { subscribeToNewImages } from './lib/dataLoader';
 import { SearchBar } from './components/Search/SearchBar';
 import { LayoutSelector } from './components/UI/LayoutSelector';
+import { SortSelector } from './components/UI/SortSelector';
 import { SimilaritySlider } from './components/UI/SimilaritySlider';
 import { GalleryView } from './components/Gallery/GalleryView';
 import { ImageModal } from './components/Gallery/ImageModal';
@@ -186,6 +187,16 @@ function AppContent() {
               </h3>
               <LayoutSelector />
             </div>
+
+            {/* Sort selector - only for Grid layout */}
+            {layout.type === 'grid' && (
+              <div>
+                <h3 className="text-xs text-nebula-400 uppercase tracking-wider mb-3">
+                  Sort By
+                </h3>
+                <SortSelector />
+              </div>
+            )}
 
             {/* Similarity controls - only for Graph layout */}
             {layout.type === 'network' && (

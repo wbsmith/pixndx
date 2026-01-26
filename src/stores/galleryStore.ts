@@ -38,6 +38,9 @@ export const DEFAULT_FORCE_SETTINGS: ForceSettings = {
 // Node coloring modes for network graph
 export type ColorMode = 'uniform' | 'cluster' | 'community' | 'mood' | 'color';
 
+// Sort modes for gallery view
+export type SortMode = 'rating' | 'date' | 'random';
+
 // =============================================================================
 // STORE INTERFACE
 // =============================================================================
@@ -58,6 +61,7 @@ interface GalleryStore {
   similarity: SimilarityConfig;
   forceSettings: ForceSettings;  // Force layout parameters
   colorMode: ColorMode;  // How nodes are colored in network graph
+  sortMode: SortMode;  // Current sort mode for gallery
   
   // Search
   searchQuery: string;
@@ -81,6 +85,7 @@ interface GalleryStore {
   setSimilarity: (config: SimilarityConfig) => void;
   setForceSettings: (settings: ForceSettings) => void;
   setColorMode: (mode: ColorMode) => void;
+  setSortMode: (mode: SortMode) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilters: (filters: SearchQuery['filters']) => void;
   performSearch: () => void;
@@ -102,11 +107,11 @@ interface GalleryStore {
  */
 function applyRatingSort(images: ImageMetadata[]): ImageMetadata[] {
   const ratingStore = useRatingStore.getState();
-  
+
   return [...images].sort((a, b) => {
     const ratingA = ratingStore.getRating(a.id);
     const ratingB = ratingStore.getRating(b.id);
-    
+
     // Both have ratings: sort by avg (desc), then count (desc)
     if (ratingA.count > 0 && ratingB.count > 0) {
       if (ratingB.avg !== ratingA.avg) {
@@ -114,14 +119,82 @@ function applyRatingSort(images: ImageMetadata[]): ImageMetadata[] {
       }
       return ratingB.count - ratingA.count;
     }
-    
+
     // Only one has rating: rated images come first
     if (ratingA.count > 0 && ratingB.count === 0) return -1;
     if (ratingB.count > 0 && ratingA.count === 0) return 1;
-    
+
     // Neither has rating: maintain original order
     return 0;
   });
+}
+
+/**
+ * Extract a sortable date from image EXIF data.
+ * Returns epoch timestamp or 0 if no date found.
+ */
+function getImageDate(image: ImageMetadata): number {
+  const exif = image.exif;
+  if (!exif) return 0;
+
+  // Try EXIF date fields in order of preference
+  const dateStr = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate || exif.FileModifyDate;
+  if (!dateStr) return 0;
+
+  // Parse EXIF date format: "YYYY:MM:DD HH:MM:SS" or ISO format
+  const parsed = Date.parse(String(dateStr).replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3'));
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
+ * Sort images by date (newest first).
+ * Images without date info are placed at the end.
+ */
+function applyDateSort(images: ImageMetadata[]): ImageMetadata[] {
+  return [...images].sort((a, b) => {
+    const dateA = getImageDate(a);
+    const dateB = getImageDate(b);
+
+    // Both have dates: sort newest first
+    if (dateA > 0 && dateB > 0) {
+      return dateB - dateA;
+    }
+
+    // Only one has date: dated images come first
+    if (dateA > 0 && dateB === 0) return -1;
+    if (dateB > 0 && dateA === 0) return 1;
+
+    // Neither has date: maintain original order
+    return 0;
+  });
+}
+
+/**
+ * Shuffle images randomly using Fisher-Yates algorithm.
+ */
+function applyRandomSort(images: ImageMetadata[]): ImageMetadata[] {
+  const shuffled = [...images];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
+ * Apply the specified sort mode to images.
+ */
+function applySortMode(images: ImageMetadata[], mode: SortMode): ImageMetadata[] {
+  switch (mode) {
+    case 'rating':
+      return applyRatingSort(images);
+    case 'date':
+      return applyDateSort(images);
+    case 'random':
+      return applyRandomSort(images);
+    default:
+      return images;
+  }
 }
 
 // =============================================================================
@@ -230,7 +303,8 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   // Force layout settings
   forceSettings: DEFAULT_FORCE_SETTINGS,
   colorMode: 'color' as ColorMode,  // Default to color-based node outlines
-  
+  sortMode: 'rating' as SortMode,  // Default to rating sort
+
   searchQuery: '',
   searchFilters: undefined,
   loading: true,  // Start in loading state
@@ -373,7 +447,18 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     // Graph components will update colors via a separate effect
     set({ colorMode: mode });
   },
-  
+
+  setSortMode: (mode) => {
+    set({ sortMode: mode });
+    // Re-apply sort to current filtered images
+    const { filteredImages, searchQuery } = get();
+    // Only apply sort if no search query (search results maintain relevance order)
+    if (!searchQuery.trim()) {
+      const sorted = applySortMode(filteredImages, mode);
+      set({ filteredImages: sorted });
+    }
+  },
+
   setSearchQuery: (query) => {
     set({ searchQuery: query });
     get().performSearch();
@@ -437,10 +522,10 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
       }
     }
     
-    // NO SEARCH QUERY: Apply default sort (by rating) if gallery is ready
-    // This is the KEY fix - ensures clearing search returns to rating-sorted view
+    // NO SEARCH QUERY: Apply current sort mode if gallery is ready
+    // This ensures clearing search returns to the user's selected sort
     if (!searchQuery.trim() && !searchFilters && ready) {
-      filtered = applyRatingSort(filtered);
+      filtered = applySortMode(filtered, get().sortMode);
     }
     
     set({ filteredImages: filtered, edges: [] });
@@ -491,22 +576,22 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   closeModal: () => set({ modalOpen: false }),
   
   /**
-   * Apply default sort (by rating) and mark gallery as ready.
+   * Apply current sort mode and mark gallery as ready.
    * Call this ONCE after ratings are loaded.
-   * After this, performSearch() will maintain rating sort for empty queries.
+   * After this, performSearch() will maintain the user's selected sort.
    */
   applyDefaultSort: () => {
-    const { images, searchQuery } = get();
-    
+    const { images, searchQuery, sortMode } = get();
+
     // If there's an active search, just mark ready (search handles its own sort)
     if (searchQuery.trim()) {
       set({ ready: true });
       return;
     }
-    
-    // Apply rating sort to all images
-    const sorted = applyRatingSort(images);
+
+    // Apply current sort mode to all images
+    const sorted = applySortMode(images, sortMode);
     set({ filteredImages: sorted, ready: true });
-    console.log('[GalleryStore] Applied default sort (by rating) - gallery ready');
+    console.log(`[GalleryStore] Applied ${sortMode} sort - gallery ready`);
   },
 }));
