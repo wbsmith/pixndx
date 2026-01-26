@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Menu, X, ImageIcon } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useGalleryStore } from './stores/galleryStore';
 import { useRatingStore } from './stores/ratingStore';
 import { subscribeToNewImages } from './lib/dataLoader';
@@ -98,12 +98,7 @@ function AppContent() {
           </button>
           
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <ImageIcon className="text-stellar-cyan" size={28} />
-              <div className="absolute inset-0 text-stellar-cyan blur-md opacity-50">
-                <ImageIcon size={28} />
-              </div>
-            </div>
+            <img src="/graph-logo.png" alt="PicGraf" className="w-7 h-7" />
             <div>
               <h1 className="text-xl font-display font-bold text-white text-glow">
                 {APP_NAME}
