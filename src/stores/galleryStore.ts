@@ -450,13 +450,10 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
 
   setSortMode: (mode) => {
     set({ sortMode: mode });
-    // Re-apply sort to current filtered images
-    const { filteredImages, searchQuery } = get();
-    // Only apply sort if no search query (search results maintain relevance order)
-    if (!searchQuery.trim()) {
-      const sorted = applySortMode(filteredImages, mode);
-      set({ filteredImages: sorted });
-    }
+    // Re-apply sort to current filtered images (works for search results too)
+    const { filteredImages } = get();
+    const sorted = applySortMode(filteredImages, mode);
+    set({ filteredImages: sorted });
   },
 
   setSearchQuery: (query) => {
@@ -489,19 +486,18 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
       return;
     }
     
-    // Apply text search with AND logic
+    // Apply text search with AND logic (filter only, no sort yet)
     if (searchQuery.trim()) {
       const scored = filtered.map((img) => ({
         image: img,
         score: scoreImage(img, searchQuery),
       }));
-      
+
       filtered = scored
         .filter((s) => s.score > 0)
-        .sort((a, b) => b.score - a.score)
         .map((s) => s.image);
     }
-    
+
     // Apply filters
     if (searchFilters) {
       if (searchFilters.tags?.length) {
@@ -512,7 +508,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
           );
         });
       }
-      
+
       if (searchFilters.mood?.length) {
         filtered = filtered.filter((img) =>
           searchFilters.mood!.some((m) =>
@@ -521,10 +517,9 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
         );
       }
     }
-    
-    // NO SEARCH QUERY: Apply current sort mode if gallery is ready
-    // This ensures clearing search returns to the user's selected sort
-    if (!searchQuery.trim() && !searchFilters && ready) {
+
+    // Apply current sort mode to results (works for both search and no-search)
+    if (ready) {
       filtered = applySortMode(filtered, get().sortMode);
     }
     

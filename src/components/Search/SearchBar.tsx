@@ -49,7 +49,8 @@ export function SearchBar() {
   const handleClear = () => {
     setLocalQuery('');
     setSearchQuery('');
-    inputRef.current?.focus();
+    setFocused(false);
+    inputRef.current?.blur();
   };
   
   const handleSuggestionClick = (suggestion: string) => {
