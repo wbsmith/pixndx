@@ -119,6 +119,31 @@ const schema = a.schema({
       allow.owner(),
     ]),
 
+  // Search query log for analytics and user history
+  // Tracks every search with settings snapshot for replay
+  SearchQuery: a
+    .model({
+      query: a.string().required(),          // The search term
+      // Layout/view state at time of search
+      layout: a.string(),                    // grid, network, colorWheel, etc.
+      sortMode: a.string(),                  // rating, date, random
+      // Graph settings (JSON for flexibility)
+      graphSettings: a.json(),               // { similarity, forceSettings, colorMode }
+      // Analytics enrichment
+      resultCount: a.integer(),              // How many images matched
+      // owner field auto-added for authorization
+    })
+    .secondaryIndexes((index) => [
+      // Query by search term for frequency analysis
+      index('query'),
+    ])
+    .authorization((allow) => [
+      // Users can manage their own searches
+      allow.owner(),
+      // Admins can read all for analytics
+      allow.groups(['Admins']).to(['read']),
+    ]),
+
   // Search result type (not persisted)
   SearchResult: a.customType({
     imageId: a.id().required(),

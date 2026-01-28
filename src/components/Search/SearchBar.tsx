@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Search, X, Sparkles, Star } from 'lucide-react';
+import { Search, X, Clock, Star } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
+import { useRecentSearchStore, type RecentSearch } from '@/stores/recentSearchStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Special query constants
@@ -9,56 +10,116 @@ const SPECIAL_QUERIES = {
 };
 
 export function SearchBar() {
-  const { searchQuery, setSearchQuery } = useGalleryStore();
+  const {
+    searchQuery,
+    setSearchQuery,
+    layout,
+    sortMode,
+    similarity,
+    forceSettings,
+    colorMode,
+    filteredImages,
+    setLayout,
+    setSortMode,
+    setSimilarity,
+    setForceSettings,
+    setColorMode,
+  } = useGalleryStore();
+
+  const { addSearch, getRecentSearches } = useRecentSearchStore();
+
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [focused, setFocused] = useState(false);
-  const [_suggestions, _setSuggestions] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Check if we have a special filter active
   const specialFilter = SPECIAL_QUERIES[searchQuery as keyof typeof SPECIAL_QUERIES];
-  
+
+  // Load recent searches when focused
+  useEffect(() => {
+    if (focused) {
+      getRecentSearches().then(setRecentSearches);
+    }
+  }, [focused, getRecentSearches]);
+
   // Sync local query with store when store changes externally
-  // Handle special queries like __top_rated__ for display
   useEffect(() => {
     if (searchQuery === '__top_rated__') {
-      setLocalQuery(''); // Don't show internal query in input
+      setLocalQuery('');
     } else {
       setLocalQuery(searchQuery);
     }
   }, [searchQuery]);
-  
+
+  // Save search with current settings
+  const saveSearch = useCallback((query: string) => {
+    if (!query.trim() || query.startsWith('__')) return;
+
+    addSearch({
+      query,
+      layout: layout.type,
+      sortMode,
+      graphSettings: layout.type === 'network' ? {
+        similarity,
+        forceSettings,
+        colorMode,
+      } : undefined,
+      resultCount: filteredImages.length,
+    });
+  }, [addSearch, layout.type, sortMode, similarity, forceSettings, colorMode, filteredImages.length]);
+
   // Debounced search - only trigger after user stops typing
   const debouncedSearch = useCallback((query: string) => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    
+
     debounceRef.current = setTimeout(() => {
       setSearchQuery(query);
-    }, 400); // Wait 400ms after last keystroke
-  }, [setSearchQuery]);
-  
+      saveSearch(query);
+    }, 400);
+  }, [setSearchQuery, saveSearch]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setLocalQuery(value); // Update input immediately
-    debouncedSearch(value); // Debounce the actual search
+    setLocalQuery(value);
+    debouncedSearch(value);
   };
-  
+
   const handleClear = () => {
     setLocalQuery('');
     setSearchQuery('');
     setFocused(false);
     inputRef.current?.blur();
   };
-  
-  const handleSuggestionClick = (suggestion: string) => {
-    setLocalQuery(suggestion);
-    setSearchQuery(suggestion);
-    _setSuggestions([]);
+
+  // Restore a recent search with its saved settings
+  const handleRecentSearchClick = (recent: RecentSearch) => {
+    setLocalQuery(recent.query);
+    setSearchQuery(recent.query);
+
+    // Restore layout type
+    if (recent.layout !== layout.type) {
+      setLayout({ ...layout, type: recent.layout });
+    }
+
+    // Restore sort mode
+    if (recent.sortMode !== sortMode) {
+      setSortMode(recent.sortMode);
+    }
+
+    // Restore graph settings if applicable
+    if (recent.graphSettings && recent.layout === 'network') {
+      setSimilarity(recent.graphSettings.similarity);
+      setForceSettings(recent.graphSettings.forceSettings);
+      setColorMode(recent.graphSettings.colorMode);
+    }
+
+    setFocused(false);
   };
-  
+
   // Handle Enter key to search immediately
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -66,27 +127,40 @@ export function SearchBar() {
         clearTimeout(debounceRef.current);
       }
       setSearchQuery(localQuery);
+      saveSearch(localQuery);
+      setFocused(false);
+      inputRef.current?.blur();
+    }
+    if (e.key === 'Escape') {
+      setFocused(false);
+      inputRef.current?.blur();
     }
   };
-  
-  const exampleQueries = [
-    'sunset',
-    'ocean', 
-    'mountains',
-    'city',
-  ];
-  
+
+  // Format relative time
+  const formatRelativeTime = (timestamp: number) => {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
   return (
     <div className="relative w-full max-w-xl">
       <div className="relative">
-        <Search 
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-nebula-400" 
-          size={18} 
+        <Search
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-nebula-400"
+          size={18}
         />
-        
+
         {/* Show special filter badge if active */}
         {specialFilter ? (
-          <div 
+          <div
             className="search-input pr-10 flex items-center gap-2 cursor-pointer"
             onClick={handleClear}
           >
@@ -109,7 +183,7 @@ export function SearchBar() {
             className="search-input pr-10"
           />
         )}
-        
+
         {(localQuery || specialFilter) && (
           <button
             onClick={handleClear}
@@ -119,9 +193,9 @@ export function SearchBar() {
           </button>
         )}
       </div>
-      
+
       <AnimatePresence>
-        {focused && !localQuery && (
+        {focused && !localQuery && recentSearches.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -129,19 +203,22 @@ export function SearchBar() {
             transition={{ duration: 0.15 }}
             className="absolute top-full left-0 right-0 mt-2 glass rounded-xl overflow-hidden z-50"
           >
-            <div className="p-4">
-              <div className="flex items-center gap-2 text-xs text-nebula-400 mb-3">
-                <Sparkles size={12} />
-                <span>Try searching for</span>
+            <div className="p-3">
+              <div className="flex items-center gap-2 text-xs text-nebula-400 mb-2 px-1">
+                <Clock size={12} />
+                <span>Recent searches</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {exampleQueries.map((query) => (
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {recentSearches.map((recent) => (
                   <button
-                    key={query}
-                    onClick={() => handleSuggestionClick(query)}
-                    className="tag-pill hover:glow-sm"
+                    key={recent.id}
+                    onClick={() => handleRecentSearchClick(recent)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-nebula-200 hover:bg-nebula-800/50 transition-colors text-left"
                   >
-                    {query}
+                    <span className="truncate">{recent.query}</span>
+                    <span className="text-xs text-nebula-500 ml-2 flex-shrink-0">
+                      {formatRelativeTime(recent.timestamp)}
+                    </span>
                   </button>
                 ))}
               </div>
