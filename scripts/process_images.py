@@ -1034,47 +1034,49 @@ def main():
         emit_event(ProcessingState.ERROR, {'stage': 'backup', 'message': str(e)})
         raise
 
-    # FINAL safety check: if messages arrived during backup, don't shutdown
-    # Instead, loop back to processing (rare but possible)
+    # Check if messages arrived during backup
     try:
         attrs = sqs.get_queue_attributes(
             QueueUrl=SQS_QUEUE_URL,
-            AttributeNames=['ApproximateNumberOfMessages', 'ApproximateNumberOfMessagesNotVisible']
+            AttributeNames=['ApproximateNumberOfMessages']
         )
         visible = int(attrs['Attributes'].get('ApproximateNumberOfMessages', 0))
-        in_flight = int(attrs['Attributes'].get('ApproximateNumberOfMessagesNotVisible', 0))
 
         if visible > 0:
-            print(f"WARNING: {visible} messages in queue after backup!")
-            print("Restarting processing loop instead of shutting down...")
-            emit_event(ProcessingState.READY, {'reason': 'messages_after_backup', 'count': visible})
-            # Recursive call to main() - will process remaining messages
-            # This is safe because we've already backed up
-            main()
-            return
+            print(f"NOTE: {visible} messages in queue after backup.")
+            print("They will be processed on the next instance launch.")
     except Exception as e:
         print(f"  Could not check final queue state: {e}")
 
     print()
     emit_event(ProcessingState.SHUTTING_DOWN, {'totalProcessed': len(processed_this_session)})
 
-    # Set ASG desired capacity to 0 BEFORE shutdown
-    # This ensures new uploads will trigger a new instance start
+
+def reset_asg_and_shutdown():
+    """Reset ASG desired capacity to 0 and shutdown the instance.
+
+    This runs in a finally block to ensure the ASG is always reset,
+    even if the processing script crashes. Without this, a crashed
+    instance leaves the ASG at desired=1 and keeps costing money.
+    """
     asg_name = os.environ.get('ASG_NAME')
     if asg_name:
         try:
-            autoscaling = boto3.client('autoscaling', region_name=AWS_REGION)
-            autoscaling.set_desired_capacity(
+            asg_client = boto3.client('autoscaling', region_name=AWS_REGION)
+            asg_client.set_desired_capacity(
                 AutoScalingGroupName=asg_name,
                 DesiredCapacity=0,
             )
             print(f"Set ASG {asg_name} desired capacity to 0")
         except Exception as e:
-            print(f"Warning: Could not set ASG capacity: {e}")
+            print(f"CRITICAL: Could not set ASG capacity: {e}")
 
     print("Shutting down...")
     os.system('sudo shutdown -h now')
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    finally:
+        reset_asg_and_shutdown()
