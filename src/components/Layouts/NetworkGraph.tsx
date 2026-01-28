@@ -60,6 +60,7 @@ export function NetworkGraph() {
   const { filteredImages, edges, openModal, colorMode } = useGalleryStore();
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isStable, setIsStable] = useState(false);
+  const [isUnstable, setIsUnstable] = useState(false);
   const [nodeCount, setNodeCount] = useState(0);
   const [edgeCount, setEdgeCount] = useState(0);
   const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
@@ -86,6 +87,7 @@ export function NetworkGraph() {
 
     svg.selectAll('*').remove();
     setIsStable(false);
+    setIsUnstable(false);
 
     // No node limit - use all filtered images
     const displayImages = filteredImages;
@@ -296,6 +298,22 @@ export function NetworkGraph() {
     node.call(dragBehavior as any);
 
     simulation.on('tick', () => {
+      // Detect numerical instability (NaN or extreme values)
+      let hasInstability = false;
+      for (const n of nodes) {
+        if (!Number.isFinite(n.x) || !Number.isFinite(n.y) ||
+            Math.abs(n.x!) > 1e6 || Math.abs(n.y!) > 1e6) {
+          hasInstability = true;
+          break;
+        }
+      }
+
+      if (hasInstability) {
+        simulation.stop();
+        setIsUnstable(true);
+        return;
+      }
+
       link.attr('x1', (d: any) => d.source.x ?? 0).attr('y1', (d: any) => d.source.y ?? 0)
         .attr('x2', (d: any) => d.target.x ?? 0).attr('y2', (d: any) => d.target.y ?? 0);
       node.attr('transform', (d) => {
@@ -363,10 +381,20 @@ export function NetworkGraph() {
 
       <div className="absolute top-4 right-4 glass rounded-lg p-3 text-xs space-y-1">
         <div className="text-nebula-300">{nodeCount} nodes • {edgeCount} edges</div>
-        <div className={isStable ? 'text-green-400' : 'text-yellow-400'}>
-          {isStable ? '● Layout stable' : '○ Computing layout...'}
+        <div className={isUnstable ? 'text-red-400' : isStable ? 'text-green-400' : 'text-yellow-400'}>
+          {isUnstable ? '● Numerical instability' : isStable ? '● Layout stable' : '○ Computing layout...'}
         </div>
       </div>
+
+      {isUnstable && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 glass rounded-lg px-4 py-3 text-sm text-red-400 max-w-md text-center">
+          <div className="font-medium mb-1">Layout Unstable</div>
+          <div className="text-xs text-nebula-300">
+            Edge weight influence is too high, causing numerical overflow.
+            Lower the value in Graph Controls and click Apply.
+          </div>
+        </div>
+      )}
 
 
       {filteredImages.length === 0 && (

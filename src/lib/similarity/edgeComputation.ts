@@ -131,10 +131,25 @@ export function computeEdges(
     // Build set of valid IDs (for filtered image sets)
     const validIds = new Set(images.map(img => img.id));
   
-  // Debug: check how many images have neighbors
+  // Debug: check how many images have neighbors and weight distribution
   const withNeighbors = images.filter(img => getNeighbors(img, mode).length > 0);
+
+  // Sample weights to understand distribution
+  const sampleWeights: number[] = [];
+  for (const img of images.slice(0, 50)) {
+    const neighbors = getNeighbors(img, mode);
+    for (const n of neighbors.slice(0, 5)) {
+      const w = mode === 'clip' ? n.clipWeight : n.compositeWeight;
+      if (typeof w === 'number' && Number.isFinite(w)) sampleWeights.push(w);
+    }
+  }
+  const avgWeight = sampleWeights.length > 0 ? sampleWeights.reduce((a, b) => a + b, 0) / sampleWeights.length : 0;
+  const minSample = sampleWeights.length > 0 ? Math.min(...sampleWeights) : 0;
+  const maxSample = sampleWeights.length > 0 ? Math.max(...sampleWeights) : 0;
+
   console.log(`[computeEdges] ${images.length} images, ${withNeighbors.length} with neighbors (mode: ${mode})`);
   console.log(`[computeEdges] Range: ${thresholdMin.toFixed(2)} - ${thresholdMax.toFixed(2)}, max/node: ${maxEdgesPerNode}`);
+  console.log(`[computeEdges] Sample weights: min=${minSample.toFixed(3)}, avg=${avgWeight.toFixed(3)}, max=${maxSample.toFixed(3)}`);
 
   // Collect all valid edges first, sorted by weight descending
   const candidateEdges: { source: string; target: string; weight: number }[] = [];
