@@ -14,34 +14,29 @@ export const storage = defineStorage({
   name: 'pixndxGalleryStorage',
   
   access: (allow) => ({
-    // Public read access to images
+    // Authenticated read access to images (CDN with signed cookies is primary access method)
     'images/small/*': [
-      allow.guest.to(['read']),
       allow.authenticated.to(['read']),
     ],
     'images/medium/*': [
-      allow.guest.to(['read']),
       allow.authenticated.to(['read']),
     ],
     'images/full/*': [
-      allow.guest.to(['read']),
       allow.authenticated.to(['read']),
     ],
-    
-    // Metadata readable by all, writable by authenticated users
+
+    // Metadata readable/writable by authenticated users only
     'metadata/*': [
-      allow.guest.to(['read']),
       allow.authenticated.to(['read', 'write']),
     ],
-    
+
     // Embeddings (internal use)
     'embeddings/*': [
       allow.authenticated.to(['read', 'write']),
     ],
 
-    // Manifest - gallery image list (updated by GPU processor)
+    // Manifest - gallery image list (authenticated access only)
     'manifest/*': [
-      allow.guest.to(['read']),
       allow.authenticated.to(['read']),
     ],
     
