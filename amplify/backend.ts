@@ -339,6 +339,7 @@ const privateKeySecret = new secretsmanager.Secret(
 );
 
 // Response headers policy with Cache-Control and CORS for browser caching
+// SECURITY: Using 'private' to prevent intermediate proxy caching
 const imageResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(
   backend.storage.resources.bucket.stack,
   'ImageResponseHeadersPolicy',
@@ -349,7 +350,10 @@ const imageResponseHeadersPolicy = new cloudfront.ResponseHeadersPolicy(
       customHeaders: [
         {
           header: 'Cache-Control',
-          value: 'public, max-age=31536000, immutable',
+          // 'private' = only browser cache allowed, proxies must not store
+          // 'max-age=3600' = 1 hour cache for performance
+          // 'must-revalidate' = check with origin when expired
+          value: 'private, max-age=3600, must-revalidate',
           override: true,
         },
       ],
