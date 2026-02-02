@@ -22,6 +22,8 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as rds from 'aws-cdk-lib/aws-rds';
+import * as kms from 'aws-cdk-lib/aws-kms';
 
 // Custom domain for CloudFront (allows cookie sharing with app domain)
 const CDN_DOMAIN = 'cdn.picgraf.com';
@@ -925,6 +927,98 @@ backend.processImage.resources.lambda.addToRolePolicy(
     resources: ['*'], // ASG ARNs are complex, use * with condition
   })
 );
+
+// ============================================================
+// ENVELOPE ENCRYPTION INFRASTRUCTURE
+// Phase 1: Aurora PostgreSQL + KMS for user key management
+// ============================================================
+
+// KMS Customer Master Key for encrypting user private keys
+// This key is used to encrypt/decrypt user RSA private keys stored in Aurora
+const userKeysCmk = new kms.Key(gpuStack, 'UserKeysCMK', {
+  alias: 'alias/pixndx/user-keys',
+  description: 'CMK for encrypting user private keys (envelope encryption)',
+  enableKeyRotation: true,  // Automatic annual rotation
+  removalPolicy: cdk.RemovalPolicy.RETAIN,  // Never delete - would lose all user keys!
+});
+
+// Tag the CMK
+cdk.Tags.of(userKeysCmk).add('Purpose', 'user-key-encryption');
+cdk.Tags.of(userKeysCmk).add('Security', 'critical');
+
+// Security group for Aurora PostgreSQL
+const auroraSecurityGroup = new ec2.SecurityGroup(gpuStack, 'AuroraSecurityGroup', {
+  vpc,
+  description: 'Security group for Aurora PostgreSQL (envelope encryption)',
+  allowAllOutbound: false,  // Aurora doesn't need outbound access
+});
+
+// Allow PostgreSQL access from GPU instances (for encryption after processing)
+auroraSecurityGroup.addIngressRule(
+  gpuSecurityGroup,
+  ec2.Port.tcp(5432),
+  'Allow PostgreSQL from GPU instances'
+);
+
+// Allow PostgreSQL access from deleteImage Lambda (for future encryption Lambdas)
+auroraSecurityGroup.addIngressRule(
+  deleteImageLambdaSg,
+  ec2.Port.tcp(5432),
+  'Allow PostgreSQL from VPC Lambdas'
+);
+
+// Aurora Serverless v2 cluster for envelope encryption data
+// Stores: user keys, image metadata, access grants (wrapped DEKs)
+const auroraCluster = new rds.DatabaseCluster(gpuStack, 'EnvelopeEncryptionDB', {
+  engine: rds.DatabaseClusterEngine.auroraPostgres({
+    version: rds.AuroraPostgresEngineVersion.VER_15_4,
+  }),
+  serverlessV2MinCapacity: 0.5,  // Minimum ACUs (~$43/month when idle)
+  serverlessV2MaxCapacity: 4,    // Maximum ACUs (scales up under load)
+  writer: rds.ClusterInstance.serverlessV2('writer', {
+    publiclyAccessible: false,  // Not accessible from internet
+  }),
+  vpc,
+  vpcSubnets: {
+    subnetType: ec2.SubnetType.PUBLIC,  // Using public subnet but not publicly accessible
+  },
+  securityGroups: [auroraSecurityGroup],
+  defaultDatabaseName: 'pixndx',
+  credentials: rds.Credentials.fromGeneratedSecret('pixndx_admin', {
+    secretName: 'pixndx/aurora-credentials',
+  }),
+  storageEncrypted: true,  // Encrypt storage with AWS-managed key
+  deletionProtection: true,  // Prevent accidental deletion
+  backup: {
+    retention: cdk.Duration.days(7),  // 7 days of automated backups
+  },
+  removalPolicy: cdk.RemovalPolicy.RETAIN,  // Keep on stack deletion
+});
+
+// Tag the Aurora cluster
+cdk.Tags.of(auroraCluster).add('Purpose', 'envelope-encryption');
+cdk.Tags.of(auroraCluster).add('Security', 'critical');
+
+// Grant KMS permissions to GPU role (for encrypting/decrypting user keys)
+// The GPU instances will need to call KMS to encrypt DEKs with user public keys
+// and to access user private keys (encrypted by this CMK)
+userKeysCmk.grantEncryptDecrypt(gpuAsg.role);
+
+// Output Aurora connection info
+new cdk.CfnOutput(gpuStack, 'AuroraClusterEndpoint', {
+  value: auroraCluster.clusterEndpoint.hostname,
+  description: 'Aurora cluster endpoint for envelope encryption database',
+});
+
+new cdk.CfnOutput(gpuStack, 'AuroraSecretArn', {
+  value: auroraCluster.secret?.secretArn || 'N/A',
+  description: 'Secrets Manager ARN for Aurora credentials',
+});
+
+new cdk.CfnOutput(gpuStack, 'UserKeysCmkArn', {
+  value: userKeysCmk.keyArn,
+  description: 'KMS CMK ARN for user key encryption',
+});
 
 // Outputs
 new cdk.CfnOutput(gpuStack, 'ModelsBucketName', {
