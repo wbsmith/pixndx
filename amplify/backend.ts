@@ -971,7 +971,7 @@ auroraSecurityGroup.addIngressRule(
 // Stores: user keys, image metadata, access grants (wrapped DEKs)
 const auroraCluster = new rds.DatabaseCluster(gpuStack, 'EnvelopeEncryptionDB', {
   engine: rds.DatabaseClusterEngine.auroraPostgres({
-    version: rds.AuroraPostgresEngineVersion.VER_15_4,
+    version: rds.AuroraPostgresEngineVersion.VER_15_14,
   }),
   serverlessV2MinCapacity: 0.5,  // Minimum ACUs (~$43/month when idle)
   serverlessV2MaxCapacity: 4,    // Maximum ACUs (scales up under load)
