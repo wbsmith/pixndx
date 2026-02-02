@@ -171,10 +171,10 @@ export function ImageModal() {
       clearTimeout(hideOverlayTimerRef.current);
     }
 
-    // Set new timer to hide after 3s
+    // Set new timer to hide after 2s
     hideOverlayTimerRef.current = setTimeout(() => {
       setShowOverlays(false);
-    }, 3000);
+    }, 2000);
   }, [isFullscreen]);
 
   // Reset timer on fullscreen change
@@ -211,11 +211,6 @@ export function ImageModal() {
     const container = imageContainerRef.current;
     if (!container) return;
 
-    // Reset overlay hide timer on any mouse movement in fullscreen
-    if (isFullscreen) {
-      resetOverlayTimer();
-    }
-
     const rect = container.getBoundingClientRect();
     const x = e.clientX - rect.left;
 
@@ -237,7 +232,7 @@ export function ImageModal() {
     } else {
       setMouseNearEdge(null);
     }
-  }, [isDragging, dragStart, isFullscreen, resetOverlayTimer]);
+  }, [isDragging, dragStart]);
   
   // Handle wheel zoom - using native event for passive: false support
   // Zooms towards cursor position
@@ -247,6 +242,12 @@ export function ImageModal() {
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
+
+      // Show overlays on scroll (zoom) in fullscreen
+      if (isFullscreen) {
+        resetOverlayTimer();
+      }
+
       const rect = container.getBoundingClientRect();
       const cursorX = e.clientX - rect.left;
       const cursorY = e.clientY - rect.top;
@@ -283,10 +284,15 @@ export function ImageModal() {
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [modalOpen, maxZoom, position]);
+  }, [modalOpen, maxZoom, position, isFullscreen, resetOverlayTimer]);
   
   // Handle double-click to toggle zoom - zooms towards cursor
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    // Show overlays on double-click (zoom) in fullscreen
+    if (isFullscreen) {
+      resetOverlayTimer();
+    }
+
     const container = imageContainerRef.current;
     if (!container) return;
 
@@ -311,15 +317,19 @@ export function ImageModal() {
       setScale(1);
       setPosition({ x: 0, y: 0 });
     }
-  }, [scale, maxZoom]);
+  }, [scale, maxZoom, isFullscreen, resetOverlayTimer]);
   
   // Handle drag
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Show overlays on click/drag in fullscreen
+    if (isFullscreen) {
+      resetOverlayTimer();
+    }
     if (scale <= 1) return;
     e.preventDefault();
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-  }, [scale, position]);
+  }, [scale, position, isFullscreen, resetOverlayTimer]);
   
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -329,10 +339,10 @@ export function ImageModal() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!modalOpen || !selectedImage) return;
-      
+
       const currentIndex = filteredImages.findIndex(img => img.id === selectedImage.id);
       const max = maxZoom();
-      
+
       if (e.key === 'Escape') {
         if (isFullscreen) {
           setIsFullscreen(false);
@@ -349,25 +359,29 @@ export function ImageModal() {
       } else if (e.key === 'f' || e.key === 'F') {
         setIsFullscreen(prev => !prev);
       } else if (e.key === '+' || e.key === '=') {
+        if (isFullscreen) resetOverlayTimer();
         setScale(prev => Math.min(prev * 1.5, max));
       } else if (e.key === '-') {
+        if (isFullscreen) resetOverlayTimer();
         setScale(prev => {
           const newScale = Math.max(prev / 1.5, 1);
           if (newScale === 1) setPosition({ x: 0, y: 0 });
           return newScale;
         });
       } else if (e.key === '0') {
+        if (isFullscreen) resetOverlayTimer();
         setScale(1);
         setPosition({ x: 0, y: 0 });
       } else if (e.key === '1') {
+        if (isFullscreen) resetOverlayTimer();
         // 1:1 zoom
         setScale(max);
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [modalOpen, selectedImage, filteredImages, closeModal, setSelectedImage, isFullscreen, scale, maxZoom]);
+  }, [modalOpen, selectedImage, filteredImages, closeModal, setSelectedImage, isFullscreen, scale, maxZoom, resetOverlayTimer]);
   
   if (!selectedImage) return null;
   
