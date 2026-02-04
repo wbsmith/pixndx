@@ -202,8 +202,18 @@ function applySortMode(images: ImageMetadata[], mode: SortMode): ImageMetadata[]
 // =============================================================================
 
 /**
+ * Check if any word in a text starts with the query word (prefix match)
+ * This allows type-ahead search while avoiding false matches like "wing" in "viewing"
+ */
+function hasWordStartingWith(text: string, queryWord: string): boolean {
+  const words = text.toLowerCase().split(/\s+/);
+  return words.some((w) => w.startsWith(queryWord));
+}
+
+/**
  * Check if a single word matches an image
  * Returns a score > 0 if matched, 0 if not matched
+ * Uses prefix matching for type-ahead UX (e.g., "win" matches "wing" but not "viewing")
  */
 function wordMatchScore(image: ImageMetadata, word: string): number {
   const allTags = Object.values(image.tags)
@@ -222,17 +232,18 @@ function wordMatchScore(image: ImageMetadata, word: string): number {
   const lensModel = (image.exif?.LensModel || '').toLowerCase();
 
   // Check each field for a match - return score for best match found
-  if (filenameLower.includes(word)) return 4;
-  if (allTags.includes(word)) return 3;
-  if (tagCategories.includes(word)) return 2.5;
-  if (allTags.some((t) => t.includes(word))) return 2;
-  if (subjectLower.includes(word)) return 2;
-  if (moodLower.includes(word)) return 2;
-  if (colorNames.some(name => name.includes(word))) return 2;
-  if (cameraModel.includes(word)) return 2;
-  if (cameraMake.includes(word)) return 2;
-  if (lensModel.includes(word)) return 2;
-  if (descriptionLower.includes(word)) return 1.5;
+  // Using prefix matching: query word must match START of a word in the field
+  if (hasWordStartingWith(filenameLower, word)) return 4;
+  if (allTags.includes(word)) return 3;  // Exact tag match
+  if (tagCategories.includes(word)) return 2.5;  // Exact category match
+  if (allTags.some((t) => t.startsWith(word))) return 2;  // Tag prefix match
+  if (hasWordStartingWith(subjectLower, word)) return 2;
+  if (hasWordStartingWith(moodLower, word)) return 2;
+  if (colorNames.some(name => name.startsWith(word))) return 2;
+  if (hasWordStartingWith(cameraModel, word)) return 2;
+  if (hasWordStartingWith(cameraMake, word)) return 2;
+  if (hasWordStartingWith(lensModel, word)) return 2;
+  if (hasWordStartingWith(descriptionLower, word)) return 1.5;
 
   return 0; // No match
 }

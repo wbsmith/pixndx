@@ -114,6 +114,14 @@ async function loadAllMetadata(): Promise<ImageMetadata[]> {
 }
 
 /**
+ * Check if any word in a text starts with the query word (prefix match)
+ */
+function hasWordStartingWith(text: string, queryWord: string): boolean {
+  const words = text.toLowerCase().split(/\s+/);
+  return words.some((w) => w.startsWith(queryWord));
+}
+
+/**
  * Score an image against a search query
  */
 function scoreImage(
@@ -123,18 +131,18 @@ function scoreImage(
 ): SearchResult {
   const queryLower = query.toLowerCase();
   const queryWords = queryLower.split(/\s+/).filter(Boolean);
-  
+
   let score = 0;
   const matchedFields: string[] = [];
-  
+
   // Get all tags as flat array
   const allTags = Object.values(image.tags)
     .flat()
     .map((t) => t.toLowerCase());
-  
+
   // Get tag category names
   const tagCategories = Object.keys(image.tags).map((c) => c.toLowerCase());
-  
+
   // Score each query word
   for (const word of queryWords) {
     // Exact tag match (highest weight)
@@ -147,28 +155,28 @@ function scoreImage(
       score += 2.5;
       if (!matchedFields.includes('tags')) matchedFields.push('tags');
     }
-    // Partial tag match
-    else if (allTags.some((t) => t.includes(word))) {
+    // Prefix tag match - tag starts with query word (e.g., "win" matches "wing")
+    else if (allTags.some((t) => t.startsWith(word))) {
       score += 2;
       if (!matchedFields.includes('tags')) matchedFields.push('tags');
     }
-    // Main subject match
-    else if (image.main_subject.toLowerCase().includes(word)) {
+    // Main subject match - any word starts with query word
+    else if (hasWordStartingWith(image.main_subject, word)) {
       score += 2.5;
       if (!matchedFields.includes('main_subject')) matchedFields.push('main_subject');
     }
-    // Mood match
-    else if (image.mood.toLowerCase().includes(word)) {
+    // Mood match - any word starts with query word
+    else if (hasWordStartingWith(image.mood, word)) {
       score += 2;
       if (!matchedFields.includes('mood')) matchedFields.push('mood');
     }
-    // Description match
-    else if (image.description.toLowerCase().includes(word)) {
+    // Description match - any word starts with query word
+    else if (hasWordStartingWith(image.description, word)) {
       score += 1.5;
       if (!matchedFields.includes('description')) matchedFields.push('description');
     }
-    // Color name match
-    else if (Object.keys(image.main_colors).some((c) => c.toLowerCase().includes(word))) {
+    // Color name match - color name starts with query word
+    else if (Object.keys(image.main_colors).some((c) => c.toLowerCase().startsWith(word))) {
       score += 2;
       if (!matchedFields.includes('main_colors')) matchedFields.push('main_colors');
     }
