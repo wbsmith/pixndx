@@ -78,8 +78,8 @@ CREATE TABLE IF NOT EXISTS images (
     main_colors             JSONB DEFAULT '{}',
     exif                    JSONB DEFAULT '{}',
 
-    -- CLIP embedding for similarity search (512-dimensional vector)
-    clip_embedding          vector(512),
+    -- CLIP embedding for similarity search (768-dimensional vector from ViT-L/14)
+    clip_embedding          vector(768),
 
     -- Precomputed neighbors for fast similarity lookup
     clip_neighbors          JSONB DEFAULT '[]',
@@ -293,7 +293,7 @@ RETURNS TABLE (
     similarity REAL
 ) AS $$
 DECLARE
-    v_embedding vector(512);
+    v_embedding vector(768);
 BEGIN
     -- Get the embedding of the source image
     SELECT clip_embedding INTO v_embedding
