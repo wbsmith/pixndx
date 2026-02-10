@@ -115,9 +115,11 @@ async function loadAllMetadata(): Promise<ImageMetadata[]> {
 
 /**
  * Check if any word in a text starts with the query word (prefix match)
+ * Splits on whitespace, underscores, hyphens, colons, and T to handle filenames and ISO dates
+ * (e.g., "2023-05-28T15:56:47" splits into ["2023", "05", "28", "15", "56", "47"])
  */
 function hasWordStartingWith(text: string, queryWord: string): boolean {
-  const words = text.toLowerCase().split(/\s+/);
+  const words = text.toLowerCase().split(/[\s_\-:T]+/);
   return words.some((w) => w.startsWith(queryWord));
 }
 
@@ -143,10 +145,24 @@ function scoreImage(
   // Get tag category names
   const tagCategories = Object.keys(image.tags).map((c) => c.toLowerCase());
 
+  // Get filename and date for searching
+  const filename = (image.filename || '').toLowerCase();
+  const dateTaken = (image.exif?.DateTimeOriginal || '').toLowerCase();
+
   // Score each query word
   for (const word of queryWords) {
-    // Exact tag match (highest weight)
-    if (allTags.includes(word)) {
+    // Filename match (highest weight - includes date in filename)
+    if (hasWordStartingWith(filename, word)) {
+      score += 4;
+      if (!matchedFields.includes('filename')) matchedFields.push('filename');
+    }
+    // EXIF date match (e.g., searching "2023" or "05")
+    else if (hasWordStartingWith(dateTaken, word)) {
+      score += 3;
+      if (!matchedFields.includes('date')) matchedFields.push('date');
+    }
+    // Exact tag match
+    else if (allTags.includes(word)) {
       score += 3;
       if (!matchedFields.includes('tags')) matchedFields.push('tags');
     }

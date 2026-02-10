@@ -204,9 +204,11 @@ function applySortMode(images: ImageMetadata[], mode: SortMode): ImageMetadata[]
 /**
  * Check if any word in a text starts with the query word (prefix match)
  * This allows type-ahead search while avoiding false matches like "wing" in "viewing"
+ * Splits on whitespace, underscores, hyphens, colons, and T to handle filenames and ISO dates
+ * (e.g., "2023-05-28T15:56:47" splits into ["2023", "05", "28", "15", "56", "47"])
  */
 function hasWordStartingWith(text: string, queryWord: string): boolean {
-  const words = text.toLowerCase().split(/\s+/);
+  const words = text.toLowerCase().split(/[\s_\-:T]+/);
   return words.some((w) => w.startsWith(queryWord));
 }
 
@@ -226,14 +228,16 @@ function wordMatchScore(image: ImageMetadata, word: string): number {
   const subjectLower = image.main_subject.toLowerCase();
   const colorNames = Object.keys(image.main_colors).map(n => n.toLowerCase());
 
-  // EXIF camera info
+  // EXIF camera info and date
   const cameraMake = (image.exif?.Make || '').toLowerCase();
   const cameraModel = (image.exif?.Model || '').toLowerCase();
   const lensModel = (image.exif?.LensModel || '').toLowerCase();
+  const dateTaken = (image.exif?.DateTimeOriginal || '').toLowerCase();
 
   // Check each field for a match - return score for best match found
   // Using prefix matching: query word must match START of a word in the field
   if (hasWordStartingWith(filenameLower, word)) return 4;
+  if (hasWordStartingWith(dateTaken, word)) return 3;  // Date search (e.g., "2023")
   if (allTags.includes(word)) return 3;  // Exact tag match
   if (tagCategories.includes(word)) return 2.5;  // Exact category match
   if (allTags.some((t) => t.startsWith(word))) return 2;  // Tag prefix match
