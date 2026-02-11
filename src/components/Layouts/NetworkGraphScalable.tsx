@@ -25,6 +25,7 @@ import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
 import { getSignedImageUrl } from '@/lib/amplify';
 import { IS_LOCAL_DEV } from '@/config';
+import { detectCommunities, getNodeSizeMultiplier, type LODResult } from '@/lib/graph/communityDetection';
 
 // =============================================================================
 // COLOR HELPERS
@@ -220,12 +221,16 @@ export function NetworkGraphScalable() {
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
   // Read stable values from store - forceSettings is read fresh inside useEffect to avoid stale closures
-  const { filteredImages, edges, openModal, colorMode } = useGalleryStore();
-  
+  const { filteredImages, edges, openModal, colorMode, graphLOD, setGraphLODEnabled } = useGalleryStore();
+
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isComputing, setIsComputing] = useState(false);
   const [layoutVersion, setLayoutVersion] = useState(0);  // Incremented to trigger re-render
-  const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0 });
+  const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0, communities: 0 });
+
+  // LOD (Level of Detail) state
+  const lodResultRef = useRef<LODResult | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(1);
   
   
   // Responsive dimensions
@@ -276,13 +281,26 @@ export function NetworkGraphScalable() {
     
     // Normalize positions to fit viewport
     normalizePositions(graph, dimensions.width, dimensions.height);
-    
+
+    // Run community detection if LOD is enabled and graph is large enough
+    const lodSettings = useGalleryStore.getState().graphLOD;
+    let communityCount = 0;
+    if (lodSettings.enabled && filteredImages.length > lodSettings.nodeThreshold) {
+      console.log(`[FA2] Running community detection for LOD...`);
+      const lodResult = detectCommunities(filteredImages);
+      lodResultRef.current = lodResult;
+      communityCount = lodResult.communities.length;
+    } else {
+      lodResultRef.current = null;
+    }
+
     const elapsed = performance.now() - startTime;
-    
+
     setStats({
       nodes: graph.order,
       edges: graph.size,
       time: elapsed,
+      communities: communityCount,
     });
     
     setIsComputing(false);
@@ -336,43 +354,29 @@ export function NetworkGraphScalable() {
     };
     
     const doRender = () => {
-    
+
     // Compute node radius based on count - same formula as D3 renderer
     const nodeCount = graph.order;
     const nodeRadius = Math.max(12, Math.min(30, 600 / Math.sqrt(nodeCount)));
-    
-    // Setup zoom
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.02, 8])
-      .on('zoom', (event) => {
-        container.attr('transform', event.transform);
-      });
-    
-    svg.call(zoom);
-    
-    const container = svg.append('g');
-    
-    // Helper to create safe CSS IDs (no special chars)
-    const safeId = (id: string) => id.replace(/[^a-zA-Z0-9]/g, '_');
-    
-    // Create clip paths for circular images
-    const defs = svg.append('defs');
-    graph.forEachNode((nodeId) => {
-      defs.append('clipPath')
-        .attr('id', `clip-${safeId(nodeId)}`)
-        .append('circle')
-        .attr('r', nodeRadius - 2);
-    });
-    
-    // Extract data for D3
+
+    // Get LOD settings and result
+    const lodSettings = useGalleryStore.getState().graphLOD;
+    const lodResult = lodResultRef.current;
+    const lodActive = lodSettings.enabled && lodResult && nodeCount > lodSettings.nodeThreshold;
+
+    // Extract data for D3 first (needed by zoom handler and clip paths)
     const nodesData = graph.mapNodes((nodeId, attrs) => ({
       id: nodeId,
       x: attrs.x,
       y: attrs.y,
       color: attrs.color,
       image: attrs.image,
+      // LOD: Calculate size multiplier for representatives
+      sizeMultiplier: lodActive && lodResult
+        ? getNodeSizeMultiplier(nodeId, lodResult, 0, lodSettings.zoomThreshold)
+        : 1,
     }));
-    
+
     const edgesData = graph.mapEdges((_edgeId, attrs, source, target) => ({
       source: graph.getNodeAttribute(source, 'x'),
       sourceY: graph.getNodeAttribute(source, 'y'),
@@ -380,8 +384,14 @@ export function NetworkGraphScalable() {
       targetY: graph.getNodeAttribute(target, 'y'),
       weight: attrs.weight,
     }));
-    
-    // Draw edges
+
+    // Create a map from position to node ID for edge visibility lookups
+    const posToNodeId = new Map<string, string>();
+    nodesData.forEach(n => posToNodeId.set(`${n.x},${n.y}`, n.id));
+
+    const container = svg.append('g');
+
+    // Draw edges first (so nodes are on top)
     const edgeGroup = container.append('g').attr('class', 'edges');
     edgeGroup.selectAll('line')
       .data(edgesData)
@@ -393,9 +403,59 @@ export function NetworkGraphScalable() {
       .attr('stroke', 'rgba(99, 112, 242, 0.4)')
       .attr('stroke-width', d => 0.3 + d.weight * 1.2)
       .attr('stroke-opacity', d => 0.08 + d.weight * 0.35);
-    
+
     // Draw nodes
     const nodeGroup = container.append('g').attr('class', 'nodes');
+
+    // Helper to create safe CSS IDs (no special chars)
+    const safeId = (id: string) => id.replace(/[^a-zA-Z0-9]/g, '_');
+
+    // Create clip paths for circular images (with LOD size multiplier)
+    const defs = svg.append('defs');
+    nodesData.forEach((node) => {
+      const r = (nodeRadius - 2) * node.sizeMultiplier;
+      defs.append('clipPath')
+        .attr('id', `clip-${safeId(node.id)}`)
+        .append('circle')
+        .attr('r', r);
+    });
+
+    // Setup zoom with LOD visibility handling
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.02, 8])
+      .on('zoom', (event) => {
+        container.attr('transform', event.transform);
+
+        // LOD: Update node visibility based on zoom level
+        if (lodActive && lodResult) {
+          const zoomLevel = event.transform.k;
+          setCurrentZoom(zoomLevel);
+
+          if (zoomLevel < lodSettings.zoomThreshold) {
+            // Zoomed out: show only representatives
+            nodeGroup.selectAll('g')
+              .style('display', (d: any) => lodResult.representatives.has(d.id) ? null : 'none');
+
+            // Hide edges between non-visible nodes
+            edgeGroup.selectAll('line')
+              .style('display', (_d: any, i: number) => {
+                const ed = edgesData[i];
+                const sourceId = posToNodeId.get(`${ed.source},${ed.sourceY}`);
+                const targetId = posToNodeId.get(`${ed.target},${ed.targetY}`);
+                if (!sourceId || !targetId) return 'none';
+                return lodResult.representatives.has(sourceId) && lodResult.representatives.has(targetId) ? null : 'none';
+              });
+          } else {
+            // Zoomed in: show all nodes
+            nodeGroup.selectAll('g').style('display', null);
+            edgeGroup.selectAll('line').style('display', null);
+          }
+        }
+      });
+
+    svg.call(zoom);
+
+    // Create node elements
     const nodes = nodeGroup.selectAll('g')
       .data(nodesData)
       .join('g')
@@ -403,34 +463,34 @@ export function NetworkGraphScalable() {
       .attr('class', 'cursor-pointer')
       .style('pointer-events', 'all');
     
-    // Glow effect (outer ring blur)
+    // Glow effect (outer ring blur) - scaled for LOD representatives
     nodes.append('circle')
-      .attr('r', nodeRadius + 3)
+      .attr('r', d => (nodeRadius + 3) * d.sizeMultiplier)
       .attr('fill', d => d.color)
       .attr('opacity', 0.3)
       .style('filter', 'blur(4px)');
-    
-    // Image - use signed URL if available
+
+    // Image - use signed URL if available, scaled for LOD representatives
     nodes.append('image')
       .attr('xlink:href', d => signedUrlsRef.get(d.id) || d.image.urls.small)
-      .attr('x', -nodeRadius + 2)
-      .attr('y', -nodeRadius + 2)
-      .attr('width', (nodeRadius - 2) * 2)
-      .attr('height', (nodeRadius - 2) * 2)
+      .attr('x', d => (-nodeRadius + 2) * d.sizeMultiplier)
+      .attr('y', d => (-nodeRadius + 2) * d.sizeMultiplier)
+      .attr('width', d => (nodeRadius - 2) * 2 * d.sizeMultiplier)
+      .attr('height', d => (nodeRadius - 2) * 2 * d.sizeMultiplier)
       .attr('clip-path', d => `url(#clip-${safeId(d.id)})`)
       .attr('preserveAspectRatio', 'xMidYMid slice');
-    
-    // Colored ring border
+
+    // Colored ring border - scaled for LOD representatives
     nodes.append('circle')
-      .attr('r', nodeRadius - 1)
+      .attr('r', d => (nodeRadius - 1) * d.sizeMultiplier)
       .attr('fill', 'none')
       .attr('stroke', d => d.color)
-      .attr('stroke-width', 1.5)
+      .attr('stroke-width', d => 1.5 * d.sizeMultiplier)
       .attr('opacity', 0.85);
-    
-    // Hover ring (hidden by default)
+
+    // Hover ring (hidden by default) - scaled for LOD representatives
     nodes.append('circle')
-      .attr('r', nodeRadius + 2)
+      .attr('r', d => (nodeRadius + 2) * d.sizeMultiplier)
       .attr('fill', 'none')
       .attr('stroke', 'rgba(34, 211, 238, 1)')
       .attr('stroke-width', 2)
@@ -531,13 +591,31 @@ export function NetworkGraphScalable() {
     }
     
     nodes.call(drag as any);
-    
+
     // Initial zoom to fit
     const scale = Math.min(0.9, Math.max(0.05, 25 / Math.sqrt(nodeCount)));
     const initialTransform = d3.zoomIdentity
       .translate(width * 0.05, height * 0.05)
       .scale(scale);
     svg.call(zoom.transform as any, initialTransform);
+
+    // Set initial zoom state for LOD display
+    setCurrentZoom(scale);
+
+    // Apply initial LOD visibility if needed
+    if (lodActive && lodResult && scale < lodSettings.zoomThreshold) {
+      nodeGroup.selectAll('g')
+        .style('display', (d: any) => lodResult.representatives.has(d.id) ? null : 'none');
+
+      edgeGroup.selectAll('line')
+        .style('display', (_d: any, i: number) => {
+          const ed = edgesData[i];
+          const sourceId = posToNodeId.get(`${ed.source},${ed.sourceY}`);
+          const targetId = posToNodeId.get(`${ed.target},${ed.targetY}`);
+          if (!sourceId || !targetId) return 'none';
+          return lodResult.representatives.has(sourceId) && lodResult.representatives.has(targetId) ? null : 'none';
+        });
+    }
     }; // end doRender
     
     renderGraph();
@@ -597,6 +675,25 @@ export function NetworkGraphScalable() {
         <div className={layoutVersion > 0 ? 'text-green-400' : 'text-yellow-400'}>
           {isComputing ? '○ Computing layout...' : `● Layout computed (${stats.time.toFixed(0)}ms)`}
         </div>
+        {stats.communities > 0 && (
+          <div className="text-purple-400">
+            {stats.communities} communities detected
+          </div>
+        )}
+        {/* LOD toggle - only show when graph is large enough */}
+        {stats.nodes > graphLOD.nodeThreshold && (
+          <label className="flex items-center gap-2 pt-1 border-t border-nebula-700 mt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={graphLOD.enabled}
+              onChange={(e) => setGraphLODEnabled(e.target.checked)}
+              className="accent-stellar-violet"
+            />
+            <span className="text-nebula-300">
+              LOD mode {graphLOD.enabled && currentZoom < graphLOD.zoomThreshold ? '(active)' : ''}
+            </span>
+          </label>
+        )}
       </div>
       
       
