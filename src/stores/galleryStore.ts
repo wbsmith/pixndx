@@ -62,6 +62,13 @@ interface GalleryStore {
   forceSettings: ForceSettings;  // Force layout parameters
   colorMode: ColorMode;  // How nodes are colored in network graph
   sortMode: SortMode;  // Current sort mode for gallery
+
+  // Graph LOD (Level of Detail) settings
+  graphLOD: {
+    enabled: boolean;  // Feature flag for LOD
+    nodeThreshold: number;  // Show LOD when graph has more nodes than this
+    zoomThreshold: number;  // Zoom level below which to show communities only
+  };
   
   // Search
   searchQuery: string;
@@ -86,6 +93,7 @@ interface GalleryStore {
   setForceSettings: (settings: ForceSettings) => void;
   setColorMode: (mode: ColorMode) => void;
   setSortMode: (mode: SortMode) => void;
+  setGraphLODEnabled: (enabled: boolean) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilters: (filters: SearchQuery['filters']) => void;
   performSearch: () => void;
@@ -320,6 +328,13 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   colorMode: 'color' as ColorMode,  // Default to color-based node outlines
   sortMode: 'rating' as SortMode,  // Default to rating sort
 
+  // Graph LOD (Level of Detail) - community rollup for large graphs
+  graphLOD: {
+    enabled: false,  // Disabled by default (feature flag)
+    nodeThreshold: 650,  // Show LOD when graph has more than 650 nodes
+    zoomThreshold: 0.4,  // Zoom level below which to show communities only
+  },
+
   searchQuery: '',
   searchFilters: undefined,
   loading: true,  // Start in loading state
@@ -469,6 +484,13 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     const { filteredImages } = get();
     const sorted = applySortMode(filteredImages, mode);
     set({ filteredImages: sorted });
+  },
+
+  setGraphLODEnabled: (enabled) => {
+    set((state) => ({
+      graphLOD: { ...state.graphLOD, enabled },
+      graphVersion: state.graphVersion + 1,  // Force graph re-render
+    }));
   },
 
   setSearchQuery: (query) => {

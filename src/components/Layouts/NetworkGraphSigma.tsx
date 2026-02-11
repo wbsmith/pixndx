@@ -21,6 +21,7 @@ import { getDominantColor } from '@/lib/similarity/vectors';
 import type { ImageMetadata, SimilarityEdge } from '@/types/gallery';
 import { getSignedImageUrl } from '@/lib/amplify';
 import { IS_LOCAL_DEV } from '@/config';
+import { detectCommunities, type LODResult } from '@/lib/graph/communityDetection';
 
 // Sigma imports - these will error until packages are installed
 // import Sigma from 'sigma';
@@ -187,12 +188,16 @@ export function NetworkGraphSigma() {
   const graphRef = useRef<Graph<NodeAttributes, EdgeAttributes> | null>(null);
   
   // Read stable values from store - forceSettings is read fresh inside useEffect to avoid stale closures
-  const { filteredImages, edges, openModal, colorMode } = useGalleryStore();
-  
+  const { filteredImages, edges, openModal, colorMode, graphLOD } = useGalleryStore();
+
   const [isComputing, setIsComputing] = useState(false);
   const [layoutVersion, setLayoutVersion] = useState(0);  // Incremented to trigger re-render
-  const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0 });
+  const [stats, setStats] = useState({ nodes: 0, edges: 0, time: 0, communities: 0 });
   const [sigmaAvailable, setSigmaAvailable] = useState(false);
+
+  // LOD (Level of Detail) state
+  const lodResultRef = useRef<LODResult | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(1);
   
   
   // Check if Sigma is available
@@ -243,19 +248,41 @@ export function NetworkGraphSigma() {
       
       // Build and layout graph
       const graph = buildGraph(filteredImages, edges, colorMode, signedUrls);
-      runLayout(graph, { 
-        gravity: forceSettings.gravity, 
+      runLayout(graph, {
+        gravity: forceSettings.gravity,
         scaling: forceSettings.scaling,
         edgeWeightInfluence: forceSettings.edgeWeightInfluence,
       });
       graphRef.current = graph;
-      
-      console.log(`[NetworkGraphSigma] Graph: ${graph.order} nodes, ${graph.size} edges`);
-      
+
+      // Run community detection if LOD is enabled and graph is large enough
+      const lodSettings = useGalleryStore.getState().graphLOD;
+      let communityCount = 0;
+      if (lodSettings.enabled && filteredImages.length > lodSettings.nodeThreshold) {
+        console.log(`[NetworkGraphSigma] Running community detection for LOD...`);
+        const lodResult = detectCommunities(filteredImages);
+        lodResultRef.current = lodResult;
+        communityCount = lodResult.communities.length;
+
+        // Update node sizes for representatives
+        lodResult.communities.forEach(community => {
+          if (graph.hasNode(community.representative)) {
+            const currentSize = graph.getNodeAttribute(community.representative, 'size');
+            const sizeMultiplier = Math.max(1, Math.sqrt(community.size) * 0.8);
+            graph.setNodeAttribute(community.representative, 'size', currentSize * sizeMultiplier);
+          }
+        });
+      } else {
+        lodResultRef.current = null;
+      }
+
+      console.log(`[NetworkGraphSigma] Graph: ${graph.order} nodes, ${graph.size} edges${communityCount ? `, ${communityCount} communities` : ''}`);
+
       setStats({
         nodes: graph.order,
         edges: graph.size,
         time: performance.now() - startTime,
+        communities: communityCount,
       });
       
       setIsComputing(false);
@@ -391,9 +418,91 @@ export function NetworkGraphSigma() {
       };
       container.addEventListener('mouseleave', handleMouseLeave);
 
+      // LOD: Handle zoom changes to show/hide nodes
+      const lodSettings = useGalleryStore.getState().graphLOD;
+      const lodResult = lodResultRef.current;
+
+      if (lodSettings.enabled && lodResult && graph.order > lodSettings.nodeThreshold) {
+        // Set initial visibility based on current zoom
+        const camera = sigma.getCamera();
+        let currentLODZoom = camera.ratio;
+        setCurrentZoom(currentLODZoom);
+
+        // Apply LOD visibility
+        const applyLODVisibility = (zoomRatio: number) => {
+          const showAll = zoomRatio < lodSettings.zoomThreshold; // Lower ratio = more zoomed in
+
+          sigma.setSetting('nodeReducer', (n, data) => {
+            // If hovering, use highlight logic
+            if (highlightedNode) {
+              if (!highlightedNeighbors.has(n)) {
+                return { ...data, color: '#333', zIndex: 0 };
+              }
+              if (n === highlightedNode) {
+                return { ...data, zIndex: 2, size: data.size * 1.3 };
+              }
+              return { ...data, zIndex: 1 };
+            }
+
+            // LOD visibility: hide non-representatives when zoomed out
+            if (!showAll && !lodResult.representatives.has(n)) {
+              return { ...data, hidden: true };
+            }
+
+            return data;
+          });
+
+          sigma.setSetting('edgeReducer', (edge, data) => {
+            // If hovering, use highlight logic
+            if (highlightedNode) {
+              const [source, target] = graph.extremities(edge);
+              if (highlightedNode === source || highlightedNode === target) {
+                return { ...data, color: 'rgba(34, 211, 238, 0.8)', size: 2 };
+              }
+              return { ...data, color: 'rgba(99, 112, 242, 0.05)' };
+            }
+
+            // LOD: hide edges to hidden nodes when zoomed out
+            if (!showAll) {
+              const [source, target] = graph.extremities(edge);
+              if (!lodResult.representatives.has(source) || !lodResult.representatives.has(target)) {
+                return { ...data, hidden: true };
+              }
+            }
+
+            return data;
+          });
+
+          sigma.refresh();
+        };
+
+        // Apply initial LOD state
+        applyLODVisibility(currentLODZoom);
+
+        // Listen for zoom changes
+        const handleCameraUpdate = () => {
+          const newRatio = camera.ratio;
+          if (Math.abs(newRatio - currentLODZoom) > 0.05) {
+            currentLODZoom = newRatio;
+            setCurrentZoom(newRatio);
+            applyLODVisibility(newRatio);
+          }
+        };
+
+        sigma.on('afterRender', handleCameraUpdate);
+
+        // Store LOD cleanup
+        (sigma as any)._lodCleanup = () => {
+          sigma.off('afterRender', handleCameraUpdate);
+        };
+      }
+
       // Store cleanup function
       (sigma as any)._customCleanup = () => {
         container.removeEventListener('mouseleave', handleMouseLeave);
+        if ((sigma as any)._lodCleanup) {
+          (sigma as any)._lodCleanup();
+        }
       };
     };
     
@@ -472,6 +581,7 @@ export function NetworkGraphSigma() {
       <div className="absolute top-4 right-4 glass rounded-lg p-3 text-xs space-y-1">
         <div className="text-nebula-300">
           {stats.nodes} nodes • {stats.edges} edges
+          {stats.communities > 0 && ` • ${stats.communities} communities`}
         </div>
         <div className="text-stellar-violet">
           WebGL Renderer (Sigma.js)
@@ -479,6 +589,30 @@ export function NetworkGraphSigma() {
         <div className={isComputing ? 'text-yellow-400' : 'text-green-400'}>
           {isComputing ? '○ Computing...' : `● Ready (${stats.time.toFixed(0)}ms)`}
         </div>
+
+        {/* LOD Toggle - only show for large graphs */}
+        {stats.nodes > 100 && (
+          <label className="flex items-center gap-2 pt-2 border-t border-white/10 mt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={graphLOD.enabled}
+              onChange={(e) => useGalleryStore.getState().setGraphLODEnabled(e.target.checked)}
+              className="w-3 h-3 rounded accent-stellar-violet"
+            />
+            <span className="text-nebula-300">
+              Smart zoom (LOD)
+            </span>
+          </label>
+        )}
+
+        {/* LOD status indicator */}
+        {graphLOD.enabled && stats.communities > 0 && (
+          <div className="text-nebula-400 text-[10px]">
+            {currentZoom >= graphLOD.zoomThreshold
+              ? `Zoomed out: showing ${stats.communities} clusters`
+              : 'Zoomed in: showing all nodes'}
+          </div>
+        )}
       </div>
       
       
