@@ -361,17 +361,50 @@ export function NetworkGraphSigma() {
       sigma.on('leaveNode', () => {
         highlightedNode = null;
         highlightedNeighbors.clear();
-        
+
         sigma.setSetting('nodeReducer', (_node, data) => data);
         sigma.setSetting('edgeReducer', (_edge, data) => data);
         sigma.refresh();
       });
+
+      // Reset highlight when clicking on empty space (stage)
+      sigma.on('clickStage', () => {
+        if (highlightedNode) {
+          highlightedNode = null;
+          highlightedNeighbors.clear();
+          sigma.setSetting('nodeReducer', (_node, data) => data);
+          sigma.setSetting('edgeReducer', (_edge, data) => data);
+          sigma.refresh();
+        }
+      });
+
+      // Reset highlight when cursor leaves the canvas entirely
+      const container = sigma.getContainer();
+      const handleMouseLeave = () => {
+        if (highlightedNode) {
+          highlightedNode = null;
+          highlightedNeighbors.clear();
+          sigma.setSetting('nodeReducer', (_node, data) => data);
+          sigma.setSetting('edgeReducer', (_edge, data) => data);
+          sigma.refresh();
+        }
+      };
+      container.addEventListener('mouseleave', handleMouseLeave);
+
+      // Store cleanup function
+      (sigma as any)._customCleanup = () => {
+        container.removeEventListener('mouseleave', handleMouseLeave);
+      };
     };
     
     initSigma();
     
     return () => {
       if (sigmaRef.current) {
+        // Call custom cleanup for event listeners
+        if ((sigmaRef.current as any)._customCleanup) {
+          (sigmaRef.current as any)._customCleanup();
+        }
         sigmaRef.current.kill();
         sigmaRef.current = null;
       }
