@@ -331,7 +331,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
   // Graph LOD (Level of Detail) - community rollup for large graphs
   graphLOD: {
     enabled: false,  // Disabled by default (feature flag)
-    nodeThreshold: 650,  // Show LOD when graph has more than 650 nodes
+    nodeThreshold: 100,  // Show LOD toggle when graph has more than 100 nodes
     zoomThreshold: 0.4,  // Zoom level below which to show communities only
   },
 
