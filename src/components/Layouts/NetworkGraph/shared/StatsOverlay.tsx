@@ -1,8 +1,9 @@
 /**
  * Stats overlay component for network graph.
- * Displays node/edge counts, layout status, community info, and LOD toggle.
+ * Displays node/edge counts, layout status, community info, LOD controls, and stop button.
  */
 
+import { Square } from 'lucide-react';
 import { useGalleryStore } from '@/stores/galleryStore';
 
 export interface GraphStats {
@@ -19,6 +20,7 @@ interface StatsOverlayProps {
   status: LayoutStatus;
   currentZoom: number;
   algorithmLabel?: string;
+  onStop?: () => void;
 }
 
 export function StatsOverlay({
@@ -26,8 +28,9 @@ export function StatsOverlay({
   status,
   currentZoom,
   algorithmLabel,
+  onStop,
 }: StatsOverlayProps) {
-  const { graphLOD, setGraphLODEnabled } = useGalleryStore();
+  const { graphLOD, setGraphLODEnabled, setGraphLODResolution } = useGalleryStore();
 
   const statusText = {
     computing: '○ Computing layout...',
@@ -53,8 +56,20 @@ export function StatsOverlay({
         </div>
       )}
 
-      <div className={statusColor[status]}>
-        {statusText[status]}
+      <div className="flex items-center gap-2">
+        <span className={statusColor[status]}>
+          {statusText[status]}
+        </span>
+        {status === 'computing' && onStop && (
+          <button
+            onClick={onStop}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+            title="Stop layout computation"
+          >
+            <Square size={10} fill="currentColor" />
+            <span>Stop</span>
+          </button>
+        )}
       </div>
 
       {stats.communities > 0 && (
@@ -63,18 +78,43 @@ export function StatsOverlay({
         </div>
       )}
 
-      {/* LOD toggle */}
-      <label className="flex items-center gap-2 pt-1 border-t border-nebula-700 mt-1 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={graphLOD.enabled}
-          onChange={(e) => setGraphLODEnabled(e.target.checked)}
-          className="accent-stellar-violet"
-        />
-        <span className="text-nebula-300">
-          LOD mode {graphLOD.enabled && currentZoom < graphLOD.zoomThreshold ? '(active)' : ''}
-        </span>
-      </label>
+      {/* LOD controls */}
+      <div className="pt-1 border-t border-nebula-700 mt-1 space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={graphLOD.enabled}
+            onChange={(e) => setGraphLODEnabled(e.target.checked)}
+            className="accent-stellar-violet"
+          />
+          <span className="text-nebula-300">
+            LOD mode {graphLOD.enabled && currentZoom < graphLOD.zoomThreshold ? '(active)' : ''}
+          </span>
+        </label>
+
+        {/* Resolution slider - only show when LOD enabled */}
+        {graphLOD.enabled && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-nebula-400">
+              <span>Resolution</span>
+              <span className="text-nebula-300">{graphLOD.resolution.toFixed(1)}</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="5"
+              step="0.5"
+              value={graphLOD.resolution}
+              onChange={(e) => setGraphLODResolution(parseFloat(e.target.value))}
+              className="w-full h-1 bg-nebula-700 rounded-lg appearance-none cursor-pointer accent-stellar-violet"
+            />
+            <div className="flex justify-between text-[9px] text-nebula-500">
+              <span>Fewer</span>
+              <span>More communities</span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

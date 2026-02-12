@@ -149,14 +149,15 @@ export function NetworkGraph({ algorithm = 'd3' }: NetworkGraphProps) {
   useEffect(() => {
     if (!graphLOD.enabled || filteredImages.length <= graphLOD.nodeThreshold) {
       setLodResult(null);
+      setStats(s => ({ ...s, communities: 0 }));
       return;
     }
 
-    console.log(`[NetworkGraph] Running community detection for LOD...`);
-    const result = detectCommunities(filteredImages);
+    console.log(`[NetworkGraph] Running community detection for LOD (resolution=${graphLOD.resolution})...`);
+    const result = detectCommunities(filteredImages, graphLOD.resolution);
     setLodResult(result);
     setStats(s => ({ ...s, communities: result.communities.length }));
-  }, [filteredImages, graphLOD.enabled, graphLOD.nodeThreshold]);
+  }, [filteredImages, graphLOD.enabled, graphLOD.nodeThreshold, graphLOD.resolution]);
 
   // Initialize and run algorithm
   useEffect(() => {
@@ -244,6 +245,14 @@ export function NetworkGraph({ algorithm = 'd3' }: NetworkGraphProps) {
     }
   }, [colorMode, algorithm]);
 
+  // Stop layout handler
+  const handleStopLayout = () => {
+    if (algorithmRef.current) {
+      algorithmRef.current.stop();
+      setLayoutStatus('stable');
+    }
+  };
+
   // Render appropriate renderer based on algorithm
   const renderGraph = () => {
     if (!isReady || nodes.length === 0) return null;
@@ -296,6 +305,7 @@ export function NetworkGraph({ algorithm = 'd3' }: NetworkGraphProps) {
         status={layoutStatus}
         currentZoom={currentZoom}
         algorithmLabel={ALGORITHM_LABELS[algorithm]}
+        onStop={handleStopLayout}
       />
 
       {/* Warnings and states */}

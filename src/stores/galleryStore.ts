@@ -68,6 +68,7 @@ interface GalleryStore {
     enabled: boolean;  // Feature flag for LOD
     nodeThreshold: number;  // Show LOD when graph has more nodes than this
     zoomThreshold: number;  // Zoom level below which to show communities only
+    resolution: number;  // Louvain resolution parameter (higher = more communities)
   };
   
   // Search
@@ -94,6 +95,7 @@ interface GalleryStore {
   setColorMode: (mode: ColorMode) => void;
   setSortMode: (mode: SortMode) => void;
   setGraphLODEnabled: (enabled: boolean) => void;
+  setGraphLODResolution: (resolution: number) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilters: (filters: SearchQuery['filters']) => void;
   performSearch: () => void;
@@ -333,6 +335,7 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     enabled: false,  // Disabled by default (feature flag)
     nodeThreshold: 100,  // Show LOD toggle when graph has more than 100 nodes
     zoomThreshold: 0.4,  // Zoom level below which to show communities only
+    resolution: 2.0,  // Louvain resolution (higher = more communities, default 1.0, try 2-4 for more)
   },
 
   searchQuery: '',
@@ -490,6 +493,13 @@ export const useGalleryStore = create<GalleryStore>((set, get) => ({
     set((state) => ({
       graphLOD: { ...state.graphLOD, enabled },
       graphVersion: state.graphVersion + 1,  // Force graph re-render
+    }));
+  },
+
+  setGraphLODResolution: (resolution) => {
+    set((state) => ({
+      graphLOD: { ...state.graphLOD, resolution },
+      graphVersion: state.graphVersion + 1,  // Force graph re-render to recompute communities
     }));
   },
 

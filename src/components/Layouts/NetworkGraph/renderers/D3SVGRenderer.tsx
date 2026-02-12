@@ -13,6 +13,7 @@ import type { ColorMode } from '@/stores/galleryStore';
 import type { ImageMetadata } from '@/types/gallery';
 import type { LODResult } from '@/lib/graph/communityDetection';
 import {
+  safeId,
   calculateNodeRadius,
   createClipPaths,
   createNodeElements,
@@ -210,16 +211,64 @@ export function D3SVGRenderer({
     updateNodeColors(svg, colorMode);
   }, [colorMode, isInitialized]);
 
-  // LOD visibility helper
+  // Compute size multiplier for a representative node based on community size
+  const getRepresentativeSizeMultiplier = useCallback((nodeId: string) => {
+    if (!lodResult) return 1;
+    const communityId = lodResult.nodeToCommnity.get(nodeId);
+    if (communityId === undefined) return 1;
+    const community = lodResult.communities.find(c => c.id === communityId);
+    if (!community) return 1;
+    return Math.max(1.5, Math.sqrt(community.size) * 0.8);
+  }, [lodResult]);
+
+  // LOD visibility helper - shows only representatives when zoomed out, with enlarged sizes
   const applyLODVisibility = useCallback((zoomLevel: number) => {
-    if (!lodResult || !nodeSelectionRef.current || !linkSelectionRef.current) return;
+    if (!lodResult || !nodeSelectionRef.current || !linkSelectionRef.current || !svgRef.current) return;
 
-    if (zoomLevel < lodSettings.zoomThreshold) {
-      // Zoomed out: show only representatives
-      nodeSelectionRef.current.style('display', (d) =>
-        lodResult.representatives.has(d.id) ? null : 'none'
-      );
+    const isZoomedOut = zoomLevel < lodSettings.zoomThreshold;
+    const svg = d3.select(svgRef.current);
 
+    if (isZoomedOut) {
+      // Zoomed out: show only representatives with scaled sizes
+      nodeSelectionRef.current.each(function(d) {
+        const isRep = lodResult.representatives.has(d.id);
+        const node = d3.select(this);
+
+        if (!isRep) {
+          node.style('display', 'none');
+        } else {
+          node.style('display', null);
+
+          // Scale up representative nodes
+          const scale = getRepresentativeSizeMultiplier(d.id);
+
+          // Update clip path radius for this node
+          svg.select(`#clip-${safeId(d.id)} circle`)
+            .attr('r', (nodeRadius - 2) * scale);
+
+          // Scale glow
+          node.select('circle.glow')
+            .attr('r', (nodeRadius + 3) * scale);
+
+          // Scale image
+          node.select('image')
+            .attr('x', (-nodeRadius + 2) * scale)
+            .attr('y', (-nodeRadius + 2) * scale)
+            .attr('width', (nodeRadius - 2) * 2 * scale)
+            .attr('height', (nodeRadius - 2) * 2 * scale);
+
+          // Scale ring
+          node.select('circle.ring')
+            .attr('r', (nodeRadius - 1) * scale)
+            .attr('stroke-width', 1.5 * scale);
+
+          // Scale hover ring
+          node.select('circle.hover-ring')
+            .attr('r', (nodeRadius + 2) * scale);
+        }
+      });
+
+      // Hide edges to non-representative nodes
       linkSelectionRef.current.style('display', (d: any) => {
         const sourceId = typeof d.source === 'object' ? d.source.id : String(d.source);
         const targetId = typeof d.target === 'object' ? d.target.id : String(d.target);
@@ -228,11 +277,36 @@ export function D3SVGRenderer({
           : 'none';
       });
     } else {
-      // Zoomed in: show all nodes
-      nodeSelectionRef.current.style('display', null);
+      // Zoomed in: show all nodes at normal size
+      nodeSelectionRef.current.each(function(d) {
+        const node = d3.select(this);
+        node.style('display', null);
+
+        // Reset clip path radius
+        svg.select(`#clip-${safeId(d.id)} circle`)
+          .attr('r', nodeRadius - 2);
+
+        // Reset to normal size
+        node.select('circle.glow')
+          .attr('r', nodeRadius + 3);
+
+        node.select('image')
+          .attr('x', -nodeRadius + 2)
+          .attr('y', -nodeRadius + 2)
+          .attr('width', (nodeRadius - 2) * 2)
+          .attr('height', (nodeRadius - 2) * 2);
+
+        node.select('circle.ring')
+          .attr('r', nodeRadius - 1)
+          .attr('stroke-width', 1.5);
+
+        node.select('circle.hover-ring')
+          .attr('r', nodeRadius + 2);
+      });
+
       linkSelectionRef.current.style('display', null);
     }
-  }, [lodResult, lodSettings.zoomThreshold]);
+  }, [lodResult, lodSettings.zoomThreshold, nodeRadius, getRepresentativeSizeMultiplier]);
 
   return (
     <svg

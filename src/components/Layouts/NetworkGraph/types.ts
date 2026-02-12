@@ -189,14 +189,15 @@ export interface NetworkGraphProps {
 
 /**
  * Build graph nodes from images.
+ * Note: sizeMultiplier is always 1 here - dynamic sizing for LOD is applied in the renderer.
  */
 export function buildNodes(
   images: ImageMetadata[],
   width: number,
   height: number,
-  lodResult: LODResult | null,
-  lodEnabled: boolean,
-  zoomThreshold: number
+  _lodResult: LODResult | null,
+  _lodEnabled: boolean,
+  _zoomThreshold: number
 ): GraphNode[] {
   // Deduplicate images by ID
   const seenIds = new Set<string>();
@@ -207,12 +208,6 @@ export function buildNodes(
   });
 
   return uniqueImages.map((img, i) => {
-    // LOD: Calculate size multiplier for representatives
-    const lodActive = lodEnabled && lodResult && images.length > 100;
-    const sizeMultiplier = lodActive
-      ? getSizeMultiplier(img.id, lodResult, 0, zoomThreshold)
-      : 1;
-
     // Use UMAP position if available
     if (img.layoutPosition) {
       const scale = Math.min(width, height) / 1200;
@@ -221,7 +216,7 @@ export function buildNodes(
         image: img,
         x: width / 2 + (img.layoutPosition.x - 500) * scale,
         y: height / 2 + (img.layoutPosition.y - 500) * scale,
-        sizeMultiplier,
+        sizeMultiplier: 1,
       };
     }
 
@@ -233,7 +228,7 @@ export function buildNodes(
       image: img,
       x: width / 2 + Math.cos(angle) * radius,
       y: height / 2 + Math.sin(angle) * radius,
-      sizeMultiplier,
+      sizeMultiplier: 1,
     };
   });
 }
@@ -254,26 +249,3 @@ export function buildLinks(
     }));
 }
 
-/**
- * Get node size multiplier based on community membership.
- */
-function getSizeMultiplier(
-  nodeId: string,
-  lodResult: LODResult,
-  zoomLevel: number,
-  zoomThreshold: number
-): number {
-  if (zoomLevel >= zoomThreshold) return 1;
-
-  const communityId = lodResult.nodeToCommnity.get(nodeId);
-  if (communityId === undefined) return 1;
-
-  const community = lodResult.communities.find(c => c.id === communityId);
-  if (!community) return 1;
-
-  if (lodResult.representatives.has(nodeId)) {
-    return Math.max(1, Math.sqrt(community.size) * 0.8);
-  }
-
-  return 1;
-}

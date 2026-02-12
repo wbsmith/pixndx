@@ -80,8 +80,10 @@ function selectRepresentative(
 
 /**
  * Detect communities in the image graph and select representatives.
+ * @param images - Array of image metadata
+ * @param resolution - Louvain resolution parameter (default 1.0, higher = more communities)
  */
-export function detectCommunities(images: ImageMetadata[]): LODResult {
+export function detectCommunities(images: ImageMetadata[], resolution: number = 1.0): LODResult {
   if (images.length === 0) {
     return {
       communities: [],
@@ -96,7 +98,7 @@ export function detectCommunities(images: ImageMetadata[]): LODResult {
   // Run Louvain community detection
   // Returns an object mapping node ID to community number
   const communityAssignments = louvain(graph, {
-    resolution: 1.0,  // Higher = more communities
+    resolution,  // Higher = more communities
   });
 
   // Group nodes by community
