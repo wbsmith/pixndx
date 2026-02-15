@@ -116,45 +116,98 @@ export function updateNodeColors(
 }
 
 /**
- * Set up hover interactions for nodes.
+ * Highlight controller - manages node/edge highlighting with a single source of truth.
+ * Ensures only one node can be highlighted at a time and provides reliable cleanup.
+ */
+export interface HighlightController {
+  highlightNode: (nodeId: string) => void;
+  clearHighlight: () => void;
+  isHighlighted: () => boolean;
+}
+
+/**
+ * Create a highlight controller for managing node hover states.
+ * This ensures consistent behavior regardless of mouse movement speed.
+ */
+export function createHighlightController(
+  nodeSelection: d3.Selection<SVGGElement, GraphNode, SVGGElement, unknown>,
+  linkSelection: d3.Selection<SVGLineElement, any, SVGGElement, unknown>,
+  getConnectedIds: (nodeId: string) => Set<string>
+): HighlightController {
+  let highlightedNodeId: string | null = null;
+
+  const clearHighlight = () => {
+    if (highlightedNodeId === null) return;
+
+    // Hide all hover rings
+    nodeSelection.selectAll('.hover-ring').attr('opacity', 0);
+
+    // Reset all edges to default
+    linkSelection
+      .attr('stroke-opacity', (d: any) => 0.08 + d.weight * 0.35)
+      .attr('stroke', DEFAULT_EDGE_COLOR);
+
+    // Reset all nodes to full opacity
+    nodeSelection.attr('opacity', 1);
+
+    highlightedNodeId = null;
+  };
+
+  const highlightNode = (nodeId: string) => {
+    // Always clear previous highlight first (handles fast mouse movement)
+    clearHighlight();
+
+    highlightedNodeId = nodeId;
+    const connectedIds = getConnectedIds(nodeId);
+
+    // Show hover ring on the highlighted node
+    nodeSelection.each(function(d) {
+      if (d.id === nodeId) {
+        d3.select(this).select('.hover-ring').attr('opacity', 1);
+        d3.select(this).raise();
+      }
+    });
+
+    // Highlight connected edges, dim others
+    linkSelection
+      .attr('stroke-opacity', (l: any) => {
+        const sid = typeof l.source === 'object' ? l.source.id : l.source;
+        const tid = typeof l.target === 'object' ? l.target.id : l.target;
+        return (sid === nodeId || tid === nodeId) ? 0.85 : 0.015;
+      })
+      .attr('stroke', (l: any) => {
+        const sid = typeof l.source === 'object' ? l.source.id : l.source;
+        const tid = typeof l.target === 'object' ? l.target.id : l.target;
+        return (sid === nodeId || tid === nodeId) ? HIGHLIGHT_EDGE_COLOR : 'rgba(99, 112, 242, 0.1)';
+      });
+
+    // Dim unconnected nodes
+    nodeSelection.attr('opacity', (n) => connectedIds.has(n.id) ? 1 : 0.15);
+  };
+
+  const isHighlighted = () => highlightedNodeId !== null;
+
+  return { highlightNode, clearHighlight, isHighlighted };
+}
+
+/**
+ * Set up hover interactions for nodes using the highlight controller.
+ * Returns the controller so it can be used for additional cleanup (e.g., SVG mouseleave).
  */
 export function setupNodeHoverInteractions(
   nodeSelection: d3.Selection<SVGGElement, GraphNode, SVGGElement, unknown>,
   linkSelection: d3.Selection<SVGLineElement, any, SVGGElement, unknown>,
   getConnectedIds: (nodeId: string) => Set<string>
-): void {
+): HighlightController {
+  const controller = createHighlightController(nodeSelection, linkSelection, getConnectedIds);
+
   nodeSelection
     .on('mouseenter', function(_event, d) {
-      d3.select(this).select('.hover-ring').attr('opacity', 1);
-      d3.select(this).raise();
-
-      const connectedIds = getConnectedIds(d.id);
-
-      // Highlight connected edges
-      linkSelection
-        .attr('stroke-opacity', (l: any) => {
-          const sid = typeof l.source === 'object' ? l.source.id : l.source;
-          const tid = typeof l.target === 'object' ? l.target.id : l.target;
-          return (sid === d.id || tid === d.id) ? 0.85 : 0.015;
-        })
-        .attr('stroke', (l: any) => {
-          const sid = typeof l.source === 'object' ? l.source.id : l.source;
-          const tid = typeof l.target === 'object' ? l.target.id : l.target;
-          return (sid === d.id || tid === d.id) ? HIGHLIGHT_EDGE_COLOR : 'rgba(99, 112, 242, 0.1)';
-        });
-
-      // Dim unconnected nodes
-      nodeSelection.attr('opacity', (n) => connectedIds.has(n.id) ? 1 : 0.15);
+      controller.highlightNode(d.id);
     })
     .on('mouseleave', function() {
-      d3.select(this).select('.hover-ring').attr('opacity', 0);
-
-      // Reset edges
-      linkSelection
-        .attr('stroke-opacity', (d: any) => 0.08 + d.weight * 0.35)
-        .attr('stroke', DEFAULT_EDGE_COLOR);
-
-      // Reset nodes
-      nodeSelection.attr('opacity', 1);
+      controller.clearHighlight();
     });
+
+  return controller;
 }

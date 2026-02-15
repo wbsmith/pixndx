@@ -19,6 +19,7 @@ import {
   createNodeElements,
   setupNodeHoverInteractions,
   updateNodeColors,
+  type HighlightController,
 } from '../shared/nodeStyles';
 import { DEFAULT_EDGE_COLOR } from '../shared/colors';
 
@@ -57,6 +58,7 @@ export function D3SVGRenderer({
   const containerRef = useRef<SVGGElement | null>(null);
   const nodeSelectionRef = useRef<d3.Selection<SVGGElement, GraphNode, SVGGElement, unknown> | null>(null);
   const linkSelectionRef = useRef<d3.Selection<SVGLineElement, GraphLink, SVGGElement, unknown> | null>(null);
+  const highlightControllerRef = useRef<HighlightController | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   const nodeRadius = calculateNodeRadius(nodes.length);
@@ -129,13 +131,24 @@ export function D3SVGRenderer({
 
     nodeSelectionRef.current = nodeSelection;
 
-    // Setup interactions
-    setupNodeHoverInteractions(nodeSelection, linkSelection, getConnectedIds);
+    // Setup interactions - store the controller for cleanup handlers
+    const highlightController = setupNodeHoverInteractions(nodeSelection, linkSelection, getConnectedIds);
+    highlightControllerRef.current = highlightController;
 
-    // Click handler
+    // Click handler on nodes
     nodeSelection.on('click', (event, d) => {
       event.stopPropagation();
       onNodeClick(d.image);
+    });
+
+    // Fallback: clear highlight when clicking on empty canvas space
+    svg.on('click', () => {
+      highlightController.clearHighlight();
+    });
+
+    // Fallback: clear highlight when cursor leaves the SVG entirely
+    svg.on('mouseleave', () => {
+      highlightController.clearHighlight();
     });
 
     // Drag behavior
