@@ -78,6 +78,7 @@ export HF_HOME="$MOUNT_POINT/huggingface"
 export OLLAMA_URL="http://localhost:11434"
 export OLLAMA_MODEL="gemma3:27b-it-qat"
 export EFS_MOUNT="$MOUNT_POINT"
+export ASG_NAME="picgraf-gpu-processors"
 
 # Discover notifyManifest Lambda function for manifest notifications
 # (GPU can't reach AppSync directly due to VPC endpoint routing, so we invoke a Lambda)
