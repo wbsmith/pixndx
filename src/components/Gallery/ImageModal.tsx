@@ -43,9 +43,14 @@ export function ImageModal() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mouseNearEdge, setMouseNearEdge] = useState<'left' | 'right' | null>(null);
 
-  // Auto-hide overlays in fullscreen after inactivity
+  // Auto-hide overlays in fullscreen (edge-triggered)
   const [showOverlays, setShowOverlays] = useState(true);
+  const [mouseInTopZone, setMouseInTopZone] = useState(false);
   const hideOverlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Bottom hint toast - shows once then fades
+  const [showBottomHint, setShowBottomHint] = useState(true);
+  const bottomHintTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Track which image the current urlReady belongs to
   const [urlState, setUrlState] = useState<{ imageId: string; url: string } | null>(null);
@@ -159,44 +164,63 @@ export function ImageModal() {
     }
   }, [modalOpen]);
 
-  // Auto-hide overlays in fullscreen mode after 3s of inactivity
-  const resetOverlayTimer = useCallback(() => {
-    if (!isFullscreen) return;
+  // Edge-triggered overlay visibility for fullscreen mode
+  // Shows controls when mouse is near top edge, hides after leaving
+  const TOP_ZONE_HEIGHT = 80; // pixels from top that trigger controls
+  const HIDE_DELAY = 1500; // ms after leaving top zone before hiding
 
-    // Show overlays immediately on activity
-    setShowOverlays(true);
-
-    // Clear existing timer
+  // Start timer to hide overlays after leaving top zone
+  const startHideTimer = useCallback(() => {
     if (hideOverlayTimerRef.current) {
       clearTimeout(hideOverlayTimerRef.current);
     }
-
-    // Set new timer to hide after 2s
     hideOverlayTimerRef.current = setTimeout(() => {
       setShowOverlays(false);
-    }, 2000);
-  }, [isFullscreen]);
+    }, HIDE_DELAY);
+  }, []);
 
-  // Reset timer on fullscreen change
+  // Cancel hide timer (when entering top zone)
+  const cancelHideTimer = useCallback(() => {
+    if (hideOverlayTimerRef.current) {
+      clearTimeout(hideOverlayTimerRef.current);
+      hideOverlayTimerRef.current = null;
+    }
+  }, []);
+
+  // Handle mouse position for top-edge detection (fullscreen only)
+  const handleOverlayTrigger = useCallback((clientY: number) => {
+    if (!isFullscreen) return;
+
+    const inTopZone = clientY < TOP_ZONE_HEIGHT;
+
+    if (inTopZone && !mouseInTopZone) {
+      // Entered top zone - show controls immediately
+      setMouseInTopZone(true);
+      setShowOverlays(true);
+      cancelHideTimer();
+    } else if (!inTopZone && mouseInTopZone) {
+      // Left top zone - start hide timer
+      setMouseInTopZone(false);
+      startHideTimer();
+    }
+  }, [isFullscreen, mouseInTopZone, cancelHideTimer, startHideTimer]);
+
+  // Reset state on fullscreen change
   useEffect(() => {
     if (isFullscreen) {
+      // Show overlays briefly when entering fullscreen, then start hide timer
       setShowOverlays(true);
-      resetOverlayTimer();
+      setMouseInTopZone(false);
+      startHideTimer();
     } else {
       // Always show overlays when not in fullscreen
       setShowOverlays(true);
-      if (hideOverlayTimerRef.current) {
-        clearTimeout(hideOverlayTimerRef.current);
-        hideOverlayTimerRef.current = null;
-      }
+      setMouseInTopZone(false);
+      cancelHideTimer();
     }
 
-    return () => {
-      if (hideOverlayTimerRef.current) {
-        clearTimeout(hideOverlayTimerRef.current);
-      }
-    };
-  }, [isFullscreen, resetOverlayTimer]);
+    return () => cancelHideTimer();
+  }, [isFullscreen, startHideTimer, cancelHideTimer]);
   
   // Reset zoom when exiting fullscreen
   useEffect(() => {
@@ -205,16 +229,48 @@ export function ImageModal() {
       setPosition({ x: 0, y: 0 });
     }
   }, [isFullscreen]);
+
+  // Bottom hint toast - show once then fade after 2 seconds
+  const HINT_DISPLAY_TIME = 2000;
+
+  useEffect(() => {
+    // Show hint when image changes or modal opens
+    setShowBottomHint(true);
+
+    // Clear any existing timer
+    if (bottomHintTimerRef.current) {
+      clearTimeout(bottomHintTimerRef.current);
+    }
+
+    // Start fade timer
+    bottomHintTimerRef.current = setTimeout(() => {
+      setShowBottomHint(false);
+    }, HINT_DISPLAY_TIME);
+
+    return () => {
+      if (bottomHintTimerRef.current) {
+        clearTimeout(bottomHintTimerRef.current);
+      }
+    };
+  }, [selectedImage?.id, isFullscreen]);
   
-  // Handle mouse position for edge detection
+  // Handle mouse position for edge detection (nav buttons + top zone overlays)
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const container = imageContainerRef.current;
     if (!container) return;
+
+    // Top zone detection for fullscreen overlay visibility
+    handleOverlayTrigger(e.clientY);
 
     const rect = container.getBoundingClientRect();
     const x = e.clientX - rect.left;
 
     if (isDragging) {
+      // Hide overlays during active panning
+      if (isFullscreen && showOverlays) {
+        setShowOverlays(false);
+        cancelHideTimer();
+      }
       setPosition({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
@@ -222,7 +278,7 @@ export function ImageModal() {
       return;
     }
 
-    // Detect if mouse is near left or right edge
+    // Detect if mouse is near left or right edge (for nav buttons)
     const edgeThreshold = 80;
 
     if (x < edgeThreshold) {
@@ -232,7 +288,7 @@ export function ImageModal() {
     } else {
       setMouseNearEdge(null);
     }
-  }, [isDragging, dragStart]);
+  }, [isDragging, dragStart, isFullscreen, showOverlays, handleOverlayTrigger, cancelHideTimer]);
   
   // Handle wheel zoom - using native event for passive: false support
   // Zooms towards cursor position
@@ -243,9 +299,10 @@ export function ImageModal() {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
 
-      // Show overlays on scroll (zoom) in fullscreen
-      if (isFullscreen) {
-        resetOverlayTimer();
+      // Hide overlays during zoom in fullscreen
+      if (isFullscreen && showOverlays) {
+        setShowOverlays(false);
+        cancelHideTimer();
       }
 
       const rect = container.getBoundingClientRect();
@@ -284,13 +341,14 @@ export function ImageModal() {
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [modalOpen, maxZoom, position, isFullscreen, resetOverlayTimer]);
+  }, [modalOpen, maxZoom, position, isFullscreen, showOverlays, cancelHideTimer]);
   
   // Handle double-click to toggle zoom - zooms towards cursor
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    // Show overlays on double-click (zoom) in fullscreen
-    if (isFullscreen) {
-      resetOverlayTimer();
+    // Hide overlays during zoom action in fullscreen
+    if (isFullscreen && showOverlays) {
+      setShowOverlays(false);
+      cancelHideTimer();
     }
 
     const container = imageContainerRef.current;
@@ -317,19 +375,15 @@ export function ImageModal() {
       setScale(1);
       setPosition({ x: 0, y: 0 });
     }
-  }, [scale, maxZoom, isFullscreen, resetOverlayTimer]);
+  }, [scale, maxZoom, isFullscreen, showOverlays, cancelHideTimer]);
   
-  // Handle drag
+  // Handle drag start
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Show overlays on click/drag in fullscreen
-    if (isFullscreen) {
-      resetOverlayTimer();
-    }
     if (scale <= 1) return;
     e.preventDefault();
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-  }, [scale, position, isFullscreen, resetOverlayTimer]);
+  }, [scale, position]);
   
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -359,21 +413,34 @@ export function ImageModal() {
       } else if (e.key === 'f' || e.key === 'F') {
         setIsFullscreen(prev => !prev);
       } else if (e.key === '+' || e.key === '=') {
-        if (isFullscreen) resetOverlayTimer();
+        // Hide overlays during zoom in fullscreen
+        if (isFullscreen && showOverlays) {
+          setShowOverlays(false);
+          cancelHideTimer();
+        }
         setScale(prev => Math.min(prev * 1.5, max));
       } else if (e.key === '-') {
-        if (isFullscreen) resetOverlayTimer();
+        if (isFullscreen && showOverlays) {
+          setShowOverlays(false);
+          cancelHideTimer();
+        }
         setScale(prev => {
           const newScale = Math.max(prev / 1.5, 1);
           if (newScale === 1) setPosition({ x: 0, y: 0 });
           return newScale;
         });
       } else if (e.key === '0') {
-        if (isFullscreen) resetOverlayTimer();
+        if (isFullscreen && showOverlays) {
+          setShowOverlays(false);
+          cancelHideTimer();
+        }
         setScale(1);
         setPosition({ x: 0, y: 0 });
       } else if (e.key === '1') {
-        if (isFullscreen) resetOverlayTimer();
+        if (isFullscreen && showOverlays) {
+          setShowOverlays(false);
+          cancelHideTimer();
+        }
         // 1:1 zoom
         setScale(max);
       }
@@ -381,7 +448,7 @@ export function ImageModal() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [modalOpen, selectedImage, filteredImages, closeModal, setSelectedImage, isFullscreen, scale, maxZoom, resetOverlayTimer]);
+  }, [modalOpen, selectedImage, filteredImages, closeModal, setSelectedImage, isFullscreen, scale, maxZoom, showOverlays, cancelHideTimer]);
   
   if (!selectedImage) return null;
   
@@ -568,9 +635,9 @@ export function ImageModal() {
                 </div>
                 
                 {/* Navigation buttons - positioned inside image area, show on hover near edges */}
-                {/* Hidden in fullscreen when overlays are hidden */}
+                {/* Independent edge detection - always available when mouse is at left/right edges */}
                 <AnimatePresence>
-                  {hasPrev && mouseNearEdge === 'left' && (!isFullscreen || showOverlays) && (
+                  {hasPrev && mouseNearEdge === 'left' && (
                     <motion.button
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -584,7 +651,7 @@ export function ImageModal() {
                 </AnimatePresence>
 
                 <AnimatePresence>
-                  {hasNext && mouseNearEdge === 'right' && (!isFullscreen || showOverlays) && (
+                  {hasNext && mouseNearEdge === 'right' && (
                     <motion.button
                       initial={{ opacity: 0, x: 10 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -597,17 +664,33 @@ export function ImageModal() {
                   )}
                 </AnimatePresence>
                 
-                {/* Zoom hint at bottom - auto-hides in fullscreen after inactivity */}
-                {scale === 1 && (!isFullscreen || showOverlays) && (
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full pointer-events-none">
-                    Scroll to zoom • Double-click for 2× • Press 1 for 1:1
-                  </div>
-                )}
-                {scale > 1 && (!isFullscreen || showOverlays) && (
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full pointer-events-none">
-                    Drag to pan • Double-click or 0 to reset
-                  </div>
-                )}
+                {/* Zoom hint at bottom - toast style, shows once then fades */}
+                <AnimatePresence>
+                  {showBottomHint && scale === 1 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      transition={{ duration: 0.3 }}
+                      className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full pointer-events-none"
+                    >
+                      Scroll to zoom • Double-click for 2× • Press 1 for 1:1
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <AnimatePresence>
+                  {showBottomHint && scale > 1 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      transition={{ duration: 0.3 }}
+                      className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full pointer-events-none"
+                    >
+                      Drag to pan • Double-click or 0 to reset
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               
               {/* Info panel - hide in fullscreen */}
