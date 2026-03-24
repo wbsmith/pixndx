@@ -289,72 +289,122 @@ const formFields = {
 
 const screenshots = [
   { src: '/screenshots/screenshot-grid.jpg', caption: 'Browse your collection in a rich grid view' },
-  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'Zoom out with automatic level-of-detail clustering' },
+  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'See the big picture with level-of-detail clustering' },
   { src: '/screenshots/screenshot-graph-force.jpg', caption: 'Explore visual similarity with force-directed graphs' },
   { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'Zoom in to discover visual connections' },
 ];
 
+// 3D cube rotation angles for each face (4-sided cube rotating on Y axis)
+const faceRotations = [0, -90, -180, -270];
+
 function ScreenshotCarousel() {
   const [current, setCurrent] = useState(0);
-  const [direction, setDirection] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [cubeSize, setCubeSize] = useState({ w: 600, h: 400 });
+
+  // Measure container to size the cube
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      const h = Math.round(w / 1.5); // 3:2 aspect
+      setCubeSize({ w, h });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const go = useCallback((dir: 1 | -1) => {
-    setDirection(dir);
     setCurrent((prev) => (prev + dir + screenshots.length) % screenshots.length);
   }, []);
 
-  // Auto-advance every 5s
+  // Auto-advance every 5s, reset timer on manual nav
   useEffect(() => {
     const timer = setInterval(() => go(1), 5000);
     return () => clearInterval(timer);
-  }, [go]);
+  }, [go, current]);
+
+  // Half-width is the translateZ for cube faces
+  const tz = cubeSize.w / 2;
 
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-2xl">
-      {/* Image area */}
-      <div className="relative w-full aspect-[3/2] rounded-xl overflow-hidden border border-nebula-700/50 bg-cosmos-deep">
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.img
-            key={current}
-            src={screenshots[current].src}
-            alt={screenshots[current].caption}
-            custom={direction}
-            initial={{ opacity: 0, x: direction > 0 ? 60 : -60 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: direction > 0 ? -60 : 60 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        </AnimatePresence>
+      {/* 3D scene container */}
+      <div
+        ref={containerRef}
+        className="relative w-full"
+        style={{ height: cubeSize.h, perspective: cubeSize.w * 2 }}
+      >
+        {/* Cube */}
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            transformStyle: 'preserve-3d',
+            transformOrigin: `${cubeSize.w / 2}px ${cubeSize.h / 2}px`,
+          }}
+          animate={{ rotateY: faceRotations[current] }}
+          transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
+        >
+          {screenshots.map((shot, i) => (
+            <div
+              key={i}
+              className="absolute inset-0 rounded-xl overflow-hidden border border-nebula-700/30 backface-hidden"
+              style={{
+                backfaceVisibility: 'hidden',
+                transform: `rotateY(${i * 90}deg) translateZ(${tz}px)`,
+              }}
+            >
+              <img
+                src={shot.src}
+                alt={shot.caption}
+                className="w-full h-full object-cover"
+              />
+              {/* Subtle gradient overlay on non-active faces for depth */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+            </div>
+          ))}
+        </motion.div>
 
         {/* Nav arrows */}
         <button
           onClick={() => go(-1)}
-          className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
         >
-          <ChevronLeft size={20} />
+          <ChevronLeft size={22} />
         </button>
         <button
           onClick={() => go(1)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
         >
-          <ChevronRight size={20} />
+          <ChevronRight size={22} />
         </button>
       </div>
 
       {/* Caption */}
-      <p className="text-sm text-nebula-300 text-center min-h-[1.5rem]">
-        {screenshots[current].caption}
-      </p>
+      <AnimatePresence mode="wait">
+        <motion.p
+          key={current}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.25 }}
+          className="text-sm text-nebula-300 text-center min-h-[1.5rem]"
+        >
+          {screenshots[current].caption}
+        </motion.p>
+      </AnimatePresence>
 
       {/* Dots */}
       <div className="flex gap-2">
         {screenshots.map((_, i) => (
           <button
             key={i}
-            onClick={() => { setDirection(i > current ? 1 : -1); setCurrent(i); }}
-            className={`w-2 h-2 rounded-full transition-colors ${
-              i === current ? 'bg-stellar-cyan' : 'bg-nebula-600 hover:bg-nebula-400'
+            onClick={() => setCurrent(i)}
+            className={`h-2 rounded-full transition-all duration-300 ${
+              i === current
+                ? 'bg-stellar-cyan w-6'
+                : 'bg-nebula-600 hover:bg-nebula-400 w-2'
             }`}
           />
         ))}
@@ -373,17 +423,17 @@ interface AuthWrapperProps {
 
 export function AuthWrapper({ children }: AuthWrapperProps) {
   return (
-    <div className="min-h-screen bg-gradient-cosmos flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-gradient-cosmos flex flex-col items-center overflow-y-auto">
       {/* Background effects */}
       <div className="fixed inset-0 bg-gradient-to-br from-stellar-cyan/5 via-transparent to-stellar-violet/5 pointer-events-none" />
 
-      {/* Left: Screenshot carousel */}
-      <div className="relative z-10 flex-1 flex items-center justify-center p-6 lg:p-12">
+      {/* Screenshot carousel */}
+      <div className="relative z-10 w-full max-w-3xl px-6 pt-8 pb-4">
         <ScreenshotCarousel />
       </div>
 
-      {/* Right: Auth form */}
-      <div className="relative z-10 lg:w-[480px] flex items-center justify-center p-4 lg:p-8 lg:border-l lg:border-nebula-800/50">
+      {/* Auth form */}
+      <div className="relative z-10 w-full max-w-md px-4 pb-8">
         <ThemeProvider theme={theme}>
           <Authenticator
             formFields={formFields}
