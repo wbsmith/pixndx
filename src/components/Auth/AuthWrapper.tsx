@@ -5,7 +5,7 @@ import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import { motion } from 'framer-motion';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME, APP_TAGLINE } from '../../config';
-import { Lock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Lock, ChevronLeft, ChevronRight, Info, ShieldCheck, Server, Eye, Cookie, X } from 'lucide-react';
 import { startSessionRefresh, stopSessionRefresh, refreshImageCookies, clearImageCookies } from '@/lib/amplify';
 
 // =============================================================================
@@ -391,6 +391,80 @@ function ScreenshotCarousel() {
 }
 
 // =============================================================================
+// ABOUT MODAL
+// =============================================================================
+
+function AboutModal({ onClose }: { onClose: () => void }) {
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.2 }}
+          className="pointer-events-auto w-full max-w-lg bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50 p-6"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xl font-display font-bold text-white">About {APP_NAME}</h2>
+            <button onClick={onClose} className="p-1 hover:bg-nebula-800/50 rounded-lg transition-colors">
+              <X size={20} className="text-nebula-400" />
+            </button>
+          </div>
+
+          <div className="space-y-4 text-sm text-nebula-300">
+            <p>
+              {APP_NAME} is a privacy-focused semantic photo gallery that uses AI to understand
+              and organize your images — without ever sending them to public AI services.
+            </p>
+
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <ShieldCheck size={18} className="text-stellar-cyan shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-white font-medium">Private AI Processing</p>
+                  <p>All image analysis runs on dedicated infrastructure. Your photos never
+                  leave your private environment or touch third-party AI APIs.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Eye size={18} className="text-stellar-cyan shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-white font-medium">Authenticated Access Only</p>
+                  <p>Every image is protected behind authentication. Only signed-in users
+                  with valid session credentials can view the gallery.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Cookie size={18} className="text-stellar-cyan shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-white font-medium">Signed Session Cookies</p>
+                  <p>Images are served through a CDN using cryptographically signed cookies
+                  that expire automatically. No permanent tokens or public URLs.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Server size={18} className="text-stellar-cyan shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-white font-medium">Semantic Understanding</p>
+                  <p>Search by description, mood, or visual similarity. AI-generated
+                  embeddings let you explore your collection in ways traditional galleries can't.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
+// =============================================================================
 // AUTH WRAPPER
 // =============================================================================
 
@@ -399,19 +473,28 @@ interface AuthWrapperProps {
 }
 
 export function AuthWrapper({ children }: AuthWrapperProps) {
+  const [showAbout, setShowAbout] = useState(false);
+
   return (
     <div className="h-screen bg-gradient-cosmos flex flex-col overflow-hidden">
       {/* Background effects */}
       <div className="fixed inset-0 bg-gradient-to-br from-stellar-cyan/5 via-transparent to-stellar-violet/5 pointer-events-none" />
 
       {/* Header */}
-      <header className="relative z-20 text-center py-4 shrink-0">
-        <h1 className="text-2xl font-display font-bold text-white">
+      <header className="relative z-20 flex items-center justify-center gap-3 py-4 shrink-0">
+        <h1 className="text-xl font-display font-bold text-white">
           {APP_NAME}
-          <span className="text-nebula-400 font-normal text-base ml-3">
-            {APP_TAGLINE}
+          <span className="text-nebula-400 font-normal text-sm ml-2">
+            a privacy-focused semantic photo gallery
           </span>
         </h1>
+        <button
+          onClick={() => setShowAbout(true)}
+          className="p-1.5 rounded-full hover:bg-nebula-800/50 text-nebula-400 hover:text-stellar-cyan transition-colors"
+          title="About"
+        >
+          <Info size={16} />
+        </button>
       </header>
 
       {/* Main area: carousel with overlaid auth */}
@@ -441,6 +524,9 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
           </div>
         </div>
       </div>
+
+      {/* About modal */}
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
     </div>
   );
 }
