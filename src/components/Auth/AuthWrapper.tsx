@@ -267,8 +267,8 @@ const formFields = {
 const screenshots = [
   { src: '/screenshots/screenshot-grid.jpg', caption: 'Browse your collection in a rich grid view' },
   { src: '/screenshots/screenshot-graph-force.jpg', caption: 'Explore visual similarity with force-directed graphs' },
-  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'Zoom in to discover visual connections' },
-  { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'See the big picture with level-of-detail clustering' },
+  { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'Zoom in to discover visual connections' },
+  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'See the big picture with level-of-detail clustering' },
 ];
 
 // 3s visible + 1s fade out + 1s fade in = 5s per cycle
