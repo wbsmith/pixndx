@@ -286,40 +286,43 @@ function ScreenshotSlideshow() {
   }, []);
 
   return (
-    <div className="relative w-full h-full rounded-xl overflow-hidden">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={current}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: FADE_S, ease: 'easeInOut' }}
-          className="absolute inset-0"
-        >
-          <img
-            src={screenshots[current].src}
-            alt={screenshots[current].caption}
-            className="w-full h-full object-cover"
-          />
-          {/* Caption overlaid at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-6 py-4">
-            <p className="text-sm text-white/90">{screenshots[current].caption}</p>
-          </div>
-        </motion.div>
-      </AnimatePresence>
+    <div className="relative w-full h-full flex flex-col items-center justify-center">
+      {/* Image container — 2/3 of viewport width, preserves aspect ratio */}
+      <div className="relative w-2/3 max-h-full" style={{ aspectRatio: '3 / 2' }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={current}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: FADE_S, ease: 'easeInOut' }}
+            className="absolute inset-0 rounded-xl overflow-hidden border border-nebula-700/30"
+          >
+            <img
+              src={screenshots[current].src}
+              alt={screenshots[current].caption}
+              className="w-full h-full object-contain bg-cosmos-deep"
+            />
+            {/* Caption overlaid at bottom */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-6 py-4">
+              <p className="text-sm text-white/90 text-center">{screenshots[current].caption}</p>
+            </div>
+          </motion.div>
+        </AnimatePresence>
 
-      {/* Dot indicators */}
-      <div className="absolute bottom-4 right-4 flex gap-1.5 z-10">
-        {screenshots.map((_, i) => (
-          <div
-            key={i}
-            className={`h-1.5 rounded-full transition-all duration-500 ${
-              i === current
-                ? 'bg-stellar-cyan w-5'
-                : 'bg-white/40 w-1.5'
-            }`}
-          />
-        ))}
+        {/* Dot indicators */}
+        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+          {screenshots.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                i === current
+                  ? 'bg-stellar-cyan w-5'
+                  : 'bg-nebula-600 w-1.5'
+              }`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -416,15 +419,16 @@ function AuthModal({ initialState, onClose, onAuth, children }: {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
-          className="pointer-events-auto w-full max-w-md bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50"
+          className="pointer-events-auto w-full max-w-md bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50 overflow-hidden"
         >
           {/* Close button */}
-          <div className="flex justify-end p-3 pb-0">
+          <div className="flex justify-end px-4 pt-3 pb-0">
             <button onClick={onClose} className="p-1 hover:bg-nebula-800/50 rounded-lg transition-colors">
               <X size={18} className="text-nebula-400" />
             </button>
           </div>
 
+          <div className="px-2">
           <ThemeProvider theme={theme}>
             <Authenticator
               formFields={formFields}
@@ -440,6 +444,7 @@ function AuthModal({ initialState, onClose, onAuth, children }: {
               }}
             </Authenticator>
           </ThemeProvider>
+          </div>
         </motion.div>
       </div>
     </>,
@@ -518,7 +523,7 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
       </header>
 
       {/* Slideshow fills remaining space */}
-      <div className="relative z-10 flex-1 mx-8 mb-6 min-h-0">
+      <div className="relative z-10 flex-1 min-h-0 pb-8">
         <ScreenshotSlideshow />
       </div>
 
