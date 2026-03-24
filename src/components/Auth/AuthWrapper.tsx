@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback, createContext, useContext, useRef } f
 import { createPortal } from 'react-dom';
 import { Authenticator, ThemeProvider, Theme } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME, APP_TAGLINE } from '../../config';
-import { ImageIcon, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { startSessionRefresh, stopSessionRefresh, refreshImageCookies, clearImageCookies } from '@/lib/amplify';
 
 // =============================================================================
@@ -45,11 +45,10 @@ const theme: Theme = {
     components: {
       authenticator: {
         router: {
-          backgroundColor: { value: 'rgba(26, 26, 46, 0.95)' },
-          borderColor: { value: 'rgba(99, 102, 241, 0.2)' },
-          borderWidth: { value: '1px' },
-          borderStyle: { value: 'solid' },
-          boxShadow: { value: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' },
+          backgroundColor: { value: 'transparent' },
+          borderColor: { value: 'transparent' },
+          borderWidth: { value: '0' },
+          boxShadow: { value: 'none' },
         },
       },
       button: {
@@ -105,34 +104,11 @@ const theme: Theme = {
 
 const components = {
   Header() {
-    return (
-      <div className="text-center py-8 px-4">
-        {/* Logo */}
-        <div className="relative inline-block mb-4">
-          <ImageIcon className="text-stellar-cyan" size={48} />
-          <div className="absolute inset-0 text-stellar-cyan blur-xl opacity-40">
-            <ImageIcon size={48} />
-          </div>
-        </div>
-        
-        <h1 className="text-3xl font-display font-bold text-white mb-2">
-          {APP_NAME}
-        </h1>
-        <p className="text-nebula-400 text-sm">
-          {APP_TAGLINE}
-        </p>
-      </div>
-    );
+    return null;
   },
-  
+
   Footer() {
-    return (
-      <div className="text-center py-4 px-4">
-        <p className="text-xs text-nebula-500">
-          Private photo gallery • All rights reserved
-        </p>
-      </div>
-    );
+    return null;
   },
   
   SignUp: {
@@ -294,11 +270,10 @@ const screenshots = [
   { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'Zoom in to discover visual connections' },
 ];
 
-// 3D cube rotation angles for each face (4-sided cube rotating on Y axis)
-const faceRotations = [0, -90, -180, -270];
-
 function ScreenshotCarousel() {
-  const [current, setCurrent] = useState(0);
+  // Track cumulative rotation so we never snap back
+  const [rotation, setRotation] = useState(0);
+  const current = ((Math.round(-rotation / 90) % screenshots.length) + screenshots.length) % screenshots.length;
   const containerRef = useRef<HTMLDivElement>(null);
   const [cubeSize, setCubeSize] = useState({ w: 600, h: 400 });
 
@@ -316,20 +291,20 @@ function ScreenshotCarousel() {
   }, []);
 
   const go = useCallback((dir: 1 | -1) => {
-    setCurrent((prev) => (prev + dir + screenshots.length) % screenshots.length);
+    setRotation((prev) => prev + dir * -90);
   }, []);
 
   // Auto-advance every 5s, reset timer on manual nav
   useEffect(() => {
     const timer = setInterval(() => go(1), 5000);
     return () => clearInterval(timer);
-  }, [go, current]);
+  }, [go, rotation]);
 
   // Half-width is the translateZ for cube faces
   const tz = cubeSize.w / 2;
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full max-w-2xl">
+    <div className="flex flex-col items-center gap-3 w-full">
       {/* 3D scene container */}
       <div
         ref={containerRef}
@@ -343,13 +318,13 @@ function ScreenshotCarousel() {
             transformStyle: 'preserve-3d',
             transformOrigin: `${cubeSize.w / 2}px ${cubeSize.h / 2}px`,
           }}
-          animate={{ rotateY: faceRotations[current] }}
+          animate={{ rotateY: rotation }}
           transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
         >
           {screenshots.map((shot, i) => (
             <div
               key={i}
-              className="absolute inset-0 rounded-xl overflow-hidden border border-nebula-700/30 backface-hidden"
+              className="absolute inset-0 rounded-xl overflow-hidden border border-nebula-700/30"
               style={{
                 backfaceVisibility: 'hidden',
                 transform: `rotateY(${i * 90}deg) translateZ(${tz}px)`,
@@ -360,7 +335,6 @@ function ScreenshotCarousel() {
                 alt={shot.caption}
                 className="w-full h-full object-cover"
               />
-              {/* Subtle gradient overlay on non-active faces for depth */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
             </div>
           ))}
@@ -381,33 +355,36 @@ function ScreenshotCarousel() {
         </button>
       </div>
 
-      {/* Caption */}
-      <AnimatePresence mode="wait">
+      {/* Caption + dots row */}
+      <div className="flex items-center justify-center gap-4">
+        <div className="flex gap-2">
+          {screenshots.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                // Find shortest rotation to target
+                const diff = i - current;
+                const steps = ((diff % screenshots.length) + screenshots.length) % screenshots.length;
+                const shortest = steps <= 2 ? steps : steps - screenshots.length;
+                setRotation((prev) => prev + shortest * -90);
+              }}
+              className={`h-2 rounded-full transition-all duration-300 ${
+                i === current
+                  ? 'bg-stellar-cyan w-6'
+                  : 'bg-nebula-600 hover:bg-nebula-400 w-2'
+              }`}
+            />
+          ))}
+        </div>
         <motion.p
           key={current}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.25 }}
-          className="text-sm text-nebula-300 text-center min-h-[1.5rem]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="text-sm text-nebula-300"
         >
           {screenshots[current].caption}
         </motion.p>
-      </AnimatePresence>
-
-      {/* Dots */}
-      <div className="flex gap-2">
-        {screenshots.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrent(i)}
-            className={`h-2 rounded-full transition-all duration-300 ${
-              i === current
-                ? 'bg-stellar-cyan w-6'
-                : 'bg-nebula-600 hover:bg-nebula-400 w-2'
-            }`}
-          />
-        ))}
       </div>
     </div>
   );
@@ -423,31 +400,46 @@ interface AuthWrapperProps {
 
 export function AuthWrapper({ children }: AuthWrapperProps) {
   return (
-    <div className="min-h-screen bg-gradient-cosmos flex flex-col items-center overflow-y-auto">
+    <div className="h-screen bg-gradient-cosmos flex flex-col overflow-hidden">
       {/* Background effects */}
       <div className="fixed inset-0 bg-gradient-to-br from-stellar-cyan/5 via-transparent to-stellar-violet/5 pointer-events-none" />
 
-      {/* Screenshot carousel */}
-      <div className="relative z-10 w-full max-w-3xl px-6 pt-8 pb-4">
-        <ScreenshotCarousel />
-      </div>
+      {/* Header */}
+      <header className="relative z-20 text-center py-4 shrink-0">
+        <h1 className="text-2xl font-display font-bold text-white">
+          {APP_NAME}
+          <span className="text-nebula-400 font-normal text-base ml-3">
+            {APP_TAGLINE}
+          </span>
+        </h1>
+      </header>
 
-      {/* Auth form */}
-      <div className="relative z-10 w-full max-w-md px-4 pb-8">
-        <ThemeProvider theme={theme}>
-          <Authenticator
-            formFields={formFields}
-            components={components}
-            loginMechanisms={['email']}
-            signUpAttributes={[]}
-          >
-            {({ signOut, user }) => (
-              <AuthenticatedApp signOut={signOut} user={user}>
-                {children}
-              </AuthenticatedApp>
-            )}
-          </Authenticator>
-        </ThemeProvider>
+      {/* Main area: carousel with overlaid auth */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-8 pb-6 min-h-0">
+        {/* Carousel fills this area */}
+        <div className="w-full max-w-4xl">
+          <ScreenshotCarousel />
+        </div>
+
+        {/* Auth form overlaid on carousel */}
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+          <div className="pointer-events-auto backdrop-blur-md bg-cosmos-deep/70 rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50">
+            <ThemeProvider theme={theme}>
+              <Authenticator
+                formFields={formFields}
+                components={components}
+                loginMechanisms={['email']}
+                signUpAttributes={[]}
+              >
+                {({ signOut, user }) => (
+                  <AuthenticatedApp signOut={signOut} user={user}>
+                    {children}
+                  </AuthenticatedApp>
+                )}
+              </Authenticator>
+            </ThemeProvider>
+          </div>
+        </div>
       </div>
     </div>
   );
