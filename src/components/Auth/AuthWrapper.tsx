@@ -1,10 +1,11 @@
-import { useEffect, useState, createContext, useContext, useRef } from 'react';
+import { useEffect, useState, useCallback, createContext, useContext, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Authenticator, ThemeProvider, Theme } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
+import { AnimatePresence, motion } from 'framer-motion';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME, APP_TAGLINE } from '../../config';
-import { ImageIcon, Lock } from 'lucide-react';
+import { ImageIcon, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { startSessionRefresh, stopSessionRefresh, refreshImageCookies, clearImageCookies } from '@/lib/amplify';
 
 // =============================================================================
@@ -283,6 +284,86 @@ const formFields = {
 };
 
 // =============================================================================
+// SCREENSHOT CAROUSEL
+// =============================================================================
+
+const screenshots = [
+  { src: '/screenshots/screenshot-grid.jpg', caption: 'Browse your collection in a rich grid view' },
+  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'Zoom out with automatic level-of-detail clustering' },
+  { src: '/screenshots/screenshot-graph-force.jpg', caption: 'Explore visual similarity with force-directed graphs' },
+  { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'Zoom in to discover visual connections' },
+];
+
+function ScreenshotCarousel() {
+  const [current, setCurrent] = useState(0);
+  const [direction, setDirection] = useState(1);
+
+  const go = useCallback((dir: 1 | -1) => {
+    setDirection(dir);
+    setCurrent((prev) => (prev + dir + screenshots.length) % screenshots.length);
+  }, []);
+
+  // Auto-advance every 5s
+  useEffect(() => {
+    const timer = setInterval(() => go(1), 5000);
+    return () => clearInterval(timer);
+  }, [go]);
+
+  return (
+    <div className="flex flex-col items-center gap-4 w-full max-w-2xl">
+      {/* Image area */}
+      <div className="relative w-full aspect-[3/2] rounded-xl overflow-hidden border border-nebula-700/50 bg-cosmos-deep">
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.img
+            key={current}
+            src={screenshots[current].src}
+            alt={screenshots[current].caption}
+            custom={direction}
+            initial={{ opacity: 0, x: direction > 0 ? 60 : -60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: direction > 0 ? -60 : 60 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </AnimatePresence>
+
+        {/* Nav arrows */}
+        <button
+          onClick={() => go(-1)}
+          className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <button
+          onClick={() => go(1)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white/80 hover:text-white transition-colors"
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+
+      {/* Caption */}
+      <p className="text-sm text-nebula-300 text-center min-h-[1.5rem]">
+        {screenshots[current].caption}
+      </p>
+
+      {/* Dots */}
+      <div className="flex gap-2">
+        {screenshots.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => { setDirection(i > current ? 1 : -1); setCurrent(i); }}
+            className={`w-2 h-2 rounded-full transition-colors ${
+              i === current ? 'bg-stellar-cyan' : 'bg-nebula-600 hover:bg-nebula-400'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // AUTH WRAPPER
 // =============================================================================
 
@@ -292,25 +373,32 @@ interface AuthWrapperProps {
 
 export function AuthWrapper({ children }: AuthWrapperProps) {
   return (
-    <div className="min-h-screen bg-gradient-cosmos flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-cosmos flex flex-col lg:flex-row">
       {/* Background effects */}
       <div className="fixed inset-0 bg-gradient-to-br from-stellar-cyan/5 via-transparent to-stellar-violet/5 pointer-events-none" />
-      
-      <ThemeProvider theme={theme}>
-        <Authenticator
-          formFields={formFields}
-          components={components}
-          loginMechanisms={['email']}
-          signUpAttributes={[]}  // Don't require extra attributes
-          variation="modal"
-        >
-          {({ signOut, user }) => (
-            <AuthenticatedApp signOut={signOut} user={user}>
-              {children}
-            </AuthenticatedApp>
-          )}
-        </Authenticator>
-      </ThemeProvider>
+
+      {/* Left: Screenshot carousel */}
+      <div className="relative z-10 flex-1 flex items-center justify-center p-6 lg:p-12">
+        <ScreenshotCarousel />
+      </div>
+
+      {/* Right: Auth form */}
+      <div className="relative z-10 lg:w-[480px] flex items-center justify-center p-4 lg:p-8 lg:border-l lg:border-nebula-800/50">
+        <ThemeProvider theme={theme}>
+          <Authenticator
+            formFields={formFields}
+            components={components}
+            loginMechanisms={['email']}
+            signUpAttributes={[]}
+          >
+            {({ signOut, user }) => (
+              <AuthenticatedApp signOut={signOut} user={user}>
+                {children}
+              </AuthenticatedApp>
+            )}
+          </Authenticator>
+        </ThemeProvider>
+      </div>
     </div>
   );
 }
