@@ -45,11 +45,11 @@ const theme: Theme = {
     components: {
       authenticator: {
         router: {
-          backgroundColor: { value: 'transparent' },
-          borderColor: { value: 'transparent' },
-          borderWidth: { value: '0' },
-          borderStyle: { value: 'none' },
-          boxShadow: { value: 'none' },
+          backgroundColor: { value: 'rgba(26, 26, 46, 0.95)' },
+          borderColor: { value: 'rgba(99, 102, 241, 0.2)' },
+          borderWidth: { value: '1px' },
+          borderStyle: { value: 'solid' },
+          boxShadow: { value: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' },
         },
       },
       button: {
@@ -78,10 +78,8 @@ const theme: Theme = {
         },
       },
       tabs: {
-        borderColor: { value: 'transparent' },
         item: {
           color: { value: '#a0aec0' },
-          borderColor: { value: 'transparent' },
           _hover: {
             color: { value: '#ffffff' },
           },
@@ -414,41 +412,36 @@ function AuthModal({ initialState, onClose, onAuth, children }: {
   children: React.ReactNode;
 }) {
   return createPortal(
-    <>
-      <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="pointer-events-auto w-full max-w-sm bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50 overflow-hidden"
-        >
-          {/* Close button */}
-          <div className="flex justify-end px-4 pt-3 pb-0">
-            <button onClick={onClose} className="p-1.5 hover:bg-nebula-800/50 rounded-lg transition-colors">
-              <X size={18} className="text-nebula-400" />
-            </button>
-          </div>
+    <div className="fixed inset-0 z-[9998]">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-          <div className="px-4 pb-4 [&_.amplify-tabs]:border-0">
-          <ThemeProvider theme={theme}>
-            <Authenticator
-              formFields={formFields}
-              components={components}
-              loginMechanisms={['email']}
-              signUpAttributes={[]}
-              initialState={initialState}
-            >
-              {({ signOut, user }) => {
-                onAuth(signOut, user);
-                return <>{children}</>;
-              }}
-            </Authenticator>
-          </ThemeProvider>
-          </div>
-        </motion.div>
+      {/* Centered auth — let Authenticator control its own size */}
+      <div className="relative z-[9999] flex items-center justify-center min-h-screen p-4">
+        {/* Close button floated above */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 hover:bg-nebula-800/50 rounded-lg transition-colors z-[10000]"
+        >
+          <X size={20} className="text-nebula-400 hover:text-white" />
+        </button>
+
+        <ThemeProvider theme={theme}>
+          <Authenticator
+            formFields={formFields}
+            components={components}
+            loginMechanisms={['email']}
+            signUpAttributes={[]}
+            initialState={initialState}
+          >
+            {({ signOut, user }) => {
+              onAuth(signOut, user);
+              return <>{children}</>;
+            }}
+          </Authenticator>
+        </ThemeProvider>
       </div>
-    </>,
+    </div>,
     document.body
   );
 }
