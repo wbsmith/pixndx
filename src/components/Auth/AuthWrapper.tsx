@@ -4,7 +4,7 @@ import { Authenticator, ThemeProvider, Theme } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 import { motion } from 'framer-motion';
 import '@aws-amplify/ui-react/styles.css';
-import { APP_NAME, APP_TAGLINE } from '../../config';
+import { APP_NAME } from '../../config';
 import { Lock, ChevronLeft, ChevronRight, Info, ShieldCheck, Server, Eye, Cookie, X } from 'lucide-react';
 import { startSessionRefresh, stopSessionRefresh, refreshImageCookies, clearImageCookies } from '@/lib/amplify';
 
