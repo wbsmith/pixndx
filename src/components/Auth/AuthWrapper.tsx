@@ -78,8 +78,10 @@ const theme: Theme = {
         },
       },
       tabs: {
+        borderColor: { value: 'transparent' },
         item: {
           color: { value: '#a0aec0' },
+          borderColor: { value: 'transparent' },
           _hover: {
             color: { value: '#ffffff' },
           },
@@ -266,9 +268,9 @@ const formFields = {
 
 const screenshots = [
   { src: '/screenshots/screenshot-grid.jpg', caption: 'Browse your collection in a rich grid view' },
-  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'See the big picture with level-of-detail clustering' },
+  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'Zoom in to discover visual connections' },
   { src: '/screenshots/screenshot-graph-force.jpg', caption: 'Explore visual similarity with force-directed graphs' },
-  { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'Zoom in to discover visual connections' },
+  { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'See the big picture with level-of-detail clustering' },
 ];
 
 // 3s visible + 1s fade out + 1s fade in = 5s per cycle
@@ -419,16 +421,16 @@ function AuthModal({ initialState, onClose, onAuth, children }: {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
-          className="pointer-events-auto w-full max-w-md bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50 overflow-hidden"
+          className="pointer-events-auto w-full max-w-sm bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50 overflow-hidden"
         >
           {/* Close button */}
           <div className="flex justify-end px-4 pt-3 pb-0">
-            <button onClick={onClose} className="p-1 hover:bg-nebula-800/50 rounded-lg transition-colors">
+            <button onClick={onClose} className="p-1.5 hover:bg-nebula-800/50 rounded-lg transition-colors">
               <X size={18} className="text-nebula-400" />
             </button>
           </div>
 
-          <div className="px-2">
+          <div className="px-4 pb-4 [&_.amplify-tabs]:border-0">
           <ThemeProvider theme={theme}>
             <Authenticator
               formFields={formFields}
@@ -438,7 +440,6 @@ function AuthModal({ initialState, onClose, onAuth, children }: {
               initialState={initialState}
             >
               {({ signOut, user }) => {
-                // Once authenticated, notify parent and render children
                 onAuth(signOut, user);
                 return <>{children}</>;
               }}
