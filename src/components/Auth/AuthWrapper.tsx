@@ -266,8 +266,8 @@ const formFields = {
 
 const screenshots = [
   { src: '/screenshots/screenshot-grid.jpg', caption: 'Browse your collection in a rich grid view' },
-  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'Zoom in to discover visual connections' },
   { src: '/screenshots/screenshot-graph-force.jpg', caption: 'Explore visual similarity with force-directed graphs' },
+  { src: '/screenshots/screenshot-graph-lod.jpg', caption: 'Zoom in to discover visual connections' },
   { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'See the big picture with level-of-detail clustering' },
 ];
 
@@ -418,13 +418,14 @@ function AuthModal({ initialState, onClose, onAuth, children }: {
 
       {/* Centered auth — let Authenticator control its own size */}
       <div className="relative z-[9999] flex items-center justify-center min-h-screen p-4">
-        {/* Close button floated above */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 hover:bg-nebula-800/50 rounded-lg transition-colors z-[10000]"
-        >
-          <X size={20} className="text-nebula-400 hover:text-white" />
-        </button>
+        <div className="relative">
+          {/* Close button on the modal box */}
+          <button
+            onClick={onClose}
+            className="absolute -top-3 -right-3 p-1.5 bg-nebula-800 hover:bg-nebula-700 rounded-full transition-colors z-[10000] border border-nebula-600/50"
+          >
+            <X size={16} className="text-nebula-300 hover:text-white" />
+          </button>
 
         <ThemeProvider theme={theme}>
           <Authenticator
@@ -440,6 +441,7 @@ function AuthModal({ initialState, onClose, onAuth, children }: {
             }}
           </Authenticator>
         </ThemeProvider>
+        </div>
       </div>
     </div>,
     document.body
