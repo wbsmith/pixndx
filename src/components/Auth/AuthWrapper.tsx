@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback, createContext, useContext, useRef } f
 import { createPortal } from 'react-dom';
 import { Authenticator, ThemeProvider, Theme } from '@aws-amplify/ui-react';
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import '@aws-amplify/ui-react/styles.css';
 import { APP_NAME } from '../../config';
-import { Lock, ChevronLeft, ChevronRight, Info, ShieldCheck, Server, Eye, Cookie, X } from 'lucide-react';
+import { Lock, Info, ShieldCheck, Server, Eye, Cookie, X } from 'lucide-react';
 import { startSessionRefresh, stopSessionRefresh, refreshImageCookies, clearImageCookies } from '@/lib/amplify';
 
 // =============================================================================
@@ -48,6 +48,7 @@ const theme: Theme = {
           backgroundColor: { value: 'transparent' },
           borderColor: { value: 'transparent' },
           borderWidth: { value: '0' },
+          borderStyle: { value: 'none' },
           boxShadow: { value: 'none' },
         },
       },
@@ -260,7 +261,7 @@ const formFields = {
 };
 
 // =============================================================================
-// SCREENSHOT CAROUSEL
+// SCREENSHOT SLIDESHOW
 // =============================================================================
 
 const screenshots = [
@@ -270,121 +271,55 @@ const screenshots = [
   { src: '/screenshots/screenshot-graph-zoom.jpg', caption: 'Zoom in to discover visual connections' },
 ];
 
-function ScreenshotCarousel() {
-  // Track cumulative rotation so we never snap back
-  const [rotation, setRotation] = useState(0);
-  const current = ((Math.round(-rotation / 90) % screenshots.length) + screenshots.length) % screenshots.length;
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [cubeSize, setCubeSize] = useState({ w: 600, h: 400 });
+// 3s visible + 1s fade out + 1s fade in = 5s per cycle
+const DISPLAY_MS = 3000;
+const FADE_S = 1;
 
-  // Measure container to size the cube
+function ScreenshotSlideshow() {
+  const [current, setCurrent] = useState(0);
+
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      const h = Math.round(w / 1.5); // 3:2 aspect
-      setCubeSize({ w, h });
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const go = useCallback((dir: 1 | -1) => {
-    setRotation((prev) => prev + dir * -90);
-  }, []);
-
-  // Auto-advance every 5s, reset timer on manual nav
-  useEffect(() => {
-    const timer = setInterval(() => go(1), 5000);
+    const timer = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % screenshots.length);
+    }, DISPLAY_MS + FADE_S * 2 * 1000); // total cycle time
     return () => clearInterval(timer);
-  }, [go, rotation]);
-
-  // Half-width is the translateZ for cube faces
-  const tz = cubeSize.w / 2;
+  }, []);
 
   return (
-    <div className="flex flex-col items-center gap-3 w-full">
-      {/* 3D scene container */}
-      <div
-        ref={containerRef}
-        className="relative w-full"
-        style={{ height: cubeSize.h, perspective: cubeSize.w * 2 }}
-      >
-        {/* Cube */}
+    <div className="relative w-full h-full rounded-xl overflow-hidden">
+      <AnimatePresence mode="wait">
         <motion.div
-          className="absolute inset-0"
-          style={{
-            transformStyle: 'preserve-3d',
-            transformOrigin: `${cubeSize.w / 2}px ${cubeSize.h / 2}px`,
-          }}
-          animate={{ rotateY: rotation }}
-          transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
-        >
-          {screenshots.map((shot, i) => (
-            <div
-              key={i}
-              className="absolute inset-0 rounded-xl overflow-hidden border border-nebula-700/30"
-              style={{
-                backfaceVisibility: 'hidden',
-                transform: `rotateY(${i * 90}deg) translateZ(${tz}px)`,
-              }}
-            >
-              <img
-                src={shot.src}
-                alt={shot.caption}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-            </div>
-          ))}
-        </motion.div>
-
-        {/* Nav arrows */}
-        <button
-          onClick={() => go(-1)}
-          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
-        >
-          <ChevronLeft size={22} />
-        </button>
-        <button
-          onClick={() => go(1)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
-        >
-          <ChevronRight size={22} />
-        </button>
-      </div>
-
-      {/* Caption + dots row */}
-      <div className="flex items-center justify-center gap-4">
-        <div className="flex gap-2">
-          {screenshots.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                // Find shortest rotation to target
-                const diff = i - current;
-                const steps = ((diff % screenshots.length) + screenshots.length) % screenshots.length;
-                const shortest = steps <= 2 ? steps : steps - screenshots.length;
-                setRotation((prev) => prev + shortest * -90);
-              }}
-              className={`h-2 rounded-full transition-all duration-300 ${
-                i === current
-                  ? 'bg-stellar-cyan w-6'
-                  : 'bg-nebula-600 hover:bg-nebula-400 w-2'
-              }`}
-            />
-          ))}
-        </div>
-        <motion.p
           key={current}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="text-sm text-nebula-300"
+          exit={{ opacity: 0 }}
+          transition={{ duration: FADE_S, ease: 'easeInOut' }}
+          className="absolute inset-0"
         >
-          {screenshots[current].caption}
-        </motion.p>
+          <img
+            src={screenshots[current].src}
+            alt={screenshots[current].caption}
+            className="w-full h-full object-cover"
+          />
+          {/* Caption overlaid at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-6 py-4">
+            <p className="text-sm text-white/90">{screenshots[current].caption}</p>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Dot indicators */}
+      <div className="absolute bottom-4 right-4 flex gap-1.5 z-10">
+        {screenshots.map((_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 rounded-full transition-all duration-500 ${
+              i === current
+                ? 'bg-stellar-cyan w-5'
+                : 'bg-white/40 w-1.5'
+            }`}
+          />
+        ))}
       </div>
     </div>
   );
@@ -402,7 +337,6 @@ function AboutModal({ onClose }: { onClose: () => void }) {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           className="pointer-events-auto w-full max-w-lg bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50 p-6"
         >
@@ -465,6 +399,55 @@ function AboutModal({ onClose }: { onClose: () => void }) {
 }
 
 // =============================================================================
+// AUTH MODAL
+// =============================================================================
+
+function AuthModal({ initialState, onClose, onAuth, children }: {
+  initialState: 'signIn' | 'signUp';
+  onClose: () => void;
+  onAuth: (signOut: (() => void) | undefined, user: any) => void;
+  children: React.ReactNode;
+}) {
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="pointer-events-auto w-full max-w-md bg-cosmos-deep/95 backdrop-blur-xl rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50"
+        >
+          {/* Close button */}
+          <div className="flex justify-end p-3 pb-0">
+            <button onClick={onClose} className="p-1 hover:bg-nebula-800/50 rounded-lg transition-colors">
+              <X size={18} className="text-nebula-400" />
+            </button>
+          </div>
+
+          <ThemeProvider theme={theme}>
+            <Authenticator
+              formFields={formFields}
+              components={components}
+              loginMechanisms={['email']}
+              signUpAttributes={[]}
+              initialState={initialState}
+            >
+              {({ signOut, user }) => {
+                // Once authenticated, notify parent and render children
+                onAuth(signOut, user);
+                return <>{children}</>;
+              }}
+            </Authenticator>
+          </ThemeProvider>
+        </motion.div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
+// =============================================================================
 // AUTH WRAPPER
 // =============================================================================
 
@@ -474,6 +457,26 @@ interface AuthWrapperProps {
 
 export function AuthWrapper({ children }: AuthWrapperProps) {
   const [showAbout, setShowAbout] = useState(false);
+  const [authModal, setAuthModal] = useState<'signIn' | 'signUp' | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authProps, setAuthProps] = useState<{ signOut?: () => void; user?: any }>({});
+
+  const handleAuth = useCallback((signOut: (() => void) | undefined, user: any) => {
+    if (!authenticated) {
+      setAuthenticated(true);
+      setAuthProps({ signOut, user });
+      setAuthModal(null);
+    }
+  }, [authenticated]);
+
+  // If authenticated, render the app
+  if (authenticated && authProps.user) {
+    return (
+      <AuthenticatedApp signOut={authProps.signOut} user={authProps.user}>
+        {children}
+      </AuthenticatedApp>
+    );
+  }
 
   return (
     <div className="h-screen bg-gradient-cosmos flex flex-col overflow-hidden">
@@ -481,49 +484,54 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
       <div className="fixed inset-0 bg-gradient-to-br from-stellar-cyan/5 via-transparent to-stellar-violet/5 pointer-events-none" />
 
       {/* Header */}
-      <header className="relative z-20 flex items-center justify-center gap-3 py-4 shrink-0">
-        <h1 className="text-xl font-display font-bold text-white">
+      <header className="relative z-20 text-center py-5 shrink-0">
+        <h1 className="text-2xl font-display font-bold text-white">
           {APP_NAME}
-          <span className="text-nebula-400 font-normal text-sm ml-2">
-            a privacy-focused semantic photo gallery
+          <span className="text-nebula-400 font-normal text-base ml-2">
+            : a privacy-focused semantic photo gallery
           </span>
+          <button
+            onClick={() => setShowAbout(true)}
+            className="inline-flex ml-2 p-1 rounded-full hover:bg-nebula-800/50 text-nebula-400 hover:text-stellar-cyan transition-colors align-middle"
+            title="About"
+          >
+            <Info size={14} />
+          </button>
         </h1>
-        <button
-          onClick={() => setShowAbout(true)}
-          className="p-1.5 rounded-full hover:bg-nebula-800/50 text-nebula-400 hover:text-stellar-cyan transition-colors"
-          title="About"
-        >
-          <Info size={16} />
-        </button>
+
+        {/* Auth links */}
+        <div className="mt-2 flex items-center justify-center gap-4 text-sm">
+          <button
+            onClick={() => setAuthModal('signIn')}
+            className="text-stellar-cyan hover:text-stellar-cyan/80 transition-colors font-medium"
+          >
+            Sign In
+          </button>
+          <span className="text-nebula-600">|</span>
+          <button
+            onClick={() => setAuthModal('signUp')}
+            className="text-stellar-cyan hover:text-stellar-cyan/80 transition-colors font-medium"
+          >
+            Create Account
+          </button>
+        </div>
       </header>
 
-      {/* Main area: carousel with overlaid auth */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-8 pb-6 min-h-0">
-        {/* Carousel fills this area */}
-        <div className="w-full max-w-4xl">
-          <ScreenshotCarousel />
-        </div>
-
-        {/* Auth form overlaid on carousel */}
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="pointer-events-auto backdrop-blur-md bg-cosmos-deep/70 rounded-2xl border border-nebula-700/40 shadow-2xl shadow-black/50">
-            <ThemeProvider theme={theme}>
-              <Authenticator
-                formFields={formFields}
-                components={components}
-                loginMechanisms={['email']}
-                signUpAttributes={[]}
-              >
-                {({ signOut, user }) => (
-                  <AuthenticatedApp signOut={signOut} user={user}>
-                    {children}
-                  </AuthenticatedApp>
-                )}
-              </Authenticator>
-            </ThemeProvider>
-          </div>
-        </div>
+      {/* Slideshow fills remaining space */}
+      <div className="relative z-10 flex-1 mx-8 mb-6 min-h-0">
+        <ScreenshotSlideshow />
       </div>
+
+      {/* Auth modal */}
+      {authModal && (
+        <AuthModal
+          initialState={authModal}
+          onClose={() => setAuthModal(null)}
+          onAuth={handleAuth}
+        >
+          {children}
+        </AuthModal>
+      )}
 
       {/* About modal */}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
