@@ -59,6 +59,7 @@ amplify/team-provider-info.json
 # Generated data (regenerate with scripts)
 # Note: localImages.ts is now a small stub file, tracked in git
 # The large generated JSON data lives in public/localImages.json (also gitignored)
+public/localImages.json
 
 # CloudFront signing keys (private key must never be committed)
 amplify/keys/cloudfront-private-key.pem
